@@ -53,7 +53,6 @@ import androidx.compose.ui.unit.sp
 import com.mysocial.mesh.model.PostWithAuthor
 import com.mysocial.mesh.ui.components.AvatarView
 import com.mysocial.mesh.ui.components.PostCard
-import com.mysocial.mesh.ui.components.VerifiedBadge
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FacebookBlueLight
 import com.mysocial.mesh.ui.theme.FbBackground
@@ -117,19 +116,12 @@ fun IdentityScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                text = displayName,
-                                color = FbTextPrimary,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            VerifiedBadge(size = 20.dp)
-                        }
+                        Text(
+                            text = displayName,
+                            color = FbTextPrimary,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold
+                        )
 
                         Spacer(modifier = Modifier.height(4.dp))
 
@@ -284,7 +276,7 @@ fun IdentityScreen(
                         onDeleteClick = { hash -> viewModel.deletePost(hash) },
                         currentAuthorId = authorId,
                         isAuthorOnline = true,
-                        isFriend = true,
+                        isFriend = false,
                         modifier = Modifier.padding(horizontal = 14.dp)
                     )
                 }

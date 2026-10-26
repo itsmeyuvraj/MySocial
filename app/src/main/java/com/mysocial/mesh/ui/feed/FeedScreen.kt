@@ -129,7 +129,7 @@ fun FeedScreen(
                         items(posts, key = { it.post.entryHash }) { postWithAuthor ->
                             val isOnline = (postWithAuthor.post.authorId == viewModel.currentAuthorId) ||
                                     onlineAuthorIds.contains(postWithAuthor.post.authorId)
-                            val isFriend = (postWithAuthor.post.authorId == viewModel.currentAuthorId) ||
+                            val isFriend = postWithAuthor.post.authorId != viewModel.currentAuthorId &&
                                     followedAuthorIds.contains(postWithAuthor.post.authorId)
                             PostCard(
                                 postWithAuthor = postWithAuthor,

@@ -202,7 +202,7 @@ fun PostCommentsSheet(
                     PostContextSummaryCard(
                         postWithAuthor = postWithAuthor,
                         isOnline = onlineAuthorIds.contains(post.authorId) || post.authorId == currentAuthorId,
-                        isFriend = followedAuthorIds.contains(post.authorId) || post.authorId == currentAuthorId,
+                        isFriend = post.authorId != currentAuthorId && followedAuthorIds.contains(post.authorId),
                         onLikePost = onLikePost
                     )
                     Spacer(modifier = Modifier.height(6.dp))
@@ -252,7 +252,7 @@ fun PostCommentsSheet(
                         CommentBubbleItem(
                             commentWithAuthor = commentItem,
                             isOnline = onlineAuthorIds.contains(commentItem.post.authorId) || commentItem.post.authorId == currentAuthorId,
-                            isFriend = followedAuthorIds.contains(commentItem.post.authorId) || commentItem.post.authorId == currentAuthorId,
+                            isFriend = commentItem.post.authorId != currentAuthorId && followedAuthorIds.contains(commentItem.post.authorId),
                             onLike = { onLikeComment?.invoke(commentItem.post.entryHash) }
                         )
                     }
