@@ -139,25 +139,25 @@ fun PeerCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (onToggleFriend != null) {
+                if (onToggleFriend != null && !isFriend) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(16.dp))
-                            .background(if (isFriend) FacebookBlueLight else FacebookBlue)
+                            .background(FacebookBlue)
                             .clickable { onToggleFriend() }
                             .padding(horizontal = 10.dp, vertical = 6.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = if (isFriend) Icons.Filled.Check else Icons.Filled.PersonAdd,
+                                imageVector = Icons.Filled.PersonAdd,
                                 contentDescription = null,
-                                tint = if (isFriend) FacebookBlue else Color.White,
+                                tint = Color.White,
                                 modifier = Modifier.size(13.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = if (isFriend) "Friend" else "Add",
-                                color = if (isFriend) FacebookBlue else Color.White,
+                                text = "Add",
+                                color = Color.White,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
                             )

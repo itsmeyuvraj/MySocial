@@ -236,7 +236,7 @@ fun ComposerScreen(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = if (isPublic) "Public" else "Friends (QR Added)",
+                                text = if (isPublic) "Public" else "Friends",
                                 color = if (isPublic) FbTextSecondary else FacebookBlue,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold
@@ -277,119 +277,6 @@ fun ComposerScreen(
                         unfocusedTextColor = FbTextPrimary
                     )
                 )
-
-                // Dedicated Audience Selection Card
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 6.dp),
-                    colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = FbSurfaceElevated),
-                    shape = RoundedCornerShape(10.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, FbBorder)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Audience / Post Visibility",
-                                color = FbTextPrimary,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = if (isPublic) "Public" else "Friends Only",
-                                color = if (isPublic) FbTextSecondary else FacebookBlue,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // Public Option
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isPublic) FacebookBlue else FbBackground)
-                                    .border(
-                                        1.dp,
-                                        if (isPublic) FacebookBlue else FbBorder,
-                                        RoundedCornerShape(8.dp)
-                                    )
-                                    .clickable { viewModel.setPublic(true) }
-                                    .padding(vertical = 9.dp, horizontal = 10.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Public,
-                                        contentDescription = null,
-                                        tint = if (isPublic) Color.White else FbTextSecondary,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Public",
-                                        color = if (isPublic) Color.White else FbTextPrimary,
-                                        fontSize = 13.sp,
-                                        fontWeight = if (isPublic) FontWeight.Bold else FontWeight.Medium
-                                    )
-                                }
-                            }
-
-                            // Friends Only Option
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (!isPublic) FacebookBlue else FbBackground)
-                                    .border(
-                                        1.dp,
-                                        if (!isPublic) FacebookBlue else FbBorder,
-                                        RoundedCornerShape(8.dp)
-                                    )
-                                    .clickable { viewModel.setPublic(false) }
-                                    .padding(vertical = 9.dp, horizontal = 10.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Group,
-                                        contentDescription = null,
-                                        tint = if (!isPublic) Color.White else FbTextSecondary,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Friends Only",
-                                        color = if (!isPublic) Color.White else FbTextPrimary,
-                                        fontSize = 13.sp,
-                                        fontWeight = if (!isPublic) FontWeight.Bold else FontWeight.Medium
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = if (isPublic)
-                                "🌐 Visible to anyone nearby on the offline mesh network."
-                            else
-                                "🔒 Visible only to friends you have scanned & added via QR code.",
-                            color = FbTextSecondary,
-                            fontSize = 11.sp,
-                            lineHeight = 15.sp
-                        )
-                    }
-                }
 
                 // Selected Image Preview
                 if (previewBitmap != null) {
@@ -709,7 +596,7 @@ fun ComposerScreen(
                                     fontSize = 15.sp
                                 )
                                 Text(
-                                    text = "Only peers added via QR code scan",
+                                    text = "Only peers you have added as friends",
                                     color = FbTextSecondary,
                                     fontSize = 12.sp
                                 )
