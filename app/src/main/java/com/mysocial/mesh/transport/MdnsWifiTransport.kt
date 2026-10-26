@@ -84,7 +84,7 @@ class MdnsWifiTransport(
         const val ADB_REVERSE_PORT = 42535
     }
 
-    private val isEmulator: Boolean by lazy {
+    val isEmulator: Boolean by lazy {
         Build.FINGERPRINT.startsWith("generic") ||
         Build.FINGERPRINT.startsWith("unknown") ||
         Build.MODEL.contains("google_sdk") ||
@@ -472,8 +472,11 @@ class MdnsWifiTransport(
         updatePeersState()
 
         // Deterministic connection tie-breaker:
-        // Only initiate outbound connection if localAuthorId < peerId to avoid duplex race conditions
-        if (localAuthorId < peerId) {
+        // When running in an emulator or communicating with an emulator's private NAT IP (10.0.2.x),
+        // external devices cannot connect directly to 10.0.2.x. Therefore, the emulator must ALWAYS initiate
+        // outbound connections to reachable peers. Physical devices also attempt connection via candidate hosts.
+        val shouldInitiate = isEmulator || hostAddress.startsWith("10.0.2.") || (localAuthorId < peerId)
+        if (shouldInitiate) {
             triggerOutboundSync(hostAddress, port, peerId, peerName)
         }
     }
@@ -494,8 +497,8 @@ class MdnsWifiTransport(
                 // 127.0.0.1 on the same port connects to the emulator.
                 if (hostAddress.startsWith("10.0.2.")) {
                     candidateHosts.add("127.0.0.1" to ADB_REVERSE_PORT)
-                    candidateHosts.add("127.0.0.1" to port)
-                    candidateHosts.add("127.0.0.1" to DEFAULT_PORT)
+                    if (port != serverPort) candidateHosts.add("127.0.0.1" to port)
+                    if (DEFAULT_PORT != serverPort) candidateHosts.add("127.0.0.1" to DEFAULT_PORT)
                 }
                 candidateHosts.add(hostAddress to port)
                 if (port != DEFAULT_PORT) {

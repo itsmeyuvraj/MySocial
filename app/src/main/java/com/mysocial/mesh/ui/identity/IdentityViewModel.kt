@@ -67,11 +67,12 @@ class IdentityViewModel(
     fun followAuthorFromScan(targetAuthorId: String, onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
             val clean = targetAuthorId.trim().let { raw ->
-                if (raw.contains("authorId=")) {
-                    raw.substringAfter("authorId=")
+                val id = if (raw.contains("authorId=")) {
+                    raw.substringAfter("authorId=").substringBefore("&")
                 } else {
                     raw
-                }
+                }.trim()
+                if (!id.startsWith("@") && id.isNotBlank()) "@$id" else id
             }
             val result = repository.toggleFollow(clean, true)
             onComplete(result.isSuccess)

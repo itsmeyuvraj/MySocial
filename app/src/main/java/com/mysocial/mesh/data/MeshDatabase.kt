@@ -125,8 +125,18 @@ interface PostViewDao {
     suspend fun incrementReplyCount(parentHash: String)
 
     @Transaction
-    @Query("SELECT * FROM posts_view WHERE replyToHash IS NULL ORDER BY timestamp DESC")
-    fun observeAllFeed(): Flow<List<PostWithAuthor>>
+    @Query("""
+        SELECT * FROM posts_view 
+        WHERE replyToHash IS NULL 
+        AND (
+            isPublic = 1 
+            OR authorId = :myAuthorId 
+            OR :myAuthorId IN (SELECT followeeId FROM follows_view WHERE followerId = authorId AND isFollowing = 1)
+            OR authorId IN (SELECT followeeId FROM follows_view WHERE followerId = :myAuthorId AND isFollowing = 1)
+        )
+        ORDER BY timestamp DESC
+    """)
+    fun observeAllFeed(myAuthorId: String): Flow<List<PostWithAuthor>>
 
     @Transaction
     @Query("""
@@ -135,11 +145,18 @@ interface PostViewDao {
         AND (
             authorId = :myAuthorId 
             OR authorId IN (SELECT followeeId FROM follows_view WHERE followerId = :myAuthorId AND isFollowing = 1)
+            OR :myAuthorId IN (SELECT followeeId FROM follows_view WHERE followerId = authorId AND isFollowing = 1)
             OR authorId IN (
                 SELECT f2.followeeId FROM follows_view f1 
                 JOIN follows_view f2 ON f1.followeeId = f2.followerId 
                 WHERE f1.followerId = :myAuthorId AND f1.isFollowing = 1 AND f2.isFollowing = 1
             )
+        )
+        AND (
+            isPublic = 1 
+            OR authorId = :myAuthorId 
+            OR :myAuthorId IN (SELECT followeeId FROM follows_view WHERE followerId = authorId AND isFollowing = 1)
+            OR authorId IN (SELECT followeeId FROM follows_view WHERE followerId = :myAuthorId AND isFollowing = 1)
         )
         ORDER BY timestamp DESC
     """)
@@ -150,8 +167,18 @@ interface PostViewDao {
     fun observeReplies(parentHash: String): Flow<List<PostWithAuthor>>
 
     @Transaction
-    @Query("SELECT * FROM posts_view WHERE authorId = :authorId AND replyToHash IS NULL ORDER BY timestamp DESC")
-    fun observePostsByAuthor(authorId: String): Flow<List<PostWithAuthor>>
+    @Query("""
+        SELECT * FROM posts_view 
+        WHERE authorId = :authorId AND replyToHash IS NULL 
+        AND (
+            isPublic = 1 
+            OR :authorId = :myAuthorId 
+            OR :myAuthorId IN (SELECT followeeId FROM follows_view WHERE followerId = :authorId AND isFollowing = 1)
+            OR :authorId IN (SELECT followeeId FROM follows_view WHERE followerId = :myAuthorId AND isFollowing = 1)
+        )
+        ORDER BY timestamp DESC
+    """)
+    fun observePostsByAuthor(authorId: String, myAuthorId: String): Flow<List<PostWithAuthor>>
 
     @Query("SELECT COUNT(*) FROM posts_view")
     suspend fun getTotalPostsCount(): Int
@@ -386,7 +413,8 @@ object LogProjector {
                         mediaMimeType = media?.mimeType,
                         mediaTotalBytes = media?.totalBytes,
                         mediaChunkCount = media?.chunkCount,
-                        microPreviewBase64 = media?.microPreviewBase64
+                        microPreviewBase64 = media?.microPreviewBase64,
+                        isPublic = payload.isPublic
                     )
                 )
 
@@ -506,7 +534,7 @@ object LogProjector {
         BlobManifestEntity::class,
         BlobChunkEntity::class
     ],
-    version = 1,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

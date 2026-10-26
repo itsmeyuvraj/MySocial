@@ -125,7 +125,7 @@ class MeshRepository(
      */
     fun observeFeed(openMeshFilter: Boolean): Flow<List<PostWithAuthor>> {
         return if (openMeshFilter) {
-            db.postViewDao().observeAllFeed()
+            db.postViewDao().observeAllFeed(cryptoManager.authorId)
         } else {
             db.postViewDao().observeFollowedAndTwoHopFeed(cryptoManager.authorId)
         }
@@ -142,7 +142,7 @@ class MeshRepository(
      * Observes posts authored by a specific user (e.g. self profile timeline).
      */
     fun observePostsByAuthor(authorId: String): Flow<List<PostWithAuthor>> {
-        return db.postViewDao().observePostsByAuthor(authorId)
+        return db.postViewDao().observePostsByAuthor(authorId, cryptoManager.authorId)
     }
 
     /**
@@ -151,13 +151,15 @@ class MeshRepository(
     suspend fun createPost(
         text: String,
         tags: List<String>,
-        media: com.mysocial.mesh.model.MediaAttachment? = null
+        media: com.mysocial.mesh.model.MediaAttachment? = null,
+        isPublic: Boolean = true
     ): Result<LogEntry> {
-        val payload = PostPayload(text = text.trim(), tags = tags, media = media).toJson()
+        val payload = PostPayload(text = text.trim(), tags = tags, media = media, isPublic = isPublic).toJson()
         return syncEngine.createAndPublishLocalEntry(ContentType.POST, payload).also {
             if (it.isSuccess) {
                 val suffix = if (media != null) " with photo" else ""
-                logActivity("Published new post$suffix: \"${text.take(30)}${if (text.length > 30) "..." else ""}\"")
+                val aud = if (isPublic) "public" else "friends-only"
+                logActivity("Published new $aud post$suffix: \"${text.take(30)}${if (text.length > 30) "..." else ""}\"")
                 onContentPublished?.invoke()
             }
         }

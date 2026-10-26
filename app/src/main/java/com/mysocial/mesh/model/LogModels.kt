@@ -49,7 +49,8 @@ data class MediaAttachment(
 data class PostPayload(
     val text: String,
     val tags: List<String> = emptyList(),
-    val media: MediaAttachment? = null
+    val media: MediaAttachment? = null,
+    val isPublic: Boolean = true
 ) {
     fun toJson(): String = CanonicalJson.encodeToString(this)
 
@@ -239,7 +240,8 @@ data class PostViewEntity(
     val mediaMimeType: String? = null,
     val mediaTotalBytes: Long? = null,
     val mediaChunkCount: Int? = null,
-    val microPreviewBase64: String? = null
+    val microPreviewBase64: String? = null,
+    val isPublic: Boolean = true
 )
 
 /**

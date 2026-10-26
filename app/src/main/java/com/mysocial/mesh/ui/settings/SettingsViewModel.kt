@@ -62,11 +62,12 @@ class SettingsViewModel(
     fun followAuthorFromScan(targetPayload: String, onComplete: (Boolean, String) -> Unit) {
         viewModelScope.launch {
             val clean = targetPayload.trim().let { raw ->
-                if (raw.contains("authorId=")) {
+                val id = if (raw.contains("authorId=")) {
                     raw.substringAfter("authorId=").substringBefore("&")
                 } else {
-                    raw.removePrefix("@")
-                }
+                    raw
+                }.trim()
+                if (!id.startsWith("@") && id.isNotBlank()) "@$id" else id
             }
             if (clean.isBlank()) {
                 onComplete(false, "Invalid QR code payload")

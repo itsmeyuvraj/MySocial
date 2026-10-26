@@ -28,8 +28,18 @@ class ComposerViewModel(
     private val _isPublishing = MutableStateFlow(false)
     val isPublishing: StateFlow<Boolean> = _isPublishing.asStateFlow()
 
+    private val _isPublic = MutableStateFlow(true)
+    val isPublic: StateFlow<Boolean> = _isPublic.asStateFlow()
+
+    val authorId: String = repository.cryptoManager.authorId
+    val myProfile = repository.observeMyProfile()
+
     private val _statusMessage = MutableStateFlow<String?>(null)
     val statusMessage: StateFlow<String?> = _statusMessage.asStateFlow()
+
+    fun setPublic(isPublic: Boolean) {
+        _isPublic.value = isPublic
+    }
 
     fun updateText(text: String) {
         _postText.value = text
@@ -75,12 +85,13 @@ class ComposerViewModel(
                 }
 
                 val postBody = if (text.isBlank() && mediaAttachment != null) "Shared a photo" else text
-                val result = repository.createPost(postBody, _tags.value, media = mediaAttachment)
+                val result = repository.createPost(postBody, _tags.value, media = mediaAttachment, isPublic = _isPublic.value)
                 _isPublishing.value = false
 
                 if (result.isSuccess) {
                     _postText.value = ""
                     _selectedImageUri.value = null
+                    _isPublic.value = true
                     _statusMessage.value = "Post shared successfully!"
                     onSuccess()
                 } else {

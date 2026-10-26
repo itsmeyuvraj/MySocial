@@ -225,6 +225,9 @@ class MeshSyncService : Service() {
         wifiTransport?.discoveredPeers?.value?.forEach { peer ->
             wifiTransport?.forceSync(peer.peerId)
         }
+        if (wifiTransport?.isEmulator == true) {
+            wifiTransport?.syncWithDirectIp("10.0.2.2", com.mysocial.mesh.transport.MdnsWifiTransport.DEFAULT_PORT, "Host ADB Bridge")
+        }
     }
 
     fun syncWithDirectIp(targetHost: String, targetPort: Int = 42530) {

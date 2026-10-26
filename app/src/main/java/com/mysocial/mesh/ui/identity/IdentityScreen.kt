@@ -1,8 +1,5 @@
 package com.mysocial.mesh.ui.identity
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,7 +22,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Article
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.AlertDialog
@@ -50,7 +46,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -182,67 +177,7 @@ fun IdentityScreen(
                 }
             }
 
-            // 3. Friend Code Card
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp),
-                    colors = CardDefaults.cardColors(containerColor = FbSurface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Text(
-                            text = "Your Friend Code",
-                            color = FbTextPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Share this code with nearby peers to connect directly offline.",
-                            color = FbTextSecondary,
-                            fontSize = 12.sp
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(FbBackground)
-                                .border(1.dp, FbBorder, RoundedCornerShape(8.dp))
-                                .clickable {
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    clipboard.setPrimaryClip(ClipData.newPlainText("FriendCode", authorId))
-                                    Toast.makeText(context, "Friend Code copied to clipboard!", Toast.LENGTH_SHORT).show()
-                                }
-                                .padding(horizontal = 12.dp, vertical = 9.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            val cleanCode = authorId.removeSuffix(".ed25519").removePrefix("@")
-                            val displayCode = "@" + if (cleanCode.length > 18) "${cleanCode.take(8)}...${cleanCode.takeLast(6)}" else cleanCode
-                            Text(
-                                text = displayCode,
-                                color = FacebookBlue,
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.ContentCopy, contentDescription = "Copy", tint = FacebookBlue, modifier = Modifier.size(15.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Copy", color = FacebookBlue, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 4. Section Header: My Posts
+            // 3. Section Header: My Posts
             item {
                 Row(
                     modifier = Modifier
@@ -273,7 +208,7 @@ fun IdentityScreen(
                 }
             }
 
-            // 5. User's Posts list
+            // 4. User's Posts list
             if (myPosts.isEmpty()) {
                 item {
                     Card(

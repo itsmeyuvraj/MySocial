@@ -35,7 +35,9 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.WifiTethering
@@ -179,7 +181,7 @@ fun PostCard(
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
                             text = formatRelativeTime(post.timestamp),
@@ -188,6 +190,18 @@ fun PostCard(
                         )
                         Text(text = "•", color = FbTextTertiary, fontSize = 10.sp)
                         HopBadge(hopDistance = post.hopDistance)
+                        Text(text = "•", color = FbTextTertiary, fontSize = 10.sp)
+                        Icon(
+                            imageVector = if (post.isPublic) Icons.Filled.Public else Icons.Filled.Group,
+                            contentDescription = if (post.isPublic) "Public" else "Friends only",
+                            tint = FbTextSecondary,
+                            modifier = Modifier.size(11.dp)
+                        )
+                        Text(
+                            text = if (post.isPublic) "Public" else "Friends",
+                            color = FbTextSecondary,
+                            fontSize = 11.sp
+                        )
                     }
                 }
 
