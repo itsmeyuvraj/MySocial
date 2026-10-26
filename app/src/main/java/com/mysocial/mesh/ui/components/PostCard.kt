@@ -100,6 +100,7 @@ fun PostCard(
     onShareClick: ((postText: String) -> Unit)? = null,
     onPrioritizeDownload: ((blobHash: String) -> Unit)? = null,
     currentAuthorId: String? = null,
+    isAuthorOnline: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -164,7 +165,7 @@ fun PostCard(
                     seed = authorId,
                     displayName = displayName,
                     size = 42.dp,
-                    showOnlineBadge = true
+                    showOnlineBadge = isAuthorOnline
                 )
 
                 Spacer(modifier = Modifier.width(10.dp))

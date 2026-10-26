@@ -32,9 +32,11 @@ class RadarViewModel(
         val profileMap = profiles.associateBy { it.authorId }
         val otherProfiles = profiles.filter { it.authorId != myAuthorId }
 
+        val now = System.currentTimeMillis()
         peers
             .filter { peer ->
                 peer.peerId != myAuthorId &&
+                (now - peer.lastSeenTimestamp <= 20_000L) &&
                 (myDisplayName.isNullOrBlank() || (peer.peerName != myDisplayName && !peer.peerName.startsWith(myDisplayName)))
             }
             .distinctBy { it.peerId }

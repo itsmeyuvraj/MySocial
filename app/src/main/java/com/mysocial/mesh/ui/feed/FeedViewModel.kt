@@ -11,7 +11,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import com.mysocial.mesh.transport.DiscoveredPeer
 
 class FeedViewModel(
     private val repository: MeshRepository
@@ -22,6 +24,12 @@ class FeedViewModel(
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    val activeNearbyPeers: StateFlow<List<DiscoveredPeer>> = repository.discoveredPeers
+
+    val onlineAuthorIds: StateFlow<Set<String>> = repository.discoveredPeers
+        .map { peers -> peers.map { it.peerId }.toSet() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val feedPosts: StateFlow<List<PostWithAuthor>> = _openMeshFilter

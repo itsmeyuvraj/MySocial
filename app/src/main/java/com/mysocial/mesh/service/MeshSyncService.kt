@@ -174,11 +174,19 @@ class MeshSyncService : Service() {
             val blePeers = bleTransport?.discoveredPeers ?: MutableStateFlow(emptyList())
 
             combine(wifiPeers, blePeers) { w, b ->
-                (w + b).distinctBy { it.peerId }.sortedByDescending { it.lastSeenTimestamp }
+                val now = System.currentTimeMillis()
+                (w + b)
+                    .filter { now - it.lastSeenTimestamp <= 20_000L }
+                    .distinctBy { it.peerId }
+                    .sortedByDescending { it.lastSeenTimestamp }
             }.collect { combined ->
                 _allDiscoveredPeers.value = combined
                 val postCount = try { db.postViewDao().getTotalPostsCount() } catch (_: Exception) { 0 }
-                val statusText = "Mesh Active • ${combined.size} Peers Nearby • $postCount Posts Cached"
+                val statusText = if (combined.isNotEmpty()) {
+                    "Mesh Active • ${combined.size} Peers Nearby • $postCount Posts Cached"
+                } else {
+                    "Mesh Active • Searching for nearby devices"
+                }
                 updateNotification(statusText)
             }
         }

@@ -267,6 +267,7 @@ fun IdentityScreen(
                         onEditClick = { hash, newText -> viewModel.editPost(hash, newText) },
                         onDeleteClick = { hash -> viewModel.deletePost(hash) },
                         currentAuthorId = authorId,
+                        isAuthorOnline = true,
                         modifier = Modifier.padding(horizontal = 14.dp)
                     )
                 }

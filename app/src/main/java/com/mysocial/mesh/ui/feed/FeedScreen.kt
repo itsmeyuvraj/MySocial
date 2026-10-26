@@ -82,6 +82,8 @@ fun FeedScreen(
     val posts by viewModel.feedPosts.collectAsState()
     val isOpenMeshFilter by viewModel.openMeshFilter.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val activeNearbyPeers by viewModel.activeNearbyPeers.collectAsState()
+    val onlineAuthorIds by viewModel.onlineAuthorIds.collectAsState()
 
     var replyingToPost by remember { mutableStateOf<PostWithAuthor?>(null) }
     var replyText by remember { mutableStateOf("") }
@@ -92,7 +94,7 @@ fun FeedScreen(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Facebook Top App Bar
-            FacebookTopBar()
+            FacebookTopBar(activePeersCount = activeNearbyPeers.size)
 
             PullToRefreshBox(
                 isRefreshing = isRefreshing,
@@ -124,6 +126,8 @@ fun FeedScreen(
                     }
                 } else {
                     items(posts, key = { it.post.entryHash }) { postWithAuthor ->
+                        val isOnline = (postWithAuthor.post.authorId == viewModel.currentAuthorId) ||
+                                onlineAuthorIds.contains(postWithAuthor.post.authorId)
                         PostCard(
                             postWithAuthor = postWithAuthor,
                             onLikeClick = { viewModel.likePost(postWithAuthor.post.entryHash) },
@@ -131,7 +135,8 @@ fun FeedScreen(
                             onEditClick = { hash, newText -> viewModel.editPost(hash, newText) },
                             onDeleteClick = { hash -> viewModel.deletePost(hash) },
                             onPrioritizeDownload = { hash -> viewModel.prioritizeBlobDownload(hash) },
-                            currentAuthorId = viewModel.currentAuthorId
+                            currentAuthorId = viewModel.currentAuthorId,
+                            isAuthorOnline = isOnline
                         )
                     }
                 }
@@ -228,7 +233,9 @@ fun FeedScreen(
 }
 
 @Composable
-fun FacebookTopBar() {
+fun FacebookTopBar(
+    activePeersCount: Int = 0
+) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = FbSurface,
@@ -256,19 +263,19 @@ fun FacebookTopBar() {
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
-                        .background(FbGreen.copy(alpha = 0.12f))
+                        .background(if (activePeersCount > 0) FbGreen.copy(alpha = 0.12f) else FacebookBlueLight)
                         .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Box(
                         modifier = Modifier
                             .size(7.dp)
                             .clip(CircleShape)
-                            .background(FbGreen)
+                            .background(if (activePeersCount > 0) FbGreen else FacebookBlue)
                     )
                     Spacer(modifier = Modifier.width(5.dp))
                     Text(
-                        text = "Nearby Active",
-                        color = FbGreen,
+                        text = if (activePeersCount > 0) "$activePeersCount Nearby" else "Offline Mesh",
+                        color = if (activePeersCount > 0) FbGreen else FacebookBlue,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold
                     )

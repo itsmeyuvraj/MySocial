@@ -73,6 +73,8 @@ class MdnsWifiTransport(
     private val activeSyncPeers = ConcurrentHashMap.newKeySet<String>()
 
     private val _peersMap = ConcurrentHashMap<String, DiscoveredPeer>()
+    private val serviceNameToPeerId = ConcurrentHashMap<String, String>()
+    private var prunerJob: Job? = null
     private val _discoveredPeers = MutableStateFlow<List<DiscoveredPeer>>(emptyList())
     val discoveredPeers: StateFlow<List<DiscoveredPeer>> = _discoveredPeers.asStateFlow()
 
@@ -134,12 +136,36 @@ class MdnsWifiTransport(
             // 4. Start discovering nearby mDNS services
             discoverServices()
 
-            // 5. If running inside an emulator, start proactive host bridge probe loop
+            // 5. Start background stale peer pruner loop
+            startStalePeerPruner()
+
+            // 6. If running inside an emulator, start proactive host bridge probe loop
             if (isEmulator) {
                 startEmulatorBridgeLoop()
             }
         } catch (e: Exception) {
             Log.e(tag, "Failed to start MdnsWifiTransport: ${e.message}", e)
+        }
+    }
+
+    private fun startStalePeerPruner() {
+        prunerJob?.cancel()
+        prunerJob = scope.launch(Dispatchers.IO) {
+            while (isActive && isRunning.get()) {
+                delay(4000)
+                val now = System.currentTimeMillis()
+                val staleThresholdMs = 20_000L
+                val staleKeys = _peersMap.entries
+                    .filter { now - it.value.lastSeenTimestamp > staleThresholdMs }
+                    .map { it.key }
+                if (staleKeys.isNotEmpty()) {
+                    staleKeys.forEach { key ->
+                        _peersMap.remove(key)
+                        Log.i(tag, "Pruned offline peer: $key")
+                    }
+                    updatePeersState()
+                }
+            }
         }
     }
 
@@ -169,6 +195,9 @@ class MdnsWifiTransport(
         if (!isRunning.compareAndSet(true, false)) return
         Log.i(tag, "Stopping MdnsWifiTransport")
 
+        prunerJob?.cancel()
+        prunerJob = null
+
         emulatorBridgeJob?.cancel()
         emulatorBridgeJob = null
 
@@ -194,6 +223,7 @@ class MdnsWifiTransport(
         } catch (_: Exception) {}
         serverSocket = null
 
+        serviceNameToPeerId.clear()
         _peersMap.clear()
         _discoveredPeers.value = emptyList()
     }
@@ -278,12 +308,15 @@ class MdnsWifiTransport(
                 syncEngine.syncWithPeer(connection)
             } catch (e: Exception) {
                 Log.w(tag, "Direct IP sync with $targetHost:$targetPort failed: ${e.message}")
+                removePeer(peerId)
+                val toRemove = _peersMap.entries.filter { it.value.hostAddress == targetHost }.map { it.key }
+                toRemove.forEach { removePeer(it) }
             } finally {
                 connection?.close()
                 activeSyncPeers.remove(peerKey)
                 val current = _peersMap[peerId] ?: _peersMap.values.find { it.hostAddress == targetHost }
                 if (current != null) {
-                    _peersMap[current.peerId] = current.copy(isSyncing = false, lastSeenTimestamp = System.currentTimeMillis())
+                    _peersMap[current.peerId] = current.copy(isSyncing = false)
                     updatePeersState()
                 }
             }
@@ -381,8 +414,23 @@ class MdnsWifiTransport(
 
             override fun onServiceLost(service: NsdServiceInfo) {
                 Log.i(tag, "NSD Service lost: ${service.serviceName}")
-                _peersMap.remove(service.serviceName)
-                updatePeersState()
+                val mappedPeerId = serviceNameToPeerId.remove(service.serviceName)
+                if (mappedPeerId != null) {
+                    removePeer(mappedPeerId)
+                } else {
+                    val safeId = service.serviceName.removePrefix("MySocial_")
+                    val matching = _peersMap.entries.firstOrNull {
+                        it.key == service.serviceName ||
+                        it.key.contains(safeId) ||
+                        it.value.peerId.contains(safeId)
+                    }?.key
+                    if (matching != null) {
+                        removePeer(matching)
+                    } else {
+                        _peersMap.remove(service.serviceName)
+                        updatePeersState()
+                    }
+                }
             }
 
             override fun onDiscoveryStopped(serviceType: String) {
@@ -457,6 +505,8 @@ class MdnsWifiTransport(
         }
 
         if (peerId == localAuthorId || rawAuthorId == localAuthorId || resolved.serviceName.contains(safeLocalId)) return
+
+        serviceNameToPeerId[resolved.serviceName] = peerId
 
         Log.i(tag, "Resolved peer $peerName ($peerId) at $hostAddress:$port")
 
@@ -536,7 +586,8 @@ class MdnsWifiTransport(
                 )
                 syncEngine.syncWithPeer(connection)
             } catch (e: Exception) {
-                Log.e(tag, "Outbound sync with $peerId failed: ${e.message}")
+                Log.w(tag, "Outbound sync with $peerId failed: ${e.message}")
+                removePeer(peerId)
             } finally {
                 connection?.close()
                 activeSyncPeers.remove(peerId)
@@ -547,7 +598,7 @@ class MdnsWifiTransport(
 
     private fun updatePeerSyncStatus(peerId: String, isSyncing: Boolean) {
         val peer = _peersMap[peerId] ?: return
-        _peersMap[peerId] = peer.copy(isSyncing = isSyncing, lastSeenTimestamp = System.currentTimeMillis())
+        _peersMap[peerId] = peer.copy(isSyncing = isSyncing)
         updatePeersState()
     }
 

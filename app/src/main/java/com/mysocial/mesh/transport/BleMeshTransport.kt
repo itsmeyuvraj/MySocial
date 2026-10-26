@@ -38,6 +38,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.nio.ByteBuffer
 import java.util.UUID
@@ -89,6 +92,7 @@ class BleMeshTransport(
     private val activeSyncDevices = ConcurrentHashMap.newKeySet<String>()
 
     private val _peersMap = ConcurrentHashMap<String, DiscoveredPeer>()
+    private var prunerJob: Job? = null
     private val _discoveredPeers = MutableStateFlow<List<DiscoveredPeer>>(emptyList())
     val discoveredPeers: StateFlow<List<DiscoveredPeer>> = _discoveredPeers.asStateFlow()
 
@@ -115,6 +119,7 @@ class BleMeshTransport(
             startGattServer()
             startAdvertising()
             startScanning()
+            startStalePeerPruner()
         } catch (e: SecurityException) {
             Log.e(tag, "Bluetooth permission missing: ${e.message}")
         } catch (e: Exception) {
@@ -129,6 +134,9 @@ class BleMeshTransport(
     fun stop() {
         if (!isRunning.compareAndSet(true, false)) return
         Log.i(tag, "Stopping BleMeshTransport")
+
+        prunerJob?.cancel()
+        prunerJob = null
 
         try {
             advertiseCallback?.let { advertiser?.stopAdvertising(it) }
@@ -152,6 +160,27 @@ class BleMeshTransport(
 
         _peersMap.clear()
         _discoveredPeers.value = emptyList()
+    }
+
+    private fun startStalePeerPruner() {
+        prunerJob?.cancel()
+        prunerJob = scope.launch(Dispatchers.IO) {
+            while (isActive && isRunning.get()) {
+                delay(4000)
+                val now = System.currentTimeMillis()
+                val staleThresholdMs = 20_000L
+                val staleKeys = _peersMap.entries
+                    .filter { now - it.value.lastSeenTimestamp > staleThresholdMs }
+                    .map { it.key }
+                if (staleKeys.isNotEmpty()) {
+                    staleKeys.forEach { key ->
+                        _peersMap.remove(key)
+                        Log.i(tag, "Pruned offline BLE peer: $key")
+                    }
+                    updatePeersState()
+                }
+            }
+        }
     }
 
     /**
