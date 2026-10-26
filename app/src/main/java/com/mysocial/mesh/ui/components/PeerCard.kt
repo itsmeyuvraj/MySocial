@@ -48,10 +48,15 @@ import com.mysocial.mesh.ui.theme.FbTextPrimary
 import com.mysocial.mesh.ui.theme.FbTextSecondary
 import com.mysocial.mesh.ui.theme.FbTextTertiary
 
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.PersonAdd
+
 @Composable
 fun PeerCard(
     peer: DiscoveredPeer,
     onForceSyncClick: (() -> Unit)? = null,
+    isFriend: Boolean = false,
+    onToggleFriend: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -82,15 +87,24 @@ fun PeerCard(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                Column {
-                    Text(
-                        text = peer.peerName,
-                        color = FbTextPrimary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                Column(modifier = Modifier.weight(1f, fill = false)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = peer.peerName,
+                            color = FbTextPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        if (isFriend) {
+                            VerifiedBadge(size = 15.dp)
+                        }
+                    }
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -121,49 +135,80 @@ fun PeerCard(
                 }
             }
 
-            // Status Badge (Automatic offline mesh sync - no manual sync button)
-            if (peer.isSyncing) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(FacebookBlueLight)
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(12.dp),
-                        color = FacebookBlue,
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Syncing",
-                        color = FacebookBlue,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            } else {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(FbGreen.copy(alpha = 0.1f))
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (onToggleFriend != null) {
                     Box(
                         modifier = Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(FbGreen)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Connected",
-                        color = FbGreen,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(if (isFriend) FacebookBlueLight else FacebookBlue)
+                            .clickable { onToggleFriend() }
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = if (isFriend) Icons.Filled.Check else Icons.Filled.PersonAdd,
+                                contentDescription = null,
+                                tint = if (isFriend) FacebookBlue else Color.White,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (isFriend) "Friend" else "Add",
+                                color = if (isFriend) FacebookBlue else Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                // Status Badge (Automatic offline mesh sync - no manual sync button)
+                if (peer.isSyncing) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(FacebookBlueLight)
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(12.dp),
+                            color = FacebookBlue,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Syncing",
+                            color = FacebookBlue,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(FbGreen.copy(alpha = 0.1f))
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(FbGreen)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Connected",
+                            color = FbGreen,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }

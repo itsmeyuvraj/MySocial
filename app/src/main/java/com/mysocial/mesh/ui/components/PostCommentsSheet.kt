@@ -88,6 +88,7 @@ fun PostCommentsSheet(
     comments: List<PostWithAuthor>,
     currentAuthorId: String,
     onlineAuthorIds: Set<String>,
+    followedAuthorIds: Set<String> = emptySet(),
     onDismiss: () -> Unit,
     onSendComment: (text: String) -> Unit,
     onLikePost: (() -> Unit)? = null,
@@ -201,6 +202,7 @@ fun PostCommentsSheet(
                     PostContextSummaryCard(
                         postWithAuthor = postWithAuthor,
                         isOnline = onlineAuthorIds.contains(post.authorId) || post.authorId == currentAuthorId,
+                        isFriend = followedAuthorIds.contains(post.authorId) || post.authorId == currentAuthorId,
                         onLikePost = onLikePost
                     )
                     Spacer(modifier = Modifier.height(6.dp))
@@ -250,6 +252,7 @@ fun PostCommentsSheet(
                         CommentBubbleItem(
                             commentWithAuthor = commentItem,
                             isOnline = onlineAuthorIds.contains(commentItem.post.authorId) || commentItem.post.authorId == currentAuthorId,
+                            isFriend = followedAuthorIds.contains(commentItem.post.authorId) || commentItem.post.authorId == currentAuthorId,
                             onLike = { onLikeComment?.invoke(commentItem.post.entryHash) }
                         )
                     }
@@ -364,6 +367,7 @@ fun PostCommentsSheet(
 private fun CommentBubbleItem(
     commentWithAuthor: PostWithAuthor,
     isOnline: Boolean,
+    isFriend: Boolean = false,
     onLike: () -> Unit
 ) {
     val post = commentWithAuthor.post
@@ -393,12 +397,20 @@ private fun CommentBubbleItem(
                     .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
                 Column {
-                    Text(
-                        text = author,
-                        color = FbTextPrimary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Text(
+                            text = author,
+                            color = FbTextPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                        if (isFriend) {
+                            VerifiedBadge(size = 13.dp)
+                        }
+                    }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = post.text,
@@ -463,6 +475,7 @@ private fun CommentBubbleItem(
 private fun PostContextSummaryCard(
     postWithAuthor: PostWithAuthor,
     isOnline: Boolean,
+    isFriend: Boolean = false,
     onLikePost: (() -> Unit)?
 ) {
     val post = postWithAuthor.post
@@ -491,12 +504,20 @@ private fun PostContextSummaryCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    text = author,
-                    color = FbTextPrimary,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = author,
+                        color = FbTextPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                    if (isFriend) {
+                        VerifiedBadge(size = 14.dp)
+                    }
+                }
                 Text(
                     text = formatRelativeTime(post.timestamp),
                     color = FbTextTertiary,

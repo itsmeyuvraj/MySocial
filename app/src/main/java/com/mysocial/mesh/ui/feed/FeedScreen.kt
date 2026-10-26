@@ -84,6 +84,7 @@ fun FeedScreen(
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val activeNearbyPeers by viewModel.activeNearbyPeers.collectAsState()
     val onlineAuthorIds by viewModel.onlineAuthorIds.collectAsState()
+    val followedAuthorIds by viewModel.followedAuthorIds.collectAsState()
 
     var selectedPostForComments by remember { mutableStateOf<PostWithAuthor?>(null) }
     var autoFocusCommentInput by remember { mutableStateOf(false) }
@@ -128,6 +129,8 @@ fun FeedScreen(
                         items(posts, key = { it.post.entryHash }) { postWithAuthor ->
                             val isOnline = (postWithAuthor.post.authorId == viewModel.currentAuthorId) ||
                                     onlineAuthorIds.contains(postWithAuthor.post.authorId)
+                            val isFriend = (postWithAuthor.post.authorId == viewModel.currentAuthorId) ||
+                                    followedAuthorIds.contains(postWithAuthor.post.authorId)
                             PostCard(
                                 postWithAuthor = postWithAuthor,
                                 onLikeClick = { viewModel.likePost(postWithAuthor.post.entryHash) },
@@ -143,7 +146,11 @@ fun FeedScreen(
                                 onDeleteClick = { hash -> viewModel.deletePost(hash) },
                                 onPrioritizeDownload = { hash -> viewModel.prioritizeBlobDownload(hash) },
                                 currentAuthorId = viewModel.currentAuthorId,
-                                isAuthorOnline = isOnline
+                                isAuthorOnline = isOnline,
+                                isFriend = isFriend,
+                                onToggleFriend = {
+                                    viewModel.toggleFollow(postWithAuthor.post.authorId, !isFriend)
+                                }
                             )
                         }
                     }
@@ -161,6 +168,7 @@ fun FeedScreen(
                 comments = comments,
                 currentAuthorId = viewModel.currentAuthorId,
                 onlineAuthorIds = onlineAuthorIds,
+                followedAuthorIds = followedAuthorIds,
                 autoFocus = autoFocusCommentInput,
                 onDismiss = {
                     selectedPostForComments = null

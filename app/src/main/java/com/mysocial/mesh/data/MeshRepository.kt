@@ -349,6 +349,13 @@ class MeshRepository(
     }
 
     /**
+     * Observes author IDs that the current user is following / has added as trusted friends.
+     */
+    fun observeFollowedAuthorIds(): Flow<List<String>> {
+        return db.followDao().observeFollowedAuthorIds(cryptoManager.authorId)
+    }
+
+    /**
      * Observes a profile by authorId.
      */
     fun observeProfile(authorId: String): Flow<ProfileViewEntity?> {

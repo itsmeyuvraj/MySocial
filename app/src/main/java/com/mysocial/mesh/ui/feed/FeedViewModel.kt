@@ -48,6 +48,10 @@ class FeedViewModel(
         .map { peers -> peers.map { it.peerId }.toSet() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
+    val followedAuthorIds: StateFlow<Set<String>> = repository.observeFollowedAuthorIds()
+        .map { it.toSet() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val feedPosts: StateFlow<List<PostWithAuthor>> = _openMeshFilter
         .flatMapLatest { openFilter -> repository.observeFeed(openFilter) }
@@ -101,6 +105,12 @@ class FeedViewModel(
     fun prioritizeBlobDownload(blobHash: String) {
         viewModelScope.launch {
             repository.prioritizeBlobDownload(blobHash)
+        }
+    }
+
+    fun toggleFollow(targetAuthorId: String, following: Boolean) {
+        viewModelScope.launch {
+            repository.toggleFollow(targetAuthorId, following)
         }
     }
 }

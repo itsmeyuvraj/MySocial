@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -22,6 +23,10 @@ class IdentityViewModel(
 
     val authorId: String = repository.cryptoManager.authorId
 
+    val followedAuthorIds: StateFlow<Set<String>> = repository.observeFollowedAuthorIds()
+        .map { it.toSet() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
     val myProfile: StateFlow<ProfileViewEntity?> = repository.observeMyProfile()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
@@ -30,6 +35,12 @@ class IdentityViewModel(
 
     val myPosts: StateFlow<List<com.mysocial.mesh.model.PostWithAuthor>> = repository.observePostsByAuthor(authorId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun toggleFollow(targetAuthorId: String, following: Boolean) {
+        viewModelScope.launch {
+            repository.toggleFollow(targetAuthorId, following)
+        }
+    }
 
     fun reactToPost(targetHash: String) {
         viewModelScope.launch {

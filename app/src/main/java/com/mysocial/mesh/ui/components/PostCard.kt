@@ -37,6 +37,8 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ThumbUp
@@ -102,6 +104,8 @@ fun PostCard(
     onPrioritizeDownload: ((blobHash: String) -> Unit)? = null,
     currentAuthorId: String? = null,
     isAuthorOnline: Boolean = false,
+    isFriend: Boolean = false,
+    onToggleFriend: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -177,14 +181,23 @@ fun PostCard(
                 Spacer(modifier = Modifier.width(10.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = displayName,
-                        color = FbTextPrimary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = displayName,
+                            color = FbTextPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        if (isFriend) {
+                            VerifiedBadge(size = 15.dp)
+                        }
+                    }
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -250,6 +263,22 @@ fun PostCard(
                                 onClick = {
                                     showMenu = false
                                     showDeleteDialog = true
+                                }
+                            )
+                        } else if (onToggleFriend != null) {
+                            DropdownMenuItem(
+                                text = { Text(if (isFriend) "Remove Friend" else "Add Friend", color = FbTextPrimary) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = if (isFriend) Icons.Filled.PersonRemove else Icons.Filled.PersonAdd,
+                                        contentDescription = null,
+                                        tint = if (isFriend) FbTextSecondary else FacebookBlue,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    onToggleFriend()
                                 }
                             )
                         }

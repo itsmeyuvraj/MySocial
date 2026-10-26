@@ -86,6 +86,7 @@ fun RadarScreen(
 ) {
     val peers by viewModel.discoveredPeers.collectAsState()
     val syncLogs by viewModel.syncLogs.collectAsState()
+    val followedAuthorIds by viewModel.followedAuthorIds.collectAsState()
     var showDirectSyncDialog by remember { mutableStateOf(false) }
     var targetIpInput by remember { mutableStateOf("") }
 
@@ -174,7 +175,12 @@ fun RadarScreen(
                     }
                 } else {
                     itemsIndexed(peers, key = { index, peer -> "${peer.peerId}_$index" }) { _, peer ->
-                        PeerCard(peer = peer)
+                        val isFriend = followedAuthorIds.contains(peer.peerId)
+                        PeerCard(
+                            peer = peer,
+                            isFriend = isFriend,
+                            onToggleFriend = { viewModel.toggleFollow(peer.peerId, !isFriend) }
+                        )
                     }
                 }
 
