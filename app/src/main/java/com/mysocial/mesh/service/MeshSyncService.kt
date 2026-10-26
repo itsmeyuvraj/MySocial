@@ -290,6 +290,12 @@ class MeshSyncService : Service() {
         }
     }
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        Log.i(tag, "App task removed by user, cleanly stopping mesh service")
+        stopMesh()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         stopMesh()

@@ -258,6 +258,9 @@ class MainActivity : ComponentActivity() {
             unbindService(serviceConnection)
             isBound = false
         }
+        if (isFinishing) {
+            MeshSyncService.stop(this)
+        }
     }
 
     @Composable
