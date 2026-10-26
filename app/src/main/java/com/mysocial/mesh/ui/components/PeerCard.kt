@@ -77,7 +77,7 @@ fun PeerCard(
                     seed = peer.peerId,
                     displayName = peer.peerName,
                     size = 46.dp,
-                    showOnlineBadge = (System.currentTimeMillis() - peer.lastSeenTimestamp) < 20_000L
+                    showOnlineBadge = (System.currentTimeMillis() - peer.lastSeenTimestamp) < 15_000L
                 )
 
                 Spacer(modifier = Modifier.width(12.dp))

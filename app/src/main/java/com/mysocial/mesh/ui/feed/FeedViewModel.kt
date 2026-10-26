@@ -15,6 +15,11 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import com.mysocial.mesh.transport.DiscoveredPeer
 
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+
 class FeedViewModel(
     private val repository: MeshRepository
 ) : ViewModel() {
@@ -25,9 +30,21 @@ class FeedViewModel(
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
-    val activeNearbyPeers: StateFlow<List<DiscoveredPeer>> = repository.discoveredPeers
+    private val ticker = flow {
+        while (true) {
+            emit(System.currentTimeMillis())
+            delay(3000)
+        }
+    }
 
-    val onlineAuthorIds: StateFlow<Set<String>> = repository.discoveredPeers
+    val activeNearbyPeers: StateFlow<List<DiscoveredPeer>> = combine(
+        repository.discoveredPeers,
+        ticker
+    ) { peers, now ->
+        peers.filter { now - it.lastSeenTimestamp <= 15_000L }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val onlineAuthorIds: StateFlow<Set<String>> = activeNearbyPeers
         .map { peers -> peers.map { it.peerId }.toSet() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 

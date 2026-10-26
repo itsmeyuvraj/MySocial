@@ -122,7 +122,7 @@ class MainActivity : ComponentActivity() {
                 repository.onContentPublished = {
                     s.forceSyncAll()
                 }
-                s.getSyncEngine().onPeerIdentified = { connectionPeerId, remoteAuthorId, remoteDisplayName ->
+                s.getSyncEngine().addPeerIdentifiedListener { connectionPeerId, remoteAuthorId, remoteDisplayName ->
                     repository.updatePeerNameAndId(connectionPeerId, remoteAuthorId, remoteDisplayName)
                 }
                 lifecycleScope.launch {

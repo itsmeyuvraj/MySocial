@@ -152,9 +152,9 @@ class MdnsWifiTransport(
         prunerJob?.cancel()
         prunerJob = scope.launch(Dispatchers.IO) {
             while (isActive && isRunning.get()) {
-                delay(4000)
+                delay(3000)
                 val now = System.currentTimeMillis()
-                val staleThresholdMs = 20_000L
+                val staleThresholdMs = 15_000L
                 val staleKeys = _peersMap.entries
                     .filter { now - it.value.lastSeenTimestamp > staleThresholdMs }
                     .map { it.key }

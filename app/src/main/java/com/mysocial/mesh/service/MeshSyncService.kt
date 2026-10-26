@@ -132,7 +132,7 @@ class MeshSyncService : Service() {
         ).also { it.start() }
 
         // Update peer list immediately when real profile name is received during handshake
-        syncEngine.onPeerIdentified = { connectionPeerId, remoteAuthorId, remoteDisplayName ->
+        syncEngine.addPeerIdentifiedListener { connectionPeerId, remoteAuthorId, remoteDisplayName ->
             if (remoteAuthorId == cryptoManager.authorId) {
                 // Ignore and remove self loopback connection
                 wifiTransport?.removePeer(connectionPeerId)
@@ -172,11 +172,16 @@ class MeshSyncService : Service() {
         serviceScope.launch {
             val wifiPeers = wifiTransport?.discoveredPeers ?: MutableStateFlow(emptyList())
             val blePeers = bleTransport?.discoveredPeers ?: MutableStateFlow(emptyList())
+            val ticker = kotlinx.coroutines.flow.flow {
+                while (isActive) {
+                    emit(System.currentTimeMillis())
+                    delay(3000)
+                }
+            }
 
-            combine(wifiPeers, blePeers) { w, b ->
-                val now = System.currentTimeMillis()
+            combine(wifiPeers, blePeers, ticker) { w, b, now ->
                 (w + b)
-                    .filter { now - it.lastSeenTimestamp <= 20_000L }
+                    .filter { now - it.lastSeenTimestamp <= 15_000L }
                     .distinctBy { it.peerId }
                     .sortedByDescending { it.lastSeenTimestamp }
             }.collect { combined ->

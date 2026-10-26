@@ -17,26 +17,36 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.delay
+
 class RadarViewModel(
     private val repository: MeshRepository,
     private val getService: () -> MeshSyncService?
 ) : ViewModel() {
 
+    private val ticker = flow {
+        while (true) {
+            emit(System.currentTimeMillis())
+            delay(3000)
+        }
+    }
+
     val discoveredPeers: StateFlow<List<DiscoveredPeer>> = combine(
         repository.discoveredPeers,
-        repository.observeAllProfiles()
-    ) { peers, profiles ->
+        repository.observeAllProfiles(),
+        ticker
+    ) { peers, profiles, now ->
         val myAuthorId = repository.cryptoManager.authorId
         val myProfile = profiles.find { it.authorId == myAuthorId }
         val myDisplayName = myProfile?.displayName
         val profileMap = profiles.associateBy { it.authorId }
         val otherProfiles = profiles.filter { it.authorId != myAuthorId }
 
-        val now = System.currentTimeMillis()
         peers
             .filter { peer ->
                 peer.peerId != myAuthorId &&
-                (now - peer.lastSeenTimestamp <= 20_000L) &&
+                (now - peer.lastSeenTimestamp <= 15_000L) &&
                 (myDisplayName.isNullOrBlank() || (peer.peerName != myDisplayName && !peer.peerName.startsWith(myDisplayName)))
             }
             .distinctBy { it.peerId }

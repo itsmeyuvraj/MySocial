@@ -25,6 +25,12 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.withContext
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+
 data class DatabaseStats(
     val totalEntries: Int,
     val totalAuthors: Int,
@@ -41,8 +47,28 @@ class MeshRepository(
     private val syncEngine: GossipSyncEngine,
     val appSettings: AppSettings? = null
 ) {
+    private val repoScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val _discoveredPeers = MutableStateFlow<List<DiscoveredPeer>>(emptyList())
     val discoveredPeers: StateFlow<List<DiscoveredPeer>> = _discoveredPeers.asStateFlow()
+
+    init {
+        startStalePeerPruner()
+    }
+
+    private fun startStalePeerPruner() {
+        repoScope.launch {
+            while (isActive) {
+                delay(3000)
+                val now = System.currentTimeMillis()
+                val staleThresholdMs = 15_000L
+                val current = _discoveredPeers.value
+                val fresh = current.filter { now - it.lastSeenTimestamp <= staleThresholdMs }
+                if (fresh.size != current.size) {
+                    _discoveredPeers.value = fresh
+                }
+            }
+        }
+    }
 
     var onContentPublished: (() -> Unit)? = null
 
@@ -74,7 +100,9 @@ class MeshRepository(
 
     fun updateDiscoveredPeers(peers: List<DiscoveredPeer>) {
         val myAuthorId = cryptoManager.authorId
-        val filtered = peers.filter { it.peerId != myAuthorId }
+        val now = System.currentTimeMillis()
+        val staleThresholdMs = 15_000L
+        val filtered = peers.filter { it.peerId != myAuthorId && (now - it.lastSeenTimestamp <= staleThresholdMs) }
         val oldSize = _discoveredPeers.value.size
         val deduplicated = filtered.distinctBy { it.peerId }
         _discoveredPeers.value = deduplicated
@@ -94,12 +122,13 @@ class MeshRepository(
         val index = current.indexOfFirst {
             it.peerId == oldIdOrHost || it.peerId == newPeerId || it.hostAddress == oldIdOrHost
         }
+        val now = System.currentTimeMillis()
         if (index != -1) {
             val existing = current[index]
             current[index] = existing.copy(
                 peerId = newPeerId,
                 peerName = newPeerName,
-                lastSeenTimestamp = System.currentTimeMillis()
+                lastSeenTimestamp = now
             )
         } else {
             current.add(
@@ -107,11 +136,13 @@ class MeshRepository(
                     peerId = newPeerId,
                     peerName = newPeerName,
                     transportType = com.mysocial.mesh.protocol.TransportType.MDNS_WIFI,
-                    lastSeenTimestamp = System.currentTimeMillis()
+                    lastSeenTimestamp = now
                 )
             )
         }
-        val deduplicated = current.filter { it.peerId != myAuthorId }.distinctBy { it.peerId }
+        val deduplicated = current
+            .filter { it.peerId != myAuthorId && (now - it.lastSeenTimestamp <= 15_000L) }
+            .distinctBy { it.peerId }
         _discoveredPeers.value = deduplicated
         if (newPeerName.isNotBlank() && newPeerName != "MeshPeer" && newPeerName != "Nearby Device" && !newPeerName.startsWith("Host ADB")) {
             logActivity("Connected with $newPeerName")

@@ -59,7 +59,31 @@ class GossipSyncEngine(
 ) {
     private val tag = "GossipSyncEngine"
 
-    var onPeerIdentified: ((connectionPeerId: String, remoteAuthorId: String, remoteDisplayName: String) -> Unit)? = null
+    private val peerIdentifiedListeners = java.util.concurrent.CopyOnWriteArrayList<(String, String, String) -> Unit>()
+
+    fun addPeerIdentifiedListener(listener: (connectionPeerId: String, remoteAuthorId: String, remoteDisplayName: String) -> Unit) {
+        peerIdentifiedListeners.add(listener)
+    }
+
+    var onPeerIdentified: ((connectionPeerId: String, remoteAuthorId: String, remoteDisplayName: String) -> Unit)?
+        get() = peerIdentifiedListeners.firstOrNull()
+        set(value) {
+            if (value != null) {
+                if (!peerIdentifiedListeners.contains(value)) {
+                    peerIdentifiedListeners.add(value)
+                }
+            }
+        }
+
+    fun notifyPeerIdentified(connectionPeerId: String, remoteAuthorId: String, remoteDisplayName: String) {
+        for (listener in peerIdentifiedListeners) {
+            try {
+                listener(connectionPeerId, remoteAuthorId, remoteDisplayName)
+            } catch (e: Exception) {
+                Log.w(tag, "Error invoking peer identified listener: ${e.message}")
+            }
+        }
+    }
 
     private val _syncEvents = MutableSharedFlow<SyncEvent>(extraBufferCapacity = 64)
     val syncEvents: SharedFlow<SyncEvent> = _syncEvents.asSharedFlow()
@@ -103,7 +127,7 @@ class GossipSyncEngine(
                 ?: throw IllegalStateException("Expected HELLO_VECTOR, received: $remoteHelloMsg")
 
             if (remoteHello.peerName.isNotBlank() && remoteHello.peerName != "MeshPeer") {
-                onPeerIdentified?.invoke(connection.peerId, remoteHello.peerId, remoteHello.peerName)
+                notifyPeerIdentified(connection.peerId, remoteHello.peerId, remoteHello.peerName)
             }
 
             // Step 2: Compute Deltas & Exchange DELTA_REQUEST
