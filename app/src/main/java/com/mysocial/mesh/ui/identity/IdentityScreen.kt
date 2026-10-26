@@ -76,6 +76,7 @@ fun IdentityScreen(
     var showEditDialog by remember { mutableStateOf(false) }
     var editName by remember { mutableStateOf("") }
     var editBio by remember { mutableStateOf("") }
+    var selectedPostForComments by remember { mutableStateOf<com.mysocial.mesh.model.PostWithAuthor?>(null) }
 
     val authorId = viewModel.authorId
     val displayName = myProfile?.displayName ?: "User"
@@ -261,9 +262,8 @@ fun IdentityScreen(
                     PostCard(
                         postWithAuthor = postItem,
                         onLikeClick = { viewModel.reactToPost(postItem.post.entryHash) },
-                        onReplyClick = {
-                            Toast.makeText(context, "Open the post on the Feed to comment", Toast.LENGTH_SHORT).show()
-                        },
+                        onReplyClick = { selectedPostForComments = postItem },
+                        onPostClick = { selectedPostForComments = postItem },
                         onEditClick = { hash, newText -> viewModel.editPost(hash, newText) },
                         onDeleteClick = { hash -> viewModel.deletePost(hash) },
                         currentAuthorId = authorId,
@@ -272,6 +272,34 @@ fun IdentityScreen(
                     )
                 }
             }
+        }
+
+        // Facebook-style Post Details & Comments Bottom Sheet
+        if (selectedPostForComments != null) {
+            val targetPost = selectedPostForComments!!
+            val comments by viewModel.observeReplies(targetPost.post.entryHash).collectAsState(initial = emptyList())
+
+            com.mysocial.mesh.ui.components.PostCommentsSheet(
+                postWithAuthor = targetPost,
+                comments = comments,
+                currentAuthorId = authorId,
+                onlineAuthorIds = emptySet(),
+                onDismiss = { selectedPostForComments = null },
+                onSendComment = { text ->
+                    val root = targetPost.post.rootHash ?: targetPost.post.entryHash
+                    viewModel.replyToPost(
+                        text = text,
+                        rootHash = root,
+                        parentHash = targetPost.post.entryHash
+                    )
+                },
+                onLikePost = {
+                    viewModel.reactToPost(targetPost.post.entryHash)
+                },
+                onLikeComment = { commentHash ->
+                    viewModel.reactToPost(commentHash)
+                }
+            )
         }
 
         // Edit Profile Dialog

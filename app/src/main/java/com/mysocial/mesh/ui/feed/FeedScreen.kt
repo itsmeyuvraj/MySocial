@@ -85,8 +85,7 @@ fun FeedScreen(
     val activeNearbyPeers by viewModel.activeNearbyPeers.collectAsState()
     val onlineAuthorIds by viewModel.onlineAuthorIds.collectAsState()
 
-    var replyingToPost by remember { mutableStateOf<PostWithAuthor?>(null) }
-    var replyText by remember { mutableStateOf("") }
+    var selectedPostForComments by remember { mutableStateOf<PostWithAuthor?>(null) }
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -111,121 +110,64 @@ fun FeedScreen(
                         WhatsOnYourMindCard(onClick = onNavigateToCompose)
                     }
 
-                // Friendly Feed Filter Tabs (Nearby vs Friends)
-                item {
-                    FeedFilterPills(
-                        isNearbyFilter = isOpenMeshFilter,
-                        onSelectFilter = { viewModel.setFilter(it) }
-                    )
-                }
-
-                // Posts or Empty State
-                if (posts.isEmpty()) {
+                    // Friendly Feed Filter Tabs (Nearby vs Friends)
                     item {
-                        FeedEmptyState(isNearby = isOpenMeshFilter, onComposeClick = onNavigateToCompose)
-                    }
-                } else {
-                    items(posts, key = { it.post.entryHash }) { postWithAuthor ->
-                        val isOnline = (postWithAuthor.post.authorId == viewModel.currentAuthorId) ||
-                                onlineAuthorIds.contains(postWithAuthor.post.authorId)
-                        PostCard(
-                            postWithAuthor = postWithAuthor,
-                            onLikeClick = { viewModel.likePost(postWithAuthor.post.entryHash) },
-                            onReplyClick = { replyingToPost = postWithAuthor },
-                            onEditClick = { hash, newText -> viewModel.editPost(hash, newText) },
-                            onDeleteClick = { hash -> viewModel.deletePost(hash) },
-                            onPrioritizeDownload = { hash -> viewModel.prioritizeBlobDownload(hash) },
-                            currentAuthorId = viewModel.currentAuthorId,
-                            isAuthorOnline = isOnline
+                        FeedFilterPills(
+                            isNearbyFilter = isOpenMeshFilter,
+                            onSelectFilter = { viewModel.setFilter(it) }
                         )
+                    }
+
+                    // Posts or Empty State
+                    if (posts.isEmpty()) {
+                        item {
+                            FeedEmptyState(isNearby = isOpenMeshFilter, onComposeClick = onNavigateToCompose)
+                        }
+                    } else {
+                        items(posts, key = { it.post.entryHash }) { postWithAuthor ->
+                            val isOnline = (postWithAuthor.post.authorId == viewModel.currentAuthorId) ||
+                                    onlineAuthorIds.contains(postWithAuthor.post.authorId)
+                            PostCard(
+                                postWithAuthor = postWithAuthor,
+                                onLikeClick = { viewModel.likePost(postWithAuthor.post.entryHash) },
+                                onReplyClick = { selectedPostForComments = postWithAuthor },
+                                onPostClick = { selectedPostForComments = postWithAuthor },
+                                onEditClick = { hash, newText -> viewModel.editPost(hash, newText) },
+                                onDeleteClick = { hash -> viewModel.deletePost(hash) },
+                                onPrioritizeDownload = { hash -> viewModel.prioritizeBlobDownload(hash) },
+                                currentAuthorId = viewModel.currentAuthorId,
+                                isAuthorOnline = isOnline
+                            )
+                        }
                     }
                 }
             }
         }
-        }
 
-        // Comment / Reply Dialog (Facebook Style)
-        if (replyingToPost != null) {
-            val target = replyingToPost!!
-            AlertDialog(
-                onDismissRequest = {
-                    replyingToPost = null
-                    replyText = ""
-                },
-                containerColor = FbSurface,
-                title = {
-                    Text(
-                        text = "Reply to ${target.authorProfile?.displayName ?: "Neighbor"}",
-                        color = FbTextPrimary,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold
+        // Facebook-style Post Details & Comments Bottom Sheet
+        if (selectedPostForComments != null) {
+            val targetPost = selectedPostForComments!!
+            val comments by viewModel.observeReplies(targetPost.post.entryHash).collectAsState(initial = emptyList())
+
+            com.mysocial.mesh.ui.components.PostCommentsSheet(
+                postWithAuthor = targetPost,
+                comments = comments,
+                currentAuthorId = viewModel.currentAuthorId,
+                onlineAuthorIds = onlineAuthorIds,
+                onDismiss = { selectedPostForComments = null },
+                onSendComment = { text ->
+                    val root = targetPost.post.rootHash ?: targetPost.post.entryHash
+                    viewModel.replyToPost(
+                        text = text,
+                        rootHash = root,
+                        parentHash = targetPost.post.entryHash
                     )
                 },
-                text = {
-                    Column {
-                        Text(
-                            text = target.post.text.take(80) + if (target.post.text.length > 80) "..." else "",
-                            color = FbTextSecondary,
-                            fontSize = 13.sp,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(FbBackground, RoundedCornerShape(8.dp))
-                                .padding(10.dp)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        OutlinedTextField(
-                            value = replyText,
-                            onValueChange = { replyText = it },
-                            placeholder = { Text("Write a comment...", color = FbTextTertiary) },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = FbTextPrimary,
-                                unfocusedTextColor = FbTextPrimary,
-                                focusedBorderColor = FacebookBlue,
-                                unfocusedBorderColor = FbBorder,
-                                focusedContainerColor = FbBackground,
-                                unfocusedContainerColor = FbBackground
-                            ),
-                            maxLines = 4
-                        )
-                    }
+                onLikePost = {
+                    viewModel.likePost(targetPost.post.entryHash)
                 },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            if (replyText.isNotBlank()) {
-                                val root = target.post.rootHash ?: target.post.entryHash
-                                viewModel.replyToPost(
-                                    text = replyText,
-                                    rootHash = root,
-                                    parentHash = target.post.entryHash
-                                )
-                                replyingToPost = null
-                                replyText = ""
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = FacebookBlue,
-                            contentColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(8.dp),
-                        enabled = replyText.isNotBlank()
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Comment")
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = {
-                            replyingToPost = null
-                            replyText = ""
-                        }
-                    ) {
-                        Text("Cancel", color = FbTextSecondary)
-                    }
+                onLikeComment = { commentHash ->
+                    viewModel.likePost(commentHash)
                 }
             )
         }

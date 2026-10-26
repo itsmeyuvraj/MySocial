@@ -37,6 +37,16 @@ class IdentityViewModel(
         }
     }
 
+    fun observeReplies(postHash: String): kotlinx.coroutines.flow.Flow<List<com.mysocial.mesh.model.PostWithAuthor>> {
+        return repository.observeReplies(postHash)
+    }
+
+    fun replyToPost(text: String, rootHash: String, parentHash: String) {
+        viewModelScope.launch {
+            repository.createReply(text, rootHash, parentHash)
+        }
+    }
+
     private val _qrBitmap = MutableStateFlow<ImageBitmap?>(null)
     val qrBitmap: StateFlow<ImageBitmap?> = _qrBitmap.asStateFlow()
 

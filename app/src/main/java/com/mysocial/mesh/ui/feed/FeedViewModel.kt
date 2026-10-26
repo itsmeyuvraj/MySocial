@@ -82,6 +82,10 @@ class FeedViewModel(
         }
     }
 
+    fun observeReplies(postHash: String): kotlinx.coroutines.flow.Flow<List<PostWithAuthor>> {
+        return repository.observeReplies(postHash)
+    }
+
     fun deletePost(entryHash: String) {
         viewModelScope.launch {
             repository.deletePost(entryHash)

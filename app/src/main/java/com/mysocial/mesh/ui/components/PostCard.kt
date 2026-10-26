@@ -95,6 +95,7 @@ fun PostCard(
     postWithAuthor: PostWithAuthor,
     onLikeClick: () -> Unit,
     onReplyClick: () -> Unit,
+    onPostClick: (() -> Unit)? = null,
     onEditClick: ((entryHash: String, newText: String) -> Unit)? = null,
     onDeleteClick: ((entryHash: String) -> Unit)? = null,
     onShareClick: ((postText: String) -> Unit)? = null,
@@ -149,7 +150,12 @@ fun PostCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp)),
+            .clip(RoundedCornerShape(8.dp))
+            .then(
+                if (onPostClick != null) {
+                    Modifier.clickable { onPostClick() }
+                } else Modifier
+            ),
         colors = CardDefaults.cardColors(containerColor = FbSurface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
@@ -362,7 +368,7 @@ fun PostCard(
                             text = "${post.replyCount} ${if (post.replyCount == 1) "comment" else "comments"}",
                             color = FbTextSecondary,
                             fontSize = 13.sp,
-                            modifier = Modifier.clickable { onReplyClick() }
+                            modifier = Modifier.clickable { onPostClick?.invoke() ?: onReplyClick() }
                         )
                     }
                 }
@@ -544,7 +550,7 @@ fun PostCard(
     }
 }
 
-private fun formatRelativeTime(timestamp: Long): String {
+fun formatRelativeTime(timestamp: Long): String {
     val diff = System.currentTimeMillis() - timestamp
     val seconds = diff / 1000
     val minutes = seconds / 60
