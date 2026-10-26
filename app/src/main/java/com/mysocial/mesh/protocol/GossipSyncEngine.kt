@@ -186,21 +186,21 @@ class GossipSyncEngine(
                         val msg = connection.receiveMessage()
                         when (msg) {
                             is GossipMessage.LogBatch -> {
-                                for (entry in msg.entries) {
-                                    val result = db.insertAndProject(entry, hopDistance = 1)
-                                    if (result.isSuccess) {
-                                        entriesReceived++
-                                        _syncEvents.emit(
-                                            SyncEvent.Progress(
-                                                peerId = peerId,
-                                                authorId = entry.authorId,
-                                                sequence = entry.sequence,
-                                                totalReceived = entriesReceived
-                                            )
+                                val batchResult = db.insertAndProjectBatch(msg.entries, hopDistance = 1)
+                                if (batchResult.acceptedCount > 0) {
+                                    entriesReceived += batchResult.acceptedCount
+                                    val last = msg.entries.last()
+                                    _syncEvents.emit(
+                                        SyncEvent.Progress(
+                                            peerId = peerId,
+                                            authorId = last.authorId,
+                                            sequence = last.sequence,
+                                            totalReceived = entriesReceived
                                         )
-                                    } else {
-                                        Log.w(tag, "Rejecting invalid incoming log entry from $peerId: ${result.exceptionOrNull()?.message}")
-                                    }
+                                    )
+                                }
+                                for (err in batchResult.errors) {
+                                    Log.w(tag, "Rejecting invalid incoming log entry from $peerId: $err")
                                 }
                             }
                             is GossipMessage.SyncComplete -> {
@@ -411,32 +411,58 @@ class GossipSyncEngine(
         val allChunks = db.blobDao().getAllChunksForBlob(blobHash)
         if (allChunks.size < totalChunks) return
 
-        val bos = ByteArrayOutputStream()
-        for (c in allChunks.sortedBy { it.chunkIndex }) {
-            bos.write(c.data)
-        }
-        val assembledBytes = bos.toByteArray()
-        val computedHash = CryptoManager.sha256Hex(assembledBytes)
-
-        if (computedHash.equals(blobHash, ignoreCase = true)) {
-            val blobsDir = if (context != null) {
-                MediaProcessor.getBlobsDirectory(context)
-            } else {
-                val dir = File(System.getProperty("java.io.tmpdir"), "blobs")
-                if (!dir.exists()) dir.mkdirs()
-                dir
-            }
-            val blobFile = File(blobsDir, "$blobHash.blob")
-            blobFile.writeBytes(assembledBytes)
-
-            // Clean up chunk rows from database to save storage
-            db.blobDao().deleteChunksForBlob(blobHash)
-            db.blobDao().markComplete(blobHash, blobFile.absolutePath)
-
-            Log.i(tag, "Successfully verified and assembled blob $blobHash (${assembledBytes.size} bytes)")
-            _syncEvents.emit(SyncEvent.BlobCompleted(peerId, blobHash))
+        val blobsDir = if (context != null) {
+            MediaProcessor.getBlobsDirectory(context)
         } else {
-            Log.e(tag, "SHA-256 verification failed for blob $blobHash: computed $computedHash")
+            val dir = File(System.getProperty("java.io.tmpdir"), "blobs")
+            if (!dir.exists()) dir.mkdirs()
+            dir
+        }
+        val tempFile = File(blobsDir, "$blobHash.tmp")
+        val blobFile = File(blobsDir, "$blobHash.blob")
+
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        var writeSuccess = false
+        try {
+            java.io.FileOutputStream(tempFile).use { fos ->
+                for (chunk in allChunks) {
+                    digest.update(chunk.data)
+                    fos.write(chunk.data)
+                }
+                fos.flush()
+            }
+            writeSuccess = true
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to stream chunks for blob $blobHash: ${e.message}")
+            tempFile.delete()
+            return
+        }
+
+        if (writeSuccess) {
+            val hashBytes = digest.digest()
+            val hexChars = CharArray(hashBytes.size * 2)
+            val hexArray = "0123456789abcdef".toCharArray()
+            for (i in hashBytes.indices) {
+                val v = hashBytes[i].toInt() and 0xFF
+                hexChars[i * 2] = hexArray[v ushr 4]
+                hexChars[i * 2 + 1] = hexArray[v and 0x0F]
+            }
+            val computedHash = String(hexChars)
+
+            if (computedHash.equals(blobHash, ignoreCase = true)) {
+                if (blobFile.exists()) blobFile.delete()
+                tempFile.renameTo(blobFile)
+
+                // Clean up chunk rows from database to save storage
+                db.blobDao().deleteChunksForBlob(blobHash)
+                db.blobDao().markComplete(blobHash, blobFile.absolutePath)
+
+                Log.i(tag, "Successfully verified and assembled blob $blobHash (${blobFile.length()} bytes)")
+                _syncEvents.emit(SyncEvent.BlobCompleted(peerId, blobHash))
+            } else {
+                tempFile.delete()
+                Log.e(tag, "SHA-256 verification failed for blob $blobHash: computed $computedHash")
+            }
         }
     }
 

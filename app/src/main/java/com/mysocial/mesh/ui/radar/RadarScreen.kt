@@ -174,7 +174,7 @@ fun RadarScreen(
                         NearbyScanningCard(onDirectConnectClick = { showDirectSyncDialog = true })
                     }
                 } else {
-                    itemsIndexed(peers, key = { index, peer -> "${peer.peerId}_$index" }) { _, peer ->
+                    items(peers, key = { it.peerId }) { peer ->
                         val isFriend = followedAuthorIds.contains(peer.peerId)
                         PeerCard(
                             peer = peer,

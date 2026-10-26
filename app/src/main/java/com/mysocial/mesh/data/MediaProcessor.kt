@@ -173,26 +173,51 @@ object MediaProcessor {
         return chunkBytes
     }
 
+    private val maxMemory = (Runtime.getRuntime().maxMemory() / 1024).toInt()
+    private val cacheSize = (maxMemory / 8).coerceAtLeast(1024) // 1/8th of available heap in KB
+
+    private val bitmapCache = object : android.util.LruCache<String, Bitmap>(cacheSize) {
+        override fun sizeOf(key: String, bitmap: Bitmap): Int {
+            return bitmap.byteCount / 1024
+        }
+    }
+
     /**
-     * Decodes Base64 micro-preview into an in-memory Bitmap.
+     * Decodes Base64 micro-preview into an in-memory Bitmap with caching.
      */
     fun decodeMicroPreview(base64Str: String?): Bitmap? {
         if (base64Str.isNullOrBlank()) return null
+        val cacheKey = "micro_${base64Str.hashCode()}"
+        val cached = bitmapCache.get(cacheKey)
+        if (cached != null && !cached.isRecycled) return cached
+
         return try {
             val bytes = Base64.decode(base64Str, Base64.DEFAULT)
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            if (bitmap != null) {
+                bitmapCache.put(cacheKey, bitmap)
+            }
+            bitmap
         } catch (_: Exception) {
             null
         }
     }
 
     /**
-     * Decodes a local file into a Bitmap.
+     * Decodes a local file into a Bitmap with caching.
      */
     fun decodeBlobFile(file: File?): Bitmap? {
         if (file == null || !file.exists() || !file.canRead()) return null
+        val cacheKey = "blob_${file.absolutePath}_${file.lastModified()}"
+        val cached = bitmapCache.get(cacheKey)
+        if (cached != null && !cached.isRecycled) return cached
+
         return try {
-            BitmapFactory.decodeFile(file.absolutePath)
+            val bitmap = BitmapFactory.decodeFile(file.absolutePath)
+            if (bitmap != null) {
+                bitmapCache.put(cacheKey, bitmap)
+            }
+            bitmap
         } catch (_: Exception) {
             null
         }

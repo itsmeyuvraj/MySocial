@@ -617,9 +617,11 @@ fun PostMediaAttachmentView(
         manifest?.localFilePath?.let { File(it) } ?: MediaProcessor.getBlobFile(context, blobHash)
     }
 
-    val fullBitmap = remember(localFile, isComplete) {
-        if (isComplete && localFile.exists()) {
-            MediaProcessor.decodeBlobFile(localFile)
+    val fullBitmap by androidx.compose.runtime.produceState<android.graphics.Bitmap?>(initialValue = null, localFile, isComplete) {
+        value = if (isComplete && localFile.exists()) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                MediaProcessor.decodeBlobFile(localFile)
+            }
         } else {
             null
         }
@@ -636,10 +638,11 @@ fun PostMediaAttachmentView(
             .border(1.dp, FbBorder, RoundedCornerShape(8.dp)),
         contentAlignment = Alignment.Center
     ) {
-        if (isComplete && fullBitmap != null) {
+        val resolvedBitmap = fullBitmap
+        if (isComplete && resolvedBitmap != null) {
             // Full crisp WebP image
             Image(
-                bitmap = fullBitmap.asImageBitmap(),
+                bitmap = resolvedBitmap.asImageBitmap(),
                 contentDescription = "Post photo",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier

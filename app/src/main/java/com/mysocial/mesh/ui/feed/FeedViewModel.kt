@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import com.mysocial.mesh.transport.DiscoveredPeer
 
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -42,19 +43,24 @@ class FeedViewModel(
         ticker
     ) { peers, now ->
         peers.filter { now - it.lastSeenTimestamp <= 15_000L }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val onlineAuthorIds: StateFlow<Set<String>> = activeNearbyPeers
         .map { peers -> peers.map { it.peerId }.toSet() }
+        .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     val followedAuthorIds: StateFlow<Set<String>> = repository.observeFollowedAuthorIds()
         .map { it.toSet() }
+        .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val feedPosts: StateFlow<List<PostWithAuthor>> = _openMeshFilter
         .flatMapLatest { openFilter -> repository.observeFeed(openFilter) }
+        .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun refresh(onSync: (() -> Unit)? = null) {

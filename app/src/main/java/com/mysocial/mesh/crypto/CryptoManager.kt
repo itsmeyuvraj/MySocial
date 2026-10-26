@@ -94,6 +94,23 @@ class CryptoManager private constructor(
 
         private val secureRandom = SecureRandom()
 
+        // High-performance caches to prevent redundant BouncyCastle & Base64 allocations
+        private val publicKeyBytesCache = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
+        private val publicKeyParamsCache = java.util.concurrent.ConcurrentHashMap<String, Ed25519PublicKeyParameters>()
+        
+        // Bounded LRU cache for already verified signatures (max 4096 entries)
+        private val verifiedSignatureCache = java.util.Collections.synchronizedMap(
+            object : java.util.LinkedHashMap<String, Boolean>(256, 0.75f, true) {
+                override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Boolean>?): Boolean {
+                    return size > 4096
+                }
+            }
+        )
+
+        private val threadLocalSha256 = ThreadLocal.withInitial {
+            MessageDigest.getInstance("SHA-256")
+        }
+
         /**
          * Builds the canonical payload string over which an Ed25519 signature is computed.
          */
@@ -129,35 +146,59 @@ class CryptoManager private constructor(
 
         /**
          * Verifies an Ed25519 signature against an authorId and the canonical payload string.
+         * Employs cached Ed25519PublicKeyParameters and a bounded verification LRU cache.
          */
         fun verify(
             authorId: String,
             canonicalPayload: String,
             signatureBase64: String
         ): Boolean {
+            // Check verification cache first to avoid repetitive elliptic curve operations
+            val cacheKey = "$authorId:${signatureBase64.hashCode()}:${canonicalPayload.hashCode()}"
+            if (verifiedSignatureCache[cacheKey] == true) {
+                return true
+            }
+
             return try {
-                val pubBytes = extractPublicKeyBytes(authorId)
-                if (pubBytes.size != 32) return false
+                val pubParams = getPublicKeyParameters(authorId) ?: return false
 
                 val sigBytes = Base64.getDecoder().decode(signatureBase64)
                 if (sigBytes.size != 64) return false
 
-                val pubParams = Ed25519PublicKeyParameters(pubBytes, 0)
                 val signer = Ed25519Signer()
                 signer.init(false, pubParams)
                 val data = canonicalPayload.toByteArray(Charsets.UTF_8)
                 signer.update(data, 0, data.size)
-                signer.verifySignature(sigBytes)
+                val isValid = signer.verifySignature(sigBytes)
+                if (isValid) {
+                    verifiedSignatureCache[cacheKey] = true
+                }
+                isValid
             } catch (e: Exception) {
                 false
             }
         }
 
         /**
-         * SHA-256 hex string calculation.
+         * Retrieves or constructs cached Ed25519PublicKeyParameters.
+         */
+        fun getPublicKeyParameters(authorId: String): Ed25519PublicKeyParameters? {
+            return publicKeyParamsCache.getOrPut(authorId) {
+                val pubBytes = extractPublicKeyBytes(authorId)
+                if (pubBytes.size == 32) {
+                    Ed25519PublicKeyParameters(pubBytes, 0)
+                } else {
+                    return null
+                }
+            }
+        }
+
+        /**
+         * SHA-256 hex string calculation using reusable ThreadLocal MessageDigest.
          */
         fun sha256Hex(data: ByteArray): String {
-            val digest = MessageDigest.getInstance("SHA-256")
+            val digest = threadLocalSha256.get()!!
+            digest.reset()
             val hash = digest.digest(data)
             val hexChars = CharArray(hash.size * 2)
             val hexArray = "0123456789abcdef".toCharArray()
@@ -183,17 +224,20 @@ class CryptoManager private constructor(
         }
 
         /**
-         * Extracts the raw 32-byte public key from an authorId string (handles `@...ed25519` or raw base64).
+         * Extracts the raw 32-byte public key from an authorId string (handles `@...ed25519` or raw base64),
+         * utilizing concurrent in-memory caching to avoid Base64 decoding allocations.
          */
         fun extractPublicKeyBytes(authorId: String): ByteArray {
-            var clean = authorId.trim()
-            if (clean.startsWith("@")) {
-                clean = clean.substring(1)
+            return publicKeyBytesCache.getOrPut(authorId) {
+                var clean = authorId.trim()
+                if (clean.startsWith("@")) {
+                    clean = clean.substring(1)
+                }
+                if (clean.endsWith(".ed25519")) {
+                    clean = clean.substring(0, clean.length - 8)
+                }
+                Base64.getDecoder().decode(clean)
             }
-            if (clean.endsWith(".ed25519")) {
-                clean = clean.substring(0, clean.length - 8)
-            }
-            return Base64.getDecoder().decode(clean)
         }
 
         /**

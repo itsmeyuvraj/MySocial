@@ -19,6 +19,7 @@ import java.util.Locale
 
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.delay
 
 class RadarViewModel(
@@ -75,12 +76,15 @@ class RadarViewModel(
                 peer.peerId != myAuthorId &&
                 (myDisplayName.isNullOrBlank() || peer.peerName != myDisplayName)
             }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val syncLogs: StateFlow<List<String>> = repository.activityLogs
 
     val followedAuthorIds: StateFlow<Set<String>> = repository.observeFollowedAuthorIds()
         .map { it.toSet() }
+        .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     fun toggleFollow(targetAuthorId: String, following: Boolean) {

@@ -17,9 +17,12 @@ object FrameCodec {
      * [4-byte Big-Endian Length][Payload bytes]
      */
     fun writeFrame(output: OutputStream, payload: ByteArray) {
-        require(payload.size <= MAX_FRAME_SIZE) { "Payload size ${payload.size} exceeds max frame size $MAX_FRAME_SIZE" }
-        val header = ByteBuffer.allocate(4).order(ByteOrder.BIG_ENDIAN).putInt(payload.size).array()
-        output.write(header)
+        val size = payload.size
+        require(size <= MAX_FRAME_SIZE) { "Payload size $size exceeds max frame size $MAX_FRAME_SIZE" }
+        output.write((size ushr 24) and 0xFF)
+        output.write((size ushr 16) and 0xFF)
+        output.write((size ushr 8) and 0xFF)
+        output.write(size and 0xFF)
         output.write(payload)
         output.flush()
     }
@@ -40,7 +43,11 @@ object FrameCodec {
             bytesRead += r
         }
 
-        val length = ByteBuffer.wrap(header).order(ByteOrder.BIG_ENDIAN).int
+        val length = ((header[0].toInt() and 0xFF) shl 24) or
+                ((header[1].toInt() and 0xFF) shl 16) or
+                ((header[2].toInt() and 0xFF) shl 8) or
+                (header[3].toInt() and 0xFF)
+
         if (length < 0 || length > MAX_FRAME_SIZE) {
             throw IllegalStateException("Invalid frame length received: $length (max: $MAX_FRAME_SIZE)")
         }

@@ -372,6 +372,26 @@ object LogProjector {
      * Synchronously projects a verified LogEntry into the query-optimized materialized view tables.
      */
     suspend fun project(entry: LogEntry, db: MeshDatabase, hopDistance: Int) {
+        projectSingleWithoutSyncState(entry, db, hopDistance)
+
+        // Update peer_sync_state Vector Clock entry for this author
+        val existingState = db.peerSyncStateDao().getState(entry.authorId)
+        if (existingState == null || entry.sequence > existingState.highestSequence) {
+            db.peerSyncStateDao().upsert(
+                PeerSyncStateEntity(
+                    authorId = entry.authorId,
+                    highestSequence = entry.sequence,
+                    lastHash = entry.entryHash,
+                    lastSyncedAt = System.currentTimeMillis()
+                )
+            )
+        }
+    }
+
+    /**
+     * Projects a verified LogEntry without touching peer_sync_state (used during batch processing).
+     */
+    suspend fun projectSingleWithoutSyncState(entry: LogEntry, db: MeshDatabase, hopDistance: Int) {
         // 1. Insert into raw ledger log_entries table
         db.logEntryDao().insert(entry.toEntity(hopDistance))
 
@@ -476,7 +496,6 @@ object LogProjector {
 
             ContentType.FOLLOW -> {
                 val payload = FollowPayload.fromJson(entry.contentJson)
-                val current = db.followDao().isFollowing(entry.authorId, payload.targetAuthorId)
                 db.followDao().upsert(
                     FollowViewEntity(
                         followerId = entry.authorId,
@@ -503,21 +522,10 @@ object LogProjector {
                 }
             }
         }
-
-        // 3. Update peer_sync_state Vector Clock entry for this author
-        val existingState = db.peerSyncStateDao().getState(entry.authorId)
-        if (existingState == null || entry.sequence > existingState.highestSequence) {
-            db.peerSyncStateDao().upsert(
-                PeerSyncStateEntity(
-                    authorId = entry.authorId,
-                    highestSequence = entry.sequence,
-                    lastHash = entry.entryHash,
-                    lastSyncedAt = System.currentTimeMillis()
-                )
-            )
-        }
     }
 }
+
+data class BatchResult(val acceptedCount: Int, val errors: List<String>)
 
 // -----------------------------------------------------------------------------------------
 // ROOM DATABASE DEFINITION
@@ -569,6 +577,59 @@ abstract class MeshDatabase : RoomDatabase() {
             }
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    /**
+     * Atomically validates and projects a batch of LogEntries within a SINGLE transaction,
+     * minimizing disk fsync operations, reducing Room table invalidation notifications,
+     * and coalescing peer_sync_state vector clock updates.
+     */
+    suspend fun insertAndProjectBatch(entries: List<LogEntry>, hopDistance: Int = 1): BatchResult {
+        if (entries.isEmpty()) return BatchResult(0, emptyList())
+        return withTransaction {
+            var acceptedCount = 0
+            val errors = mutableListOf<String>()
+            val maxSequencePerAuthor = mutableMapOf<String, Pair<Long, String>>()
+
+            for (entry in entries) {
+                when (val validation = LogValidator.validate(entry, this@MeshDatabase)) {
+                    is ValidationResult.AlreadyExists -> {
+                        // Idempotent skip
+                    }
+                    is ValidationResult.Invalid -> {
+                        errors.add("${entry.authorId}#${entry.sequence}: ${validation.reason}")
+                    }
+                    is ValidationResult.Valid -> {
+                        LogProjector.projectSingleWithoutSyncState(entry, this@MeshDatabase, hopDistance)
+                        acceptedCount++
+
+                        val currentMax = maxSequencePerAuthor[entry.authorId]?.first ?: 0L
+                        if (entry.sequence > currentMax) {
+                            maxSequencePerAuthor[entry.authorId] = Pair(entry.sequence, entry.entryHash)
+                        }
+                    }
+                }
+            }
+
+            // Coalesced update of vector clocks once per author for the entire batch
+            val now = System.currentTimeMillis()
+            for ((authorId, pair) in maxSequencePerAuthor) {
+                val (maxSeq, lastHash) = pair
+                val existing = peerSyncStateDao().getState(authorId)
+                if (existing == null || maxSeq > existing.highestSequence) {
+                    peerSyncStateDao().upsert(
+                        PeerSyncStateEntity(
+                            authorId = authorId,
+                            highestSequence = maxSeq,
+                            lastHash = lastHash,
+                            lastSyncedAt = now
+                        )
+                    )
+                }
+            }
+
+            BatchResult(acceptedCount, errors)
         }
     }
 

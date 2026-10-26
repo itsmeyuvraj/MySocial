@@ -179,6 +179,10 @@ class MeshSyncService : Service() {
                 }
             }
 
+            var lastStatusText: String? = null
+            var cachedPostCount = -1
+            var lastPostCountQueryTime = 0L
+
             combine(wifiPeers, blePeers, ticker) { w, b, now ->
                 (w + b)
                     .filter { now - it.lastSeenTimestamp <= 15_000L }
@@ -186,13 +190,22 @@ class MeshSyncService : Service() {
                     .sortedByDescending { it.lastSeenTimestamp }
             }.collect { combined ->
                 _allDiscoveredPeers.value = combined
-                val postCount = try { db.postViewDao().getTotalPostsCount() } catch (_: Exception) { 0 }
+                val now = System.currentTimeMillis()
+                if (cachedPostCount == -1 || now - lastPostCountQueryTime > 30_000L) {
+                    cachedPostCount = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                        try { db.postViewDao().getTotalPostsCount() } catch (_: Exception) { 0 }
+                    }
+                    lastPostCountQueryTime = now
+                }
                 val statusText = if (combined.isNotEmpty()) {
-                    "Mesh Active • ${combined.size} Peers Nearby • $postCount Posts Cached"
+                    "Mesh Active • ${combined.size} Peers Nearby • $cachedPostCount Posts Cached"
                 } else {
                     "Mesh Active • Searching for nearby devices"
                 }
-                updateNotification(statusText)
+                if (statusText != lastStatusText) {
+                    lastStatusText = statusText
+                    updateNotification(statusText)
+                }
             }
         }
 

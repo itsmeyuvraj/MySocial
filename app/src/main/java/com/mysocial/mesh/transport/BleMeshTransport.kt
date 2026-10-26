@@ -65,10 +65,21 @@ class BleMeshTransport(
 ) {
     private val tag = "BleMeshTransport"
 
+    private val isRunning = AtomicBoolean(false)
+    private val activeSyncDevices = ConcurrentHashMap.newKeySet<String>()
+    private val lastSyncAttempt = ConcurrentHashMap<String, Long>()
+    private val lastEmittedTimes = ConcurrentHashMap<String, Long>()
+    private val lastRssiMap = ConcurrentHashMap<String, Int>()
+    private val activeGattClients = ConcurrentHashMap<String, BluetoothGatt>()
+
     companion object {
         val SERVICE_UUID: UUID = UUID.fromString("0000a001-0000-1000-8000-00805f9b34fb")
         val CHARACTERISTIC_UUID: UUID = UUID.fromString("0000a002-0000-1000-8000-00805f9b34fb")
         val PSM_CHARACTERISTIC_UUID: UUID = UUID.fromString("0000a003-0000-1000-8000-00805f9b34fb")
+        private const val SYNC_COOLDOWN_MS = 25_000L
+        private const val RSSI_THROTTLE_DELTA_DBM = 6
+        private const val PEER_UPDATE_THROTTLE_MS = 2_000L
+        private const val GATT_CONNECT_TIMEOUT_MS = 15_000L
     }
 
     private val bluetoothManager: BluetoothManager? by lazy {
@@ -87,9 +98,6 @@ class BleMeshTransport(
     private var gattServer: BluetoothGattServer? = null
     private var l2capServerSocket: BluetoothServerSocket? = null
     private var localL2capPsm: Int = 0
-
-    private val isRunning = AtomicBoolean(false)
-    private val activeSyncDevices = ConcurrentHashMap.newKeySet<String>()
 
     private val _peersMap = ConcurrentHashMap<String, DiscoveredPeer>()
     private var prunerJob: Job? = null
@@ -157,6 +165,18 @@ class BleMeshTransport(
             gattServer?.close()
         } catch (_: Exception) {}
         gattServer = null
+
+        activeGattClients.values.forEach { gatt ->
+            try {
+                gatt.disconnect()
+                gatt.close()
+            } catch (_: Exception) {}
+        }
+        activeGattClients.clear()
+        activeSyncDevices.clear()
+        lastSyncAttempt.clear()
+        lastEmittedTimes.clear()
+        lastRssiMap.clear()
 
         _peersMap.clear()
         _discoveredPeers.value = emptyList()
@@ -301,19 +321,37 @@ class BleMeshTransport(
         val address = device.address ?: return
         val rssi = result.rssi
         val deviceName = device.name ?: "Nearby BLE Peer"
+        val now = System.currentTimeMillis()
 
-        val peer = DiscoveredPeer(
-            peerId = address,
-            peerName = deviceName,
-            transportType = TransportType.BLE,
-            rssi = rssi,
-            lastSeenTimestamp = System.currentTimeMillis()
-        )
-        _peersMap[address] = peer
-        updatePeersState()
+        val lastEmitted = lastEmittedTimes[address] ?: 0L
+        val lastRssi = lastRssiMap[address] ?: (rssi - 100)
+        val rssiChanged = kotlin.math.abs(rssi - lastRssi) >= RSSI_THROTTLE_DELTA_DBM
+        val timeElapsed = (now - lastEmitted) >= PEER_UPDATE_THROTTLE_MS
 
-        // Deterministic connection tie-breaker
-        if (localAuthorId.hashCode() < address.hashCode() && !activeSyncDevices.contains(address)) {
+        val existingPeer = _peersMap[address]
+        if (existingPeer != null && !rssiChanged && !timeElapsed) {
+            // Keep lastSeenTimestamp fresh without triggering redundant List allocation & StateFlow emission
+            _peersMap[address] = existingPeer.copy(lastSeenTimestamp = now)
+        } else {
+            lastEmittedTimes[address] = now
+            lastRssiMap[address] = rssi
+            val peer = DiscoveredPeer(
+                peerId = address,
+                peerName = deviceName,
+                transportType = TransportType.BLE,
+                rssi = rssi,
+                lastSeenTimestamp = now
+            )
+            _peersMap[address] = peer
+            updatePeersState()
+        }
+
+        // Deterministic connection tie-breaker with cooldown to prevent rapid reconnection loops
+        val lastAttempt = lastSyncAttempt[address] ?: 0L
+        if (localAuthorId.hashCode() < address.hashCode() &&
+            !activeSyncDevices.contains(address) &&
+            (now - lastAttempt >= SYNC_COOLDOWN_MS)
+        ) {
             connectAndSync(device)
         }
     }
@@ -397,7 +435,9 @@ class BleMeshTransport(
     @SuppressLint("MissingPermission")
     private fun connectAndSync(device: BluetoothDevice) {
         val address = device.address ?: return
+        val now = System.currentTimeMillis()
         if (!activeSyncDevices.add(address)) return
+        lastSyncAttempt[address] = now
 
         updatePeerSyncStatus(address, true)
         Log.i(tag, "Initiating high-speed BLE GATT connection to $address")
@@ -405,9 +445,35 @@ class BleMeshTransport(
         val deviceName = device.name ?: "Nearby BLE Peer"
 
         scope.launch(Dispatchers.IO) {
+            var gattClient: BluetoothGatt? = null
+            var timeoutJob: Job? = null
             try {
-                device.connectGatt(context, false, object : BluetoothGattCallback() {
+                timeoutJob = scope.launch(Dispatchers.IO) {
+                    delay(GATT_CONNECT_TIMEOUT_MS)
+                    if (activeSyncDevices.contains(address)) {
+                        Log.w(tag, "GATT connection watchdog timed out for $address, closing socket")
+                        try {
+                            gattClient?.disconnect()
+                            gattClient?.close()
+                        } catch (_: Exception) {}
+                        activeGattClients.remove(address)
+                        activeSyncDevices.remove(address)
+                        updatePeerSyncStatus(address, false)
+                    }
+                }
+
+                gattClient = device.connectGatt(context, false, object : BluetoothGattCallback() {
                     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+                        if (status != BluetoothGatt.GATT_SUCCESS) {
+                            Log.w(tag, "GATT connection failed with status $status for $address")
+                            timeoutJob?.cancel()
+                            try { gatt.close() } catch (_: Exception) {}
+                            activeGattClients.remove(address)
+                            activeSyncDevices.remove(address)
+                            updatePeerSyncStatus(address, false)
+                            return
+                        }
+
                         if (newState == BluetoothProfile.STATE_CONNECTED) {
                             Log.i(tag, "GATT connected to $address, requesting CONNECTION_PRIORITY_HIGH and 2M PHY")
 
@@ -428,7 +494,9 @@ class BleMeshTransport(
 
                             gatt.discoverServices()
                         } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                            gatt.close()
+                            timeoutJob?.cancel()
+                            try { gatt.close() } catch (_: Exception) {}
+                            activeGattClients.remove(address)
                             activeSyncDevices.remove(address)
                             updatePeerSyncStatus(address, false)
                         }
@@ -440,7 +508,19 @@ class BleMeshTransport(
                             val psmChar = service?.getCharacteristic(PSM_CHARACTERISTIC_UUID)
                             if (psmChar != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                                 gatt.readCharacteristic(psmChar)
+                            } else {
+                                timeoutJob?.cancel()
+                                try { gatt.disconnect(); gatt.close() } catch (_: Exception) {}
+                                activeGattClients.remove(address)
+                                activeSyncDevices.remove(address)
+                                updatePeerSyncStatus(address, false)
                             }
+                        } else {
+                            timeoutJob?.cancel()
+                            try { gatt.disconnect(); gatt.close() } catch (_: Exception) {}
+                            activeGattClients.remove(address)
+                            activeSyncDevices.remove(address)
+                            updatePeerSyncStatus(address, false)
                         }
                     }
 
@@ -473,6 +553,11 @@ class BleMeshTransport(
                                 val remotePsm = ByteBuffer.wrap(value).int
                                 if (remotePsm > 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                                     Log.i(tag, "Attempting BLE L2CAP CoC channel connection to $address on PSM $remotePsm")
+                                    timeoutJob?.cancel()
+                                    // Close initial GATT discovery client as high-speed L2CAP channel connects
+                                    try { gatt.disconnect(); gatt.close() } catch (_: Exception) {}
+                                    activeGattClients.remove(address)
+
                                     scope.launch(Dispatchers.IO) {
                                         try {
                                             val l2capSocket = device.createInsecureL2capChannel(remotePsm)
@@ -492,13 +577,30 @@ class BleMeshTransport(
                                             updatePeerSyncStatus(address, false)
                                         }
                                     }
+                                    return
                                 }
                             }
                         }
+                        timeoutJob?.cancel()
+                        try { gatt.disconnect(); gatt.close() } catch (_: Exception) {}
+                        activeGattClients.remove(address)
+                        activeSyncDevices.remove(address)
+                        updatePeerSyncStatus(address, false)
                     }
                 })
+
+                if (gattClient != null) {
+                    activeGattClients[address] = gattClient
+                } else {
+                    timeoutJob.cancel()
+                    activeSyncDevices.remove(address)
+                    updatePeerSyncStatus(address, false)
+                }
             } catch (e: Exception) {
                 Log.w(tag, "BLE connection to $address failed: ${e.message}")
+                timeoutJob?.cancel()
+                try { gattClient?.close() } catch (_: Exception) {}
+                activeGattClients.remove(address)
                 activeSyncDevices.remove(address)
                 updatePeerSyncStatus(address, false)
             }
