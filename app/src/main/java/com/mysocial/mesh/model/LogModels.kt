@@ -37,9 +37,19 @@ enum class ContentType {
 // -----------------------------------------------------------------------------------------
 
 @Serializable
+data class MediaAttachment(
+    val blobHash: String,
+    val mimeType: String = "image/webp",
+    val totalBytes: Long,
+    val chunkCount: Int,
+    val microPreviewBase64: String
+)
+
+@Serializable
 data class PostPayload(
     val text: String,
-    val tags: List<String> = emptyList()
+    val tags: List<String> = emptyList(),
+    val media: MediaAttachment? = null
 ) {
     fun toJson(): String = CanonicalJson.encodeToString(this)
 
@@ -224,7 +234,12 @@ data class PostViewEntity(
     val rootHash: String?,
     val likeCount: Int = 0,
     val replyCount: Int = 0,
-    val hopDistance: Int = 0
+    val hopDistance: Int = 0,
+    val mediaBlobHash: String? = null,
+    val mediaMimeType: String? = null,
+    val mediaTotalBytes: Long? = null,
+    val mediaChunkCount: Int? = null,
+    val microPreviewBase64: String? = null
 )
 
 /**

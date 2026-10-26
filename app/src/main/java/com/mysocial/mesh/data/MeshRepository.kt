@@ -146,16 +146,58 @@ class MeshRepository(
     }
 
     /**
-     * Creates and signs a new local POST LogEntry, committing it to Room.
+     * Creates and signs a new local POST LogEntry (with optional media attachment), committing it to Room.
      */
-    suspend fun createPost(text: String, tags: List<String>): Result<LogEntry> {
-        val payload = PostPayload(text = text.trim(), tags = tags).toJson()
+    suspend fun createPost(
+        text: String,
+        tags: List<String>,
+        media: com.mysocial.mesh.model.MediaAttachment? = null
+    ): Result<LogEntry> {
+        val payload = PostPayload(text = text.trim(), tags = tags, media = media).toJson()
         return syncEngine.createAndPublishLocalEntry(ContentType.POST, payload).also {
             if (it.isSuccess) {
-                logActivity("Published new post: \"${text.take(30)}${if (text.length > 30) "..." else ""}\"")
+                val suffix = if (media != null) " with photo" else ""
+                logActivity("Published new post$suffix: \"${text.take(30)}${if (text.length > 30) "..." else ""}\"")
                 onContentPublished?.invoke()
             }
         }
+    }
+
+    /**
+     * Observes blob manifest status for a media attachment.
+     */
+    fun observeBlobManifest(blobHash: String): Flow<BlobManifestEntity?> {
+        return db.blobDao().observeManifest(blobHash)
+    }
+
+    /**
+     * Observes received chunk count for a media attachment.
+     */
+    fun observeBlobReceivedChunks(blobHash: String): Flow<Int> {
+        return db.blobDao().observeReceivedChunksCount(blobHash)
+    }
+
+    /**
+     * Prioritizes downloading a specific blob across active connections.
+     */
+    suspend fun prioritizeBlobDownload(blobHash: String) {
+        syncEngine.prioritizeBlob(blobHash)
+    }
+
+    /**
+     * Registers a locally processed completed blob into Room blob_manifests.
+     */
+    suspend fun registerCompletedBlob(media: com.mysocial.mesh.data.ProcessedMedia) {
+        db.blobDao().upsertManifest(
+            BlobManifestEntity(
+                blobHash = media.blobHash,
+                totalBytes = media.totalBytes,
+                chunkCount = media.chunkCount,
+                mimeType = media.mimeType,
+                isComplete = true,
+                localFilePath = media.localFile.absolutePath
+            )
+        )
     }
 
     suspend fun deletePost(entryHash: String): Boolean = withContext(Dispatchers.IO) {

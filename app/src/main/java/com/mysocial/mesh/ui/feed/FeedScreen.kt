@@ -130,6 +130,7 @@ fun FeedScreen(
                             onReplyClick = { replyingToPost = postWithAuthor },
                             onEditClick = { hash, newText -> viewModel.editPost(hash, newText) },
                             onDeleteClick = { hash -> viewModel.deletePost(hash) },
+                            onPrioritizeDownload = { hash -> viewModel.prioritizeBlobDownload(hash) },
                             currentAuthorId = viewModel.currentAuthorId
                         )
                     }

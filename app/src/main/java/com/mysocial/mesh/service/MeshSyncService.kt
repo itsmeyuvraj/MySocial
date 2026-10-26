@@ -81,7 +81,8 @@ class MeshSyncService : Service() {
             db = db,
             cryptoManager = cryptoManager,
             myDisplayName = initialName,
-            openMeshMode = true
+            openMeshMode = true,
+            context = this
         )
     }
 

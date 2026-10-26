@@ -68,4 +68,10 @@ class FeedViewModel(
             repository.editPost(entryHash, newText)
         }
     }
+
+    fun prioritizeBlobDownload(blobHash: String) {
+        viewModelScope.launch {
+            repository.prioritizeBlobDownload(blobHash)
+        }
+    }
 }

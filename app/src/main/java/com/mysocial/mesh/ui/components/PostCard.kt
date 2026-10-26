@@ -8,7 +8,9 @@ import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,8 +19,10 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -34,12 +38,14 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -50,28 +56,36 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mysocial.mesh.data.MediaProcessor
+import com.mysocial.mesh.data.MeshDatabase
 import com.mysocial.mesh.model.CanonicalJson
 import com.mysocial.mesh.model.PostWithAuthor
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FbBorder
 import com.mysocial.mesh.ui.theme.FbRed
 import com.mysocial.mesh.ui.theme.FbSurface
+import com.mysocial.mesh.ui.theme.FbSurfaceElevated
 import com.mysocial.mesh.ui.theme.FbTextPrimary
 import com.mysocial.mesh.ui.theme.FbTextSecondary
 import com.mysocial.mesh.ui.theme.FbTextTertiary
+import java.io.File
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -82,6 +96,7 @@ fun PostCard(
     onEditClick: ((entryHash: String, newText: String) -> Unit)? = null,
     onDeleteClick: ((entryHash: String) -> Unit)? = null,
     onShareClick: ((postText: String) -> Unit)? = null,
+    onPrioritizeDownload: ((blobHash: String) -> Unit)? = null,
     currentAuthorId: String? = null,
     modifier: Modifier = Modifier
 ) {
@@ -255,6 +270,18 @@ fun PostCard(
                 lineHeight = 22.sp,
                 modifier = Modifier.padding(horizontal = 14.dp)
             )
+
+            // Media attachment (Chunked Blob with micro-preview and crisp image transition)
+            if (post.mediaBlobHash != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                PostMediaAttachmentView(
+                    blobHash = post.mediaBlobHash,
+                    chunkCount = post.mediaChunkCount ?: 1,
+                    microPreviewBase64 = post.microPreviewBase64,
+                    onPrioritizeDownload = { onPrioritizeDownload?.invoke(post.mediaBlobHash) },
+                    modifier = Modifier.padding(horizontal = 14.dp)
+                )
+            }
 
             // Hashtags (Facebook Blue style)
             if (tags.isNotEmpty()) {
@@ -516,3 +543,138 @@ private fun formatRelativeTime(timestamp: Long): String {
         else -> "${days}d"
     }
 }
+
+/**
+ * Renders chunked media blobs in posts.
+ * - Incomplete: Shows blurred micro-preview with circular progress percentage and tap to prioritize
+ * - Complete: Automatically transitions to crisp full WebP image
+ */
+@Composable
+fun PostMediaAttachmentView(
+    blobHash: String,
+    chunkCount: Int,
+    microPreviewBase64: String?,
+    onPrioritizeDownload: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val db = remember(context) { MeshDatabase.getInstance(context) }
+    val manifest by db.blobDao().observeManifest(blobHash).collectAsState(initial = null)
+    val receivedChunks by db.blobDao().observeReceivedChunksCount(blobHash).collectAsState(initial = 0)
+
+    val isComplete = manifest?.isComplete == true
+    val localFile = remember(manifest?.localFilePath, isComplete) {
+        manifest?.localFilePath?.let { File(it) } ?: MediaProcessor.getBlobFile(context, blobHash)
+    }
+
+    val fullBitmap = remember(localFile, isComplete) {
+        if (isComplete && localFile.exists()) {
+            MediaProcessor.decodeBlobFile(localFile)
+        } else {
+            null
+        }
+    }
+
+    val thumbBitmap = remember(microPreviewBase64) {
+        MediaProcessor.decodeMicroPreview(microPreviewBase64)
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .border(1.dp, FbBorder, RoundedCornerShape(8.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        if (isComplete && fullBitmap != null) {
+            // Full crisp WebP image
+            Image(
+                bitmap = fullBitmap.asImageBitmap(),
+                contentDescription = "Post photo",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 180.dp, max = 380.dp)
+            )
+        } else {
+            // Incomplete: Blurred micro-preview + circular progress indicator + tap to prioritize
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(240.dp)
+                    .background(FbSurfaceElevated)
+                    .clickable { onPrioritizeDownload() },
+                contentAlignment = Alignment.Center
+            ) {
+                if (thumbBitmap != null) {
+                    Image(
+                        bitmap = thumbBitmap.asImageBitmap(),
+                        contentDescription = "Micro preview",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .blur(16.dp)
+                    )
+                }
+
+                // Darkened scrim overlay for contrast
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.45f))
+                )
+
+                val total = if (chunkCount > 0) chunkCount else (manifest?.chunkCount ?: 1)
+                val progress = (receivedChunks.toFloat() / total.toFloat()).coerceIn(0f, 1f)
+                val percent = (progress * 100).toInt()
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(
+                            progress = { progress },
+                            color = FacebookBlue,
+                            trackColor = Color.White.copy(alpha = 0.2f),
+                            strokeWidth = 3.dp,
+                            modifier = Modifier.size(52.dp)
+                        )
+                        Text(
+                            text = "$percent%",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.Black.copy(alpha = 0.6f))
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.WifiTethering,
+                            contentDescription = null,
+                            tint = FacebookBlue,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Tap to prioritize download",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+

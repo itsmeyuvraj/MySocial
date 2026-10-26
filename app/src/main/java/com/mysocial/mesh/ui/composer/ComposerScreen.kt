@@ -1,6 +1,11 @@
 package com.mysocial.mesh.ui.composer
 
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,11 +30,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -50,6 +56,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,6 +68,7 @@ import com.mysocial.mesh.ui.theme.FacebookBlueLight
 import com.mysocial.mesh.ui.theme.FbBackground
 import com.mysocial.mesh.ui.theme.FbBorder
 import com.mysocial.mesh.ui.theme.FbGreen
+import com.mysocial.mesh.ui.theme.FbRed
 import com.mysocial.mesh.ui.theme.FbSurface
 import com.mysocial.mesh.ui.theme.FbSurfaceElevated
 import com.mysocial.mesh.ui.theme.FbTextPrimary
@@ -73,12 +83,32 @@ fun ComposerScreen(
     onDismiss: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val postText by viewModel.postText.collectAsState()
     val tags by viewModel.tags.collectAsState()
+    val selectedImageUri by viewModel.selectedImageUri.collectAsState()
     val isPublishing by viewModel.isPublishing.collectAsState()
     val statusMessage by viewModel.statusMessage.collectAsState()
 
     var newTagInput by remember { mutableStateOf("") }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        viewModel.setSelectedImageUri(uri)
+    }
+
+    val previewBitmap = remember(selectedImageUri) {
+        selectedImageUri?.let { uri ->
+            try {
+                context.contentResolver.openInputStream(uri)?.use { stream ->
+                    BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                }
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -121,7 +151,7 @@ fun ComposerScreen(
                     }
 
                     Button(
-                        onClick = { viewModel.publishPost(onPostPublished) },
+                        onClick = { viewModel.publishPost(context, onPostPublished) },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = FacebookBlue,
                             contentColor = Color.White,
@@ -129,7 +159,7 @@ fun ComposerScreen(
                             disabledContentColor = FbTextTertiary
                         ),
                         shape = RoundedCornerShape(6.dp),
-                        enabled = postText.isNotBlank() && !isPublishing
+                        enabled = (postText.isNotBlank() || selectedImageUri != null) && !isPublishing
                     ) {
                         if (isPublishing) {
                             CircularProgressIndicator(
@@ -201,7 +231,7 @@ fun ComposerScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Post Content Input (Facebook Clean Multiline Style)
+                // Post Content Input
                 TextField(
                     value = postText,
                     onValueChange = { viewModel.updateText(it) },
@@ -214,7 +244,7 @@ fun ComposerScreen(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(180.dp),
+                        .height(140.dp),
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent,
@@ -225,8 +255,80 @@ fun ComposerScreen(
                     )
                 )
 
-                HorizontalDivider(color = FbBorder, thickness = 0.8.dp)
+                // Selected Image Preview
+                if (previewBitmap != null) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(1.dp, FbBorder, RoundedCornerShape(12.dp))
+                    ) {
+                        Image(
+                            bitmap = previewBitmap,
+                            contentDescription = "Selected photo preview",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(220.dp),
+                            contentScale = ContentScale.Crop
+                        )
 
+                        // Remove Image Button
+                        IconButton(
+                            onClick = { viewModel.setSelectedImageUri(null) },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp)
+                                .size(32.dp)
+                                .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = "Remove photo",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                // "Add to your post" bar with Photo/Video Picker Button
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { photoPickerLauncher.launch("image/*") },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = FbSurfaceElevated),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, FbBorder)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = if (selectedImageUri != null) "Change Photo" else "Add Photo to your post",
+                            color = FbTextPrimary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Filled.Image,
+                                contentDescription = "Add Photo",
+                                tint = FbGreen,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider(color = FbBorder, thickness = 0.8.dp)
                 Spacer(modifier = Modifier.height(14.dp))
 
                 // Tags section
@@ -239,16 +341,18 @@ fun ComposerScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    tags.forEach { tag ->
-                        FbTagChip(tag = tag, onRemove = { viewModel.removeTag(tag) })
+                if (tags.isNotEmpty()) {
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        tags.forEach { tag ->
+                            FbTagChip(tag = tag, onRemove = { viewModel.removeTag(tag) })
+                        }
                     }
+                    Spacer(modifier = Modifier.height(10.dp))
                 }
-
-                Spacer(modifier = Modifier.height(10.dp))
 
                 // Add Custom Tag Input
                 Row(
@@ -294,7 +398,7 @@ fun ComposerScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // Friendly Security & Offline Reassurance Banner (No Jargon)
+                // Friendly Security & Offline Reassurance Banner
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()

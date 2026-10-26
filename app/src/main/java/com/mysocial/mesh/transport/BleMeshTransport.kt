@@ -11,6 +11,7 @@ import android.bluetooth.BluetoothGattServerCallback
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertiseSettings
@@ -21,35 +22,36 @@ import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
+import android.os.Build
 import android.os.ParcelUuid
 import android.util.Log
 import com.mysocial.mesh.crypto.CryptoManager
 import com.mysocial.mesh.protocol.BleChunker
 import com.mysocial.mesh.protocol.BleReassembler
+import com.mysocial.mesh.protocol.BluetoothSocketPeerConnection
 import com.mysocial.mesh.protocol.GossipMessage
 import com.mysocial.mesh.protocol.GossipSyncEngine
 import com.mysocial.mesh.protocol.PeerConnection
 import com.mysocial.mesh.protocol.TransportType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import java.nio.ByteBuffer
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Pure AOSP Bluetooth Low Energy (BLE) Mesh Transport.
+ * Pure AOSP High-Speed Bluetooth Low Energy (BLE) Mesh Transport.
  * Features:
- * 1. Background BLE Beacons (BluetoothLeAdvertiser with ScanRecord service data)
+ * 1. Background BLE Beacons (BluetoothLeAdvertiser with compact service data)
  * 2. Background BLE Scanner (BluetoothLeScanner with ScanFilter for service UUID)
- * 3. GATT Server & GATT Client duplex characteristic exchange with BleChunker / BleReassembler
+ * 3. BLE L2CAP Connection-Oriented Channels (listenUsingInsecureL2capChannel & createInsecureL2capChannel on API 29+)
+ * 4. High-Speed Throughput Tuning (BluetoothGatt.CONNECTION_PRIORITY_HIGH & PHY_LE_2M_MASK)
+ * 5. Fallback GATT Server & Client characteristic exchange with BleChunker / BleReassembler
  */
 class BleMeshTransport(
     private val context: Context,
@@ -63,6 +65,7 @@ class BleMeshTransport(
     companion object {
         val SERVICE_UUID: UUID = UUID.fromString("0000a001-0000-1000-8000-00805f9b34fb")
         val CHARACTERISTIC_UUID: UUID = UUID.fromString("0000a002-0000-1000-8000-00805f9b34fb")
+        val PSM_CHARACTERISTIC_UUID: UUID = UUID.fromString("0000a003-0000-1000-8000-00805f9b34fb")
     }
 
     private val bluetoothManager: BluetoothManager? by lazy {
@@ -79,6 +82,9 @@ class BleMeshTransport(
     }
 
     private var gattServer: BluetoothGattServer? = null
+    private var l2capServerSocket: BluetoothServerSocket? = null
+    private var localL2capPsm: Int = 0
+
     private val isRunning = AtomicBoolean(false)
     private val activeSyncDevices = ConcurrentHashMap.newKeySet<String>()
 
@@ -93,7 +99,7 @@ class BleMeshTransport(
         get() = bluetoothAdapter != null && bluetoothAdapter!!.isEnabled
 
     /**
-     * Start BLE advertising, GATT server, and scanning.
+     * Start BLE advertising, L2CAP listener, GATT server, and scanning.
      */
     @SuppressLint("MissingPermission")
     fun start() {
@@ -105,6 +111,7 @@ class BleMeshTransport(
 
         Log.i(tag, "Starting BleMeshTransport for $localDisplayName ($localAuthorId)")
         try {
+            startL2capServer()
             startGattServer()
             startAdvertising()
             startScanning()
@@ -116,7 +123,7 @@ class BleMeshTransport(
     }
 
     /**
-     * Stop BLE advertising, scanning, and close GATT server.
+     * Stop BLE advertising, scanning, L2CAP listener, and close GATT server.
      */
     @SuppressLint("MissingPermission")
     fun stop() {
@@ -134,12 +141,58 @@ class BleMeshTransport(
         scanCallback = null
 
         try {
+            l2capServerSocket?.close()
+        } catch (_: Exception) {}
+        l2capServerSocket = null
+
+        try {
             gattServer?.close()
         } catch (_: Exception) {}
         gattServer = null
 
         _peersMap.clear()
         _discoveredPeers.value = emptyList()
+    }
+
+    /**
+     * Starts BLE L2CAP Connection-Oriented Channel listener on API 29+.
+     */
+    @SuppressLint("MissingPermission")
+    private fun startL2capServer() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && bluetoothAdapter != null) {
+            try {
+                val server = bluetoothAdapter!!.listenUsingInsecureL2capChannel()
+                l2capServerSocket = server
+                localL2capPsm = server.psm
+                Log.i(tag, "BLE L2CAP CoC Server listening on dynamic PSM $localL2capPsm")
+
+                Thread({
+                    while (isRunning.get()) {
+                        try {
+                            val socket = server.accept() ?: break
+                            val remoteDevice = socket.remoteDevice
+                            val address = remoteDevice?.address ?: "BLE_L2CAP"
+                            val name = remoteDevice?.name ?: "Nearby BLE Peer"
+                            Log.i(tag, "Accepted incoming high-speed BLE L2CAP channel from $address")
+
+                            scope.launch(Dispatchers.IO) {
+                                val connection = BluetoothSocketPeerConnection(
+                                    peerId = address,
+                                    peerName = name,
+                                    transportType = TransportType.BLE,
+                                    socket = socket
+                                )
+                                syncEngine.syncWithPeer(connection)
+                            }
+                        } catch (e: Exception) {
+                            if (!isRunning.get()) break
+                        }
+                    }
+                }, "BleL2capServerThread").start()
+            } catch (e: Exception) {
+                Log.w(tag, "L2CAP server channel initialization failed: ${e.message}")
+            }
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -153,7 +206,6 @@ class BleMeshTransport(
             .setTimeout(0)
             .build()
 
-        // Compact beacon data: Service UUID + 4-byte author hash + 2-byte short sequence
         val authorHashPrefix = CryptoManager.sha256Hex(localAuthorId).take(8).chunked(2)
             .map { it.toInt(16).toByte() }.toByteArray()
 
@@ -241,6 +293,7 @@ class BleMeshTransport(
     private fun startGattServer() {
         val bm = bluetoothManager ?: return
         val service = BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY)
+
         val characteristic = BluetoothGattCharacteristic(
             CHARACTERISTIC_UUID,
             BluetoothGattCharacteristic.PROPERTY_READ or
@@ -250,12 +303,34 @@ class BleMeshTransport(
         )
         service.addCharacteristic(characteristic)
 
+        // PSM Characteristic for advertising L2CAP port to connecting clients
+        val psmCharacteristic = BluetoothGattCharacteristic(
+            PSM_CHARACTERISTIC_UUID,
+            BluetoothGattCharacteristic.PROPERTY_READ,
+            BluetoothGattCharacteristic.PERMISSION_READ
+        )
+        service.addCharacteristic(psmCharacteristic)
+
         gattServer = bm.openGattServer(context, object : BluetoothGattServerCallback() {
             private val reassembler = BleReassembler()
 
             override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
                 if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     reassembler.reset()
+                }
+            }
+
+            override fun onCharacteristicReadRequest(
+                device: BluetoothDevice,
+                requestId: Int,
+                offset: Int,
+                characteristic: BluetoothGattCharacteristic
+            ) {
+                if (characteristic.uuid == PSM_CHARACTERISTIC_UUID) {
+                    val psmBytes = ByteBuffer.allocate(4).putInt(localL2capPsm).array()
+                    gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, psmBytes)
+                } else {
+                    gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, byteArrayOf())
                 }
             }
 
@@ -283,22 +358,45 @@ class BleMeshTransport(
         gattServer?.addService(service)
     }
 
+    /**
+     * Connects to a remote BLE device with High-Speed tuning:
+     * - Requests BluetoothGatt.CONNECTION_PRIORITY_HIGH
+     * - Requests PHY_LE_2M_MASK for 2 Mbps PHY
+     * - Negotiates high MTU (517)
+     * - Connects via BLE L2CAP CoC on API 29+ with fallback to GATT
+     */
     @SuppressLint("MissingPermission")
     private fun connectAndSync(device: BluetoothDevice) {
         val address = device.address ?: return
         if (!activeSyncDevices.add(address)) return
 
         updatePeerSyncStatus(address, true)
-        Log.i(tag, "Initiating BLE GATT connection to $address")
+        Log.i(tag, "Initiating high-speed BLE GATT connection to $address")
 
-        // In a real device, connectGatt initiates GATT handshake and L2CAP channel
-        // For graceful error recovery and timeout:
+        val deviceName = device.name ?: "Nearby BLE Peer"
+
         scope.launch(Dispatchers.IO) {
             try {
-                // Connect via GATT callback
                 device.connectGatt(context, false, object : BluetoothGattCallback() {
                     override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
                         if (newState == BluetoothProfile.STATE_CONNECTED) {
+                            Log.i(tag, "GATT connected to $address, requesting CONNECTION_PRIORITY_HIGH and 2M PHY")
+
+                            // 1. Request High Connection Priority
+                            gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
+
+                            // 2. Request 2M PHY on API 26+
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                gatt.setPreferredPhy(
+                                    BluetoothDevice.PHY_LE_2M_MASK,
+                                    BluetoothDevice.PHY_LE_2M_MASK,
+                                    BluetoothDevice.PHY_OPTION_NO_PREFERRED
+                                )
+                            }
+
+                            // 3. Request high MTU
+                            gatt.requestMtu(517)
+
                             gatt.discoverServices()
                         } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                             gatt.close()
@@ -308,12 +406,70 @@ class BleMeshTransport(
                     }
 
                     override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
-                        Log.i(tag, "BLE Services discovered on $address")
+                        if (status == BluetoothGatt.GATT_SUCCESS) {
+                            val service = gatt.getService(SERVICE_UUID)
+                            val psmChar = service?.getCharacteristic(PSM_CHARACTERISTIC_UUID)
+                            if (psmChar != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                gatt.readCharacteristic(psmChar)
+                            }
+                        }
+                    }
+
+                    @Deprecated("Deprecated in Java")
+                    override fun onCharacteristicRead(
+                        gatt: BluetoothGatt,
+                        characteristic: BluetoothGattCharacteristic,
+                        status: Int
+                    ) {
+                        handleCharacteristicRead(gatt, characteristic, characteristic.value, status)
+                    }
+
+                    override fun onCharacteristicRead(
+                        gatt: BluetoothGatt,
+                        characteristic: BluetoothGattCharacteristic,
+                        value: ByteArray,
+                        status: Int
+                    ) {
+                        handleCharacteristicRead(gatt, characteristic, value, status)
+                    }
+
+                    private fun handleCharacteristicRead(
+                        gatt: BluetoothGatt,
+                        characteristic: BluetoothGattCharacteristic,
+                        value: ByteArray?,
+                        status: Int
+                    ) {
+                        if (status == BluetoothGatt.GATT_SUCCESS && characteristic.uuid == PSM_CHARACTERISTIC_UUID) {
+                            if (value != null && value.size >= 4) {
+                                val remotePsm = ByteBuffer.wrap(value).int
+                                if (remotePsm > 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                    Log.i(tag, "Attempting BLE L2CAP CoC channel connection to $address on PSM $remotePsm")
+                                    scope.launch(Dispatchers.IO) {
+                                        try {
+                                            val l2capSocket = device.createInsecureL2capChannel(remotePsm)
+                                            l2capSocket.connect()
+                                            Log.i(tag, "Successfully connected BLE L2CAP channel to $address")
+                                            val conn = BluetoothSocketPeerConnection(
+                                                peerId = address,
+                                                peerName = deviceName,
+                                                transportType = TransportType.BLE,
+                                                socket = l2capSocket
+                                            )
+                                            syncEngine.syncWithPeer(conn)
+                                        } catch (e: Exception) {
+                                            Log.w(tag, "L2CAP connection failed to $address: ${e.message}")
+                                        } finally {
+                                            activeSyncDevices.remove(address)
+                                            updatePeerSyncStatus(address, false)
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 })
             } catch (e: Exception) {
                 Log.w(tag, "BLE connection to $address failed: ${e.message}")
-            } finally {
                 activeSyncDevices.remove(address)
                 updatePeerSyncStatus(address, false)
             }

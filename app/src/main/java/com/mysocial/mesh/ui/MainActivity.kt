@@ -148,6 +148,13 @@ class MainActivity : ComponentActivity() {
                                     repository.logActivity("Received ${event.entriesReceived} new updates from $name")
                                 }
                             }
+                            is com.mysocial.mesh.protocol.SyncEvent.BlobProgress -> {
+                                // Background chunk streaming
+                            }
+                            is com.mysocial.mesh.protocol.SyncEvent.BlobCompleted -> {
+                                val name = repository.getPeerName(event.peerId)
+                                repository.logActivity("Downloaded high-res media from $name")
+                            }
                             is com.mysocial.mesh.protocol.SyncEvent.Failed -> {
                                 // Routine background connection retries (omitted from UI log)
                             }

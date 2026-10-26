@@ -369,6 +369,7 @@ object LogProjector {
             ContentType.POST -> {
                 val payload = PostPayload.fromJson(entry.contentJson)
                 val tagsJson = CanonicalJson.encodeToString(payload.tags)
+                val media = payload.media
                 db.postViewDao().upsert(
                     PostViewEntity(
                         entryHash = entry.entryHash,
@@ -380,9 +381,30 @@ object LogProjector {
                         rootHash = null,
                         likeCount = 0,
                         replyCount = 0,
-                        hopDistance = hopDistance
+                        hopDistance = hopDistance,
+                        mediaBlobHash = media?.blobHash,
+                        mediaMimeType = media?.mimeType,
+                        mediaTotalBytes = media?.totalBytes,
+                        mediaChunkCount = media?.chunkCount,
+                        microPreviewBase64 = media?.microPreviewBase64
                     )
                 )
+
+                if (media != null) {
+                    val existingManifest = db.blobDao().getManifest(media.blobHash)
+                    if (existingManifest == null) {
+                        db.blobDao().upsertManifest(
+                            BlobManifestEntity(
+                                blobHash = media.blobHash,
+                                totalBytes = media.totalBytes,
+                                chunkCount = media.chunkCount,
+                                mimeType = media.mimeType,
+                                isComplete = false,
+                                localFilePath = null
+                            )
+                        )
+                    }
+                }
             }
 
             ContentType.REPLY -> {
@@ -480,7 +502,9 @@ object LogProjector {
         PostViewEntity::class,
         ReactionEntity::class,
         FollowViewEntity::class,
-        PeerSyncStateEntity::class
+        PeerSyncStateEntity::class,
+        BlobManifestEntity::class,
+        BlobChunkEntity::class
     ],
     version = 1,
     exportSchema = false
@@ -494,6 +518,7 @@ abstract class MeshDatabase : RoomDatabase() {
     abstract fun reactionDao(): ReactionDao
     abstract fun followDao(): FollowDao
     abstract fun peerSyncStateDao(): PeerSyncStateDao
+    abstract fun blobDao(): BlobDao
 
     /**
      * Atomically validates a LogEntry and projects it into the materialized views.

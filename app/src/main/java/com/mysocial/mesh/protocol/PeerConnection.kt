@@ -93,6 +93,62 @@ class StreamPeerConnection(
 }
 
 /**
+ * PeerConnection implementation over BLE L2CAP CoC BluetoothSocket.
+ * Uses FrameCodec 4-byte length prefixing over raw BLE L2CAP channel.
+ */
+class BluetoothSocketPeerConnection(
+    override val peerId: String,
+    override val peerName: String,
+    override val transportType: TransportType = TransportType.BLE,
+    private val socket: android.bluetooth.BluetoothSocket
+) : PeerConnection {
+
+    private val closed = AtomicBoolean(false)
+    private val incomingChannel = Channel<GossipMessage>(Channel.UNLIMITED)
+    private val inputStream = BufferedInputStream(socket.inputStream)
+    private val outputStream = BufferedOutputStream(socket.outputStream)
+
+    override val isConnected: Boolean
+        get() = !closed.get() && socket.isConnected
+
+    init {
+        Thread({
+            try {
+                while (isConnected) {
+                    val frame = FrameCodec.readFrame(inputStream) ?: break
+                    val json = String(frame, Charsets.UTF_8)
+                    val message = GossipMessage.decode(json)
+                    incomingChannel.trySend(message)
+                }
+            } catch (_: Exception) {
+            } finally {
+                incomingChannel.close()
+            }
+        }, "BluetoothPeerReader-$peerId").start()
+    }
+
+    override suspend fun send(message: GossipMessage) = withContext(Dispatchers.IO) {
+        if (!isConnected) throw IllegalStateException("Connection to $peerId is closed")
+        val json = message.encode()
+        val bytes = json.toByteArray(Charsets.UTF_8)
+        synchronized(outputStream) {
+            FrameCodec.writeFrame(outputStream, bytes)
+        }
+    }
+
+    override suspend fun receiveMessage(): GossipMessage = withContext(Dispatchers.IO) {
+        incomingChannel.receive()
+    }
+
+    override suspend fun close() = withContext(Dispatchers.IO) {
+        if (closed.compareAndSet(false, true)) {
+            incomingChannel.close()
+            try { socket.close() } catch (_: Exception) {}
+        }
+    }
+}
+
+/**
  * In-Memory Duplex Loopback PeerConnection for testing and intra-process mesh simulation.
  */
 class MemoryPeerConnection(
