@@ -25,6 +25,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ChatBubbleOutline
@@ -52,8 +55,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -66,12 +73,13 @@ import com.mysocial.mesh.ui.theme.FbSurface
 import com.mysocial.mesh.ui.theme.FbTextPrimary
 import com.mysocial.mesh.ui.theme.FbTextSecondary
 import com.mysocial.mesh.ui.theme.FbTextTertiary
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
  * Facebook-style Post Details & Comments Modal Bottom Sheet.
  * Displays the original post summary, a reactive scrollable thread of all comments,
- * and a sticky comment composer at the bottom.
+ * and an always-visible sticky comment composer at the bottom.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,15 +92,26 @@ fun PostCommentsSheet(
     onSendComment: (text: String) -> Unit,
     onLikePost: (() -> Unit)? = null,
     onLikeComment: ((commentHash: String) -> Unit)? = null,
+    autoFocus: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+    val focusRequester = remember { FocusRequester() }
 
     var commentText by remember { mutableStateOf("") }
     val post = postWithAuthor.post
     val postAuthor = postWithAuthor.authorProfile?.displayName ?: "Neighbor"
+
+    LaunchedEffect(autoFocus) {
+        if (autoFocus) {
+            delay(250)
+            try {
+                focusRequester.requestFocus()
+            } catch (_: Exception) {}
+        }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -105,14 +124,15 @@ fun PostCommentsSheet(
                 width = 36.dp
             )
         },
-        modifier = modifier
-            .fillMaxWidth()
-            .imePadding()
+        contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
+        modifier = modifier.fillMaxWidth()
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.88f)
+                .fillMaxHeight(0.92f)
+                .navigationBarsPadding()
+                .imePadding()
         ) {
             // Header Bar: "Comments", count badge, close button
             Row(
@@ -241,9 +261,7 @@ fun PostCommentsSheet(
             // Sticky Bottom Comment Input Bar
             Surface(
                 color = FbSurface,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
                     modifier = Modifier
@@ -272,8 +290,27 @@ fun PostCommentsSheet(
                         },
                         modifier = Modifier
                             .weight(1f)
+                            .focusRequester(focusRequester)
                             .clip(RoundedCornerShape(22.dp)),
                         shape = RoundedCornerShape(22.dp),
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Sentences,
+                            imeAction = ImeAction.Send
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onSend = {
+                                if (commentText.isNotBlank()) {
+                                    val textToSend = commentText.trim()
+                                    onSendComment(textToSend)
+                                    commentText = ""
+                                    coroutineScope.launch {
+                                        if (comments.isNotEmpty()) {
+                                            listState.animateScrollToItem(comments.size)
+                                        }
+                                    }
+                                }
+                            }
+                        ),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = FbTextPrimary,
                             unfocusedTextColor = FbTextPrimary,

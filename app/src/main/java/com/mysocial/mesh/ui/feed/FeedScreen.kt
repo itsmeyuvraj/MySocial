@@ -86,6 +86,7 @@ fun FeedScreen(
     val onlineAuthorIds by viewModel.onlineAuthorIds.collectAsState()
 
     var selectedPostForComments by remember { mutableStateOf<PostWithAuthor?>(null) }
+    var autoFocusCommentInput by remember { mutableStateOf(false) }
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -130,8 +131,14 @@ fun FeedScreen(
                             PostCard(
                                 postWithAuthor = postWithAuthor,
                                 onLikeClick = { viewModel.likePost(postWithAuthor.post.entryHash) },
-                                onReplyClick = { selectedPostForComments = postWithAuthor },
-                                onPostClick = { selectedPostForComments = postWithAuthor },
+                                onReplyClick = {
+                                    selectedPostForComments = postWithAuthor
+                                    autoFocusCommentInput = true
+                                },
+                                onPostClick = {
+                                    selectedPostForComments = postWithAuthor
+                                    autoFocusCommentInput = false
+                                },
                                 onEditClick = { hash, newText -> viewModel.editPost(hash, newText) },
                                 onDeleteClick = { hash -> viewModel.deletePost(hash) },
                                 onPrioritizeDownload = { hash -> viewModel.prioritizeBlobDownload(hash) },
@@ -154,7 +161,11 @@ fun FeedScreen(
                 comments = comments,
                 currentAuthorId = viewModel.currentAuthorId,
                 onlineAuthorIds = onlineAuthorIds,
-                onDismiss = { selectedPostForComments = null },
+                autoFocus = autoFocusCommentInput,
+                onDismiss = {
+                    selectedPostForComments = null
+                    autoFocusCommentInput = false
+                },
                 onSendComment = { text ->
                     val root = targetPost.post.rootHash ?: targetPost.post.entryHash
                     viewModel.replyToPost(

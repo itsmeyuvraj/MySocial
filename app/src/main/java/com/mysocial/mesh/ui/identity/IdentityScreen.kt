@@ -77,6 +77,7 @@ fun IdentityScreen(
     var editName by remember { mutableStateOf("") }
     var editBio by remember { mutableStateOf("") }
     var selectedPostForComments by remember { mutableStateOf<com.mysocial.mesh.model.PostWithAuthor?>(null) }
+    var autoFocusCommentInput by remember { mutableStateOf(false) }
 
     val authorId = viewModel.authorId
     val displayName = myProfile?.displayName ?: "User"
@@ -262,8 +263,14 @@ fun IdentityScreen(
                     PostCard(
                         postWithAuthor = postItem,
                         onLikeClick = { viewModel.reactToPost(postItem.post.entryHash) },
-                        onReplyClick = { selectedPostForComments = postItem },
-                        onPostClick = { selectedPostForComments = postItem },
+                        onReplyClick = {
+                            selectedPostForComments = postItem
+                            autoFocusCommentInput = true
+                        },
+                        onPostClick = {
+                            selectedPostForComments = postItem
+                            autoFocusCommentInput = false
+                        },
                         onEditClick = { hash, newText -> viewModel.editPost(hash, newText) },
                         onDeleteClick = { hash -> viewModel.deletePost(hash) },
                         currentAuthorId = authorId,
@@ -284,7 +291,11 @@ fun IdentityScreen(
                 comments = comments,
                 currentAuthorId = authorId,
                 onlineAuthorIds = emptySet(),
-                onDismiss = { selectedPostForComments = null },
+                autoFocus = autoFocusCommentInput,
+                onDismiss = {
+                    selectedPostForComments = null
+                    autoFocusCommentInput = false
+                },
                 onSendComment = { text ->
                     val root = targetPost.post.rootHash ?: targetPost.post.entryHash
                     viewModel.replyToPost(
