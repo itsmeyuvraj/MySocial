@@ -37,7 +37,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Share
@@ -265,14 +264,14 @@ fun PostCard(
                                     showDeleteDialog = true
                                 }
                             )
-                        } else if (onToggleFriend != null) {
+                        } else if (isFriend && onToggleFriend != null) {
                             DropdownMenuItem(
-                                text = { Text(if (isFriend) "Remove Friend" else "Add Friend", color = FbTextPrimary) },
+                                text = { Text("Remove Friend", color = FbTextSecondary) },
                                 leadingIcon = {
                                     Icon(
-                                        imageVector = if (isFriend) Icons.Filled.PersonRemove else Icons.Filled.PersonAdd,
+                                        imageVector = Icons.Filled.PersonRemove,
                                         contentDescription = null,
-                                        tint = if (isFriend) FbTextSecondary else FacebookBlue,
+                                        tint = FbTextSecondary,
                                         modifier = Modifier.size(18.dp)
                                     )
                                 },

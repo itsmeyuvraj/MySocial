@@ -48,9 +48,6 @@ import com.mysocial.mesh.ui.theme.FbTextPrimary
 import com.mysocial.mesh.ui.theme.FbTextSecondary
 import com.mysocial.mesh.ui.theme.FbTextTertiary
 
-import androidx.compose.foundation.clickable
-import androidx.compose.material.icons.filled.PersonAdd
-
 @Composable
 fun PeerCard(
     peer: DiscoveredPeer,
@@ -144,29 +141,27 @@ fun PeerCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (onToggleFriend != null && !isFriend) {
-                    Box(
+                if (isFriend) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(FacebookBlue)
-                            .clickable { onToggleFriend() }
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(FacebookBlueLight)
+                            .padding(horizontal = 9.dp, vertical = 5.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Filled.PersonAdd,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Add",
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Filled.Check,
+                            contentDescription = null,
+                            tint = FacebookBlue,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Friend",
+                            color = FacebookBlue,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
 

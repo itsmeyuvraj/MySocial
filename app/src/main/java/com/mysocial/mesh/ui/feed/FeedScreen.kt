@@ -82,6 +82,7 @@ import com.mysocial.mesh.ui.theme.FbSurfaceElevated
 import com.mysocial.mesh.ui.theme.FbTextPrimary
 import com.mysocial.mesh.ui.theme.FbTextSecondary
 import com.mysocial.mesh.ui.theme.FbTextTertiary
+import androidx.compose.ui.platform.LocalContext
 
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -103,6 +104,7 @@ fun FeedScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isSearchActive by viewModel.isSearchActive.collectAsState()
 
+    val context = LocalContext.current
     var selectedPostForComments by remember { mutableStateOf<PostWithAuthor?>(null) }
     var autoFocusCommentInput by remember { mutableStateOf(false) }
 
@@ -198,7 +200,10 @@ fun FeedScreen(
                                     onClearClick = { viewModel.setSearchQuery("") }
                                 )
                             } else {
-                                FeedEmptyState(isNearby = isOpenMeshFilter, onComposeClick = onNavigateToCompose)
+                                FeedEmptyState(
+                                    isNearby = isOpenMeshFilter,
+                                    onComposeClick = onNavigateToCompose
+                                )
                             }
                         }
                     } else {
@@ -224,9 +229,9 @@ fun FeedScreen(
                                 currentAuthorId = viewModel.currentAuthorId,
                                 isAuthorOnline = isOnline,
                                 isFriend = isFriend,
-                                onToggleFriend = {
-                                    viewModel.toggleFollow(postWithAuthor.post.authorId, !isFriend)
-                                }
+                                onToggleFriend = if (isFriend) {
+                                    { viewModel.toggleFollow(postWithAuthor.post.authorId, false) }
+                                } else null
                             )
                         }
                     }
@@ -266,6 +271,7 @@ fun FeedScreen(
                 }
             )
         }
+
     }
 }
 
@@ -320,7 +326,7 @@ fun FacebookTopBar(
                 }
             }
 
-            // Top action buttons (Search, etc.)
+            // Top action buttons (Search)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 IconButton(
                     onClick = onSearchClick,

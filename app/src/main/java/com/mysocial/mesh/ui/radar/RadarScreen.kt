@@ -171,7 +171,9 @@ fun RadarScreen(
 
                 if (peers.isEmpty()) {
                     item {
-                        NearbyScanningCard(onDirectConnectClick = { showDirectSyncDialog = true })
+                        NearbyScanningCard(
+                            onDirectConnectClick = { showDirectSyncDialog = true }
+                        )
                     }
                 } else {
                     items(peers, key = { it.peerId }) { peer ->
@@ -179,7 +181,9 @@ fun RadarScreen(
                         PeerCard(
                             peer = peer,
                             isFriend = isFriend,
-                            onToggleFriend = { viewModel.toggleFollow(peer.peerId, !isFriend) }
+                            onToggleFriend = if (isFriend) {
+                                { viewModel.toggleFollow(peer.peerId, false) }
+                            } else null
                         )
                     }
                 }
