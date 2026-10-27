@@ -28,8 +28,27 @@ class FeedViewModel(
     private val _openMeshFilter = MutableStateFlow(true)
     val openMeshFilter: StateFlow<Boolean> = _openMeshFilter.asStateFlow()
 
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    private val _isSearchActive = MutableStateFlow(false)
+    val isSearchActive: StateFlow<Boolean> = _isSearchActive.asStateFlow()
+
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+
+    fun openSearch() {
+        _isSearchActive.value = true
+    }
+
+    fun closeSearch() {
+        _isSearchActive.value = false
+        _searchQuery.value = ""
+    }
 
     private val ticker = flow {
         while (true) {
@@ -58,8 +77,24 @@ class FeedViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val feedPosts: StateFlow<List<PostWithAuthor>> = _openMeshFilter
-        .flatMapLatest { openFilter -> repository.observeFeed(openFilter) }
+    val feedPosts: StateFlow<List<PostWithAuthor>> = combine(
+        _openMeshFilter.flatMapLatest { openFilter -> repository.observeFeed(openFilter) },
+        _searchQuery
+    ) { posts, query ->
+        if (query.isBlank()) {
+            posts
+        } else {
+            val q = query.trim()
+            posts.filter { postWithAuthor ->
+                val textMatch = postWithAuthor.post.text.contains(q, ignoreCase = true)
+                val authorNameMatch = postWithAuthor.authorProfile?.displayName?.contains(q, ignoreCase = true) == true
+                val authorIdMatch = postWithAuthor.post.authorId.contains(q, ignoreCase = true)
+                val tagMatch = postWithAuthor.post.tagsJson.contains(q, ignoreCase = true)
+                val bioMatch = postWithAuthor.authorProfile?.bio?.contains(q, ignoreCase = true) == true
+                textMatch || authorNameMatch || authorIdMatch || tagMatch || bioMatch
+            }
+        }
+    }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
