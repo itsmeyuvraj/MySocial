@@ -58,6 +58,9 @@
         android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"
         tools:targetApi="upside_down_cake" />
 
+    <!-- In-App APK update installation permission -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- Hardware Feature Declarations (Optional to support varied AOSP and test devices) -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature
@@ -78,6 +81,17 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MySocial"
         tools:targetApi="34">
+
+        <!-- FileProvider for in-app APK installation -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <!-- Foreground Mesh Sync Service -->
         <service

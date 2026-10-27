@@ -35,15 +35,18 @@ import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -53,12 +56,17 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import com.mysocial.mesh.ui.components.UpdateDialog
+import com.mysocial.mesh.utils.AppUpdateInfo
+import com.mysocial.mesh.utils.UpdateManager
+import kotlinx.coroutines.launch
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -93,8 +101,47 @@ fun SettingsScreen(
     var showScanner by remember { mutableStateOf(false) }
     var showMyQr by remember { mutableStateOf(false) }
 
+    val scope = rememberCoroutineScope()
+    val updateManager = remember { UpdateManager(context) }
+    var updateInfo by remember { mutableStateOf<AppUpdateInfo?>(null) }
+    var isCheckingUpdate by remember { mutableStateOf(false) }
+    var isDownloadingUpdate by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableStateOf<Float?>(null) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
+
     val authorId = viewModel.authorId
     val displayName = myProfile?.displayName ?: "User"
+
+    if (showUpdateDialog && updateInfo != null) {
+        UpdateDialog(
+            updateInfo = updateInfo!!,
+            downloadProgress = downloadProgress,
+            isDownloading = isDownloadingUpdate,
+            onConfirmUpdate = {
+                val url = updateInfo?.downloadUrl
+                if (!url.isNullOrBlank()) {
+                    scope.launch {
+                        isDownloadingUpdate = true
+                        val file = updateManager.downloadApk(url) { progress ->
+                            downloadProgress = progress
+                        }
+                        isDownloadingUpdate = false
+                        if (file != null) {
+                            showUpdateDialog = false
+                            updateManager.promptInstall(file)
+                        } else {
+                            Toast.makeText(context, "Download failed. Please check internet connection.", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            },
+            onDismiss = {
+                if (!isDownloadingUpdate) {
+                    showUpdateDialog = false
+                }
+            }
+        )
+    }
 
     if (showScanner) {
         QrScannerDialog(
@@ -565,6 +612,123 @@ fun SettingsScreen(
                             Text("Local Log Entries", color = FbTextSecondary, fontSize = 13.sp)
                         }
                         Text("${dbStats.totalEntries}", color = FbTextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // 5. App Version & Updates Card
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp),
+                colors = CardDefaults.cardColors(containerColor = FbSurface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Filled.SystemUpdate,
+                                contentDescription = null,
+                                tint = FacebookBlue,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "App Updates & Version",
+                                color = FbTextPrimary,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 15.sp
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(FacebookBlueLight)
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "v${updateManager.currentVersionName}",
+                                color = FacebookBlue,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "MySocial connects directly to GitHub Releases for seamless in-place APK updates and categorized changelogs.",
+                        color = FbTextSecondary,
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                isCheckingUpdate = true
+                                try {
+                                    val info = updateManager.checkForUpdate()
+                                    isCheckingUpdate = false
+                                    if (info != null && info.isUpdateAvailable) {
+                                        updateInfo = info
+                                        showUpdateDialog = true
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            "You're using the latest version (v${updateManager.currentVersionName})",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                } catch (e: Exception) {
+                                    isCheckingUpdate = false
+                                    Toast.makeText(
+                                        context,
+                                        "Update check failed: ${e.localizedMessage}",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
+                        },
+                        enabled = !isCheckingUpdate,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = FacebookBlue,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        if (isCheckingUpdate) {
+                            CircularProgressIndicator(
+                                color = Color.White,
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Checking for Updates...", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        } else {
+                            Icon(Icons.Filled.SystemUpdate, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Check for Updates", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }

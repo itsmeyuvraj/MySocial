@@ -81,7 +81,11 @@ import com.mysocial.mesh.ui.theme.FbTextPrimary
 import com.mysocial.mesh.ui.theme.FbTextSecondary
 import com.mysocial.mesh.ui.theme.FbTextTertiary
 import com.mysocial.mesh.ui.theme.MySocialTheme
+import com.mysocial.mesh.ui.components.UpdateDialog
+import com.mysocial.mesh.utils.AppUpdateInfo
+import com.mysocial.mesh.utils.UpdateManager
 import androidx.lifecycle.lifecycleScope
+import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -103,6 +107,7 @@ class MainActivity : ComponentActivity() {
     private var isBound = false
 
     private var hasPermissions by mutableStateOf(false)
+    private var pendingUpdateInfo by mutableStateOf<AppUpdateInfo?>(null)
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -205,6 +210,17 @@ class MainActivity : ComponentActivity() {
             requestMeshPermissions()
         }
 
+        // Check for updates asynchronously on app launch
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val updateMgr = UpdateManager(this@MainActivity)
+                val info = updateMgr.checkForUpdate()
+                if (info != null && info.isUpdateAvailable) {
+                    pendingUpdateInfo = info
+                }
+            } catch (_: Exception) {}
+        }
+
         setContent {
             val isDarkMode by appSettings.isDarkMode.collectAsState()
             MySocialTheme(darkTheme = isDarkMode) {
@@ -273,6 +289,40 @@ class MainActivity : ComponentActivity() {
         val radarViewModel = remember { RadarViewModel(repository, getService = { syncService }) }
         val identityViewModel = remember { IdentityViewModel(repository) }
         val settingsViewModel = remember { SettingsViewModel(repository) }
+
+        val updateScope = rememberCoroutineScope()
+        val updateManager = remember { UpdateManager(this@MainActivity) }
+        var isDownloadingUpdate by remember { mutableStateOf(false) }
+        var downloadProgress by remember { mutableStateOf<Float?>(null) }
+
+        if (pendingUpdateInfo != null) {
+            UpdateDialog(
+                updateInfo = pendingUpdateInfo!!,
+                downloadProgress = downloadProgress,
+                isDownloading = isDownloadingUpdate,
+                onConfirmUpdate = {
+                    val url = pendingUpdateInfo?.downloadUrl
+                    if (!url.isNullOrBlank()) {
+                        updateScope.launch {
+                            isDownloadingUpdate = true
+                            val file = updateManager.downloadApk(url) { progress ->
+                                downloadProgress = progress
+                            }
+                            isDownloadingUpdate = false
+                            if (file != null) {
+                                pendingUpdateInfo = null
+                                updateManager.promptInstall(file)
+                            }
+                        }
+                    }
+                },
+                onDismiss = {
+                    if (!isDownloadingUpdate) {
+                        pendingUpdateInfo = null
+                    }
+                }
+            )
+        }
 
         Scaffold(
             bottomBar = {

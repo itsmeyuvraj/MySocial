@@ -22,6 +22,7 @@ A decentralized, serverless **peer-to-peer (P2P) mesh social network** for Andro
 - **Chunked Blob Transfer Engine:** Content-addressed streaming distribution for large images and attachments. Slices payloads into verified chunks with direct-to-disk streaming assembly and chunk-by-chunk SHA-256 validation.
 - **Modern Jetpack Compose UI:** Premium social feed with Facebook-style slide-up comment sheets, interactive animated radar with transport & RSSI indicators, bidirectional mutual friend trust graph, and verified blue checkmark badges.
 - **QR Proximity Verification:** In-app QR code identity generator and real-time CameraX QR scanner for zero-trust out-of-band friend verification.
+- **In-App Auto-Update & CI/CD Engine:** Automated GitHub Actions release pipeline (`auto_release.yml`) that builds and publishes signed release APKs on push. In-app `UpdateManager` with background checks, categorized changelog viewer (`ChangelogView`), live download progress tracking, and Android `FileProvider` package installer prompt.
 
 ---
 
@@ -128,13 +129,16 @@ app/src/main/java/com/mysocial/mesh/
 │   └── MediaProcessor.kt          # Image scaling, JPEG compression, and SHA-256 chunking
 ├── service/
 │   └── MeshSyncService.kt         # Android Foreground Service for persistent mesh synchronization
+├── utils/
+│   └── UpdateManager.kt           # GitHub Releases API, streaming APK download, FileProvider install
 └── ui/
     ├── feed/                      # Timeline feed, likes, post reactions, audience filter
     ├── composer/                  # Post composer with attachment picker and media processor
     ├── radar/                     # Animated radar showing nearby BLE & Wi-Fi peers
     ├── identity/                  # User profile, cryptographic fingerprint, display name
+    ├── settings/                  # SettingsScreen, sync intervals, dark mode, update checker
     ├── qr/                        # QR code identity generator & CameraX real-time QR scanner
-    └── components/                # PostCard, PostCommentsSheet, PeerCard, VerifiedBadge
+    └── components/                # PostCard, PostCommentsSheet, PeerCard, UpdateDialog, ChangelogView
 ```
 
 ---

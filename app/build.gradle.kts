@@ -14,8 +14,8 @@ android {
         applicationId = "com.mysocial.mesh"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = (project.findProperty("appVersionCode") as? String)?.toIntOrNull() ?: 1
+        versionName = (project.findProperty("appVersionName") as? String) ?: "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -28,7 +28,8 @@ android {
             isMinifyEnabled = false
         }
         release {
-            isMinifyEnabled = true
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -93,6 +94,9 @@ dependencies {
 
     // Kotlinx Serialization JSON (Deterministic Canonical Order)
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+
+    // HTTP Networking for in-app updates & GitHub Releases API
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     // Cryptography: BouncyCastle Ed25519 & Android Keystore integration
     implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
