@@ -338,16 +338,18 @@ class BleMeshTransport(
 
     /**
      * Bluetooth 5.0 Extended Advertising with secondary 2M PHY channel for higher broadcast throughput.
+     * Automatically attempts 2M PHY first, retries with 1M PHY on partial hardware implementations,
+     * and falls back to legacy advertising if extended advertising sets are not supported.
      */
     @SuppressLint("MissingPermission")
-    private fun startExtendedAdvertising() {
+    private fun startExtendedAdvertising(prefer1MPhy: Boolean = false) {
         val adv = advertiser ?: return
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             startLegacyAdvertising()
             return
         }
 
-        val secondaryPhy = if (is2MPhySupported) {
+        val secondaryPhy = if (!prefer1MPhy && is2MPhySupported) {
             BluetoothDevice.PHY_LE_2M
         } else {
             BluetoothDevice.PHY_LE_1M
@@ -383,10 +385,16 @@ class BleMeshTransport(
                     val phyName = if (secondaryPhy == BluetoothDevice.PHY_LE_2M) "2M PHY" else "1M PHY"
                     Log.i(tag, "BLE 5.0 Extended Advertising started successfully (PHY=$phyName, txPower=$txPower dBm, payload=${payloadBytes.size} bytes)")
                 } else {
-                    Log.w(tag, "Extended Advertising start failed with status $status. Falling back to legacy advertising.")
+                    Log.w(tag, "Extended Advertising start failed with status $status (secondaryPhy=$secondaryPhy).")
                     currentAdvertisingSet = null
                     isExtendedAdvertisingActive = false
-                    startLegacyAdvertising()
+                    if (secondaryPhy == BluetoothDevice.PHY_LE_2M) {
+                        Log.i(tag, "Retrying BLE Extended Advertising with secondary 1M PHY fallback")
+                        startExtendedAdvertising(prefer1MPhy = true)
+                    } else {
+                        Log.w(tag, "Extended Advertising on 1M PHY also failed. Falling back to legacy advertising.")
+                        startLegacyAdvertising()
+                    }
                 }
             }
 
@@ -416,9 +424,14 @@ class BleMeshTransport(
                 cb
             )
         } catch (e: Exception) {
-            Log.w(tag, "startAdvertisingSet call failed: ${e.message}. Falling back to legacy advertising.")
+            Log.w(tag, "startAdvertisingSet call failed: ${e.message}")
             advertisingSetCallback = null
-            startLegacyAdvertising()
+            if (secondaryPhy == BluetoothDevice.PHY_LE_2M) {
+                Log.i(tag, "Retrying BLE Extended Advertising with secondary 1M PHY fallback after exception")
+                startExtendedAdvertising(prefer1MPhy = true)
+            } else {
+                startLegacyAdvertising()
+            }
         }
     }
 
@@ -485,7 +498,12 @@ class BleMeshTransport(
             supports2MPhy = is2MPhySupported
         )
 
-        return payload.encode()
+        val maxAdvLimit = if (isExtendedAdvertisingSupported) {
+            (maxAdvertisingDataLength - 48).coerceAtLeast(31)
+        } else {
+            24
+        }
+        return payload.encode(maxAdvLimit)
     }
 
     /**
@@ -665,6 +683,11 @@ class BleMeshTransport(
         peerPhyMap[address] = phyDescription
         peerPhyMap[resolvedAuthorId] = phyDescription
 
+        // Check if remote peer has advanced sequence number (new content)
+        val previousSeq = peerSequenceMap[resolvedAuthorId] ?: peerSequenceMap[address] ?: 0L
+        val remoteSeq = extPayload?.latestSequence
+        val hasNewerContent = remoteSeq != null && remoteSeq > previousSeq
+
         extPayload?.latestSequence?.let { seq ->
             peerSequenceMap[address] = seq
             peerSequenceMap[resolvedAuthorId] = seq
@@ -686,6 +709,7 @@ class BleMeshTransport(
         if (existingPeer != null && !rssiChanged && !timeElapsed) {
             _peersMap[resolvedAuthorId] = existingPeer.copy(
                 lastSeenTimestamp = now,
+                hostAddress = address,
                 rssi = rssi,
                 isExtendedAdvertising = isExtended,
                 phyType = phyDescription,
@@ -699,6 +723,7 @@ class BleMeshTransport(
                 peerId = resolvedAuthorId,
                 peerName = resolvedDisplayName,
                 transportType = TransportType.BLE,
+                hostAddress = address,
                 rssi = rssi,
                 lastSeenTimestamp = now,
                 isExtendedAdvertising = isExtended,
@@ -713,12 +738,16 @@ class BleMeshTransport(
             updatePeersState()
         }
 
-        // Connect and sync with cooldown to prevent rapid reconnection loops
+        // Connect and sync: immediate when newer sequence advertised, otherwise throttle by cooldown
         val lastAttempt = lastSyncAttempt[address] ?: 0L
-        if (!activeSyncDevices.contains(address) &&
+        val shouldSync = !activeSyncDevices.contains(address) &&
             !activeSyncDevices.contains(resolvedAuthorId) &&
-            (now - lastAttempt >= SYNC_COOLDOWN_MS)
-        ) {
+            (hasNewerContent || (now - lastAttempt >= SYNC_COOLDOWN_MS))
+
+        if (shouldSync) {
+            if (hasNewerContent) {
+                Log.i(tag, "Immediate BLE sync triggered for $resolvedAuthorId: remote sequence advanced ($previousSeq -> $remoteSeq)")
+            }
             connectAndSync(device)
         }
     }

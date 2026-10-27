@@ -64,6 +64,9 @@ interface LogEntryDao {
     @Query("SELECT * FROM log_entries WHERE authorId = :authorId ORDER BY sequence DESC LIMIT 1")
     suspend fun getLatestEntryForAuthor(authorId: String): LogEntryEntity?
 
+    @Query("SELECT MAX(sequence) FROM log_entries WHERE authorId = :authorId")
+    fun observeLatestSequenceForAuthor(authorId: String): Flow<Long?>
+
     @Query("SELECT * FROM log_entries WHERE authorId = :authorId AND sequence = :sequence LIMIT 1")
     suspend fun getEntryBySequence(authorId: String, sequence: Long): LogEntryEntity?
 

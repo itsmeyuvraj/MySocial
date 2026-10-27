@@ -187,6 +187,50 @@ class BleExtendedPayloadTest {
     }
 
     @Test
+    fun testEncodeClampingWithBroadcastData() {
+        val largeData = ByteArray(150) { it.toByte() }
+        val payload = BleExtendedPayload(
+            displayName = "Alice",
+            broadcastData = largeData,
+            l2capPsm = 4097
+        )
+
+        val maxAllowed = 80
+        val encoded = payload.encode(maxBytes = maxAllowed)
+        assertTrue("Encoded payload size must be <= $maxAllowed, was ${encoded.size}", encoded.size <= maxAllowed)
+
+        val decoded = BleExtendedPayload.decode(encoded)
+        assertNotNull(decoded)
+        assertEquals("Alice", decoded!!.displayName)
+        assertEquals(4097, decoded.l2capPsm)
+        assertNotNull(decoded.broadcastData)
+        assertTrue(decoded.broadcastData!!.size < largeData.size)
+    }
+
+    @Test
+    fun testEncodeClampingOmitBroadcastDataAndTrimName() {
+        val largeData = ByteArray(100) { it.toByte() }
+        val longName = "A".repeat(40)
+        val payload = BleExtendedPayload(
+            displayName = longName,
+            broadcastData = largeData,
+            l2capPsm = 1000
+        )
+
+        // Strict budget: only enough room for header (4) + PSM (4) + small name (10) = ~18 bytes
+        val strictBudget = 20
+        val encoded = payload.encode(maxBytes = strictBudget)
+        assertTrue("Encoded size must be <= $strictBudget, was ${encoded.size}", encoded.size <= strictBudget)
+
+        val decoded = BleExtendedPayload.decode(encoded)
+        assertNotNull(decoded)
+        assertEquals(1000, decoded!!.l2capPsm)
+        assertNull("Broadcast data should have been omitted due to size budget", decoded.broadcastData)
+        assertNotNull(decoded.displayName)
+        assertTrue(decoded.displayName!!.length < longName.length)
+    }
+
+    @Test
     fun testEqualsAndHashCode() {
         val key = ByteArray(32) { 1 }
         val p1 = BleExtendedPayload(authorPublicKey = key, displayName = "Peer", l2capPsm = 100)

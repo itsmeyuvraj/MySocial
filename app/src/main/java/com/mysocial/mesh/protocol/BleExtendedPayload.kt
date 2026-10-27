@@ -88,8 +88,10 @@ data class BleExtendedPayload(
 
     /**
      * Serializes this payload into a byte array suitable for BLE advertising service data.
+     * When [maxBytes] is specified, fields are safely truncated (broadcast data first, then display name)
+     * so that the payload never exceeds the Bluetooth controller's advertising packet capacity.
      */
-    fun encode(): ByteArray {
+    fun encode(maxBytes: Int = Int.MAX_VALUE): ByteArray {
         val pubKey = authorPublicKey ?: authorId?.let { id ->
             try {
                 CryptoManager.extractPublicKeyBytes(id)
@@ -98,11 +100,11 @@ data class BleExtendedPayload(
             }
         }
 
-        val nameBytes = displayName?.toByteArray(Charsets.UTF_8)?.let {
+        var nameBytes = displayName?.toByteArray(Charsets.UTF_8)?.let {
             if (it.size > MAX_NAME_BYTES) it.copyOf(MAX_NAME_BYTES) else it
         }
 
-        val bData = broadcastData?.let {
+        var bData = broadcastData?.let {
             if (it.size > MAX_BROADCAST_DATA_BYTES) it.copyOf(MAX_BROADCAST_DATA_BYTES) else it
         }
 
@@ -121,6 +123,34 @@ data class BleExtendedPayload(
         if ((flags and FLAG_HAS_SEQUENCE) != 0) totalSize += 8
         if ((flags and FLAG_HAS_NAME) != 0) totalSize += 1 + nameBytes!!.size
         if ((flags and FLAG_HAS_BROADCAST_DATA) != 0) totalSize += 2 + bData!!.size
+
+        // If totalSize exceeds maxBytes, gracefully trim broadcastData first
+        if (totalSize > maxBytes && (flags and FLAG_HAS_BROADCAST_DATA) != 0) {
+            val sizeWithoutBData = totalSize - (2 + bData!!.size)
+            val allowedBData = maxBytes - sizeWithoutBData - 2
+            if (allowedBData > 0) {
+                bData = bData!!.copyOf(allowedBData)
+                totalSize = sizeWithoutBData + 2 + bData.size
+            } else {
+                bData = null
+                flags = flags and FLAG_HAS_BROADCAST_DATA.inv()
+                totalSize = sizeWithoutBData
+            }
+        }
+
+        // If still exceeds maxBytes, trim display name
+        if (totalSize > maxBytes && (flags and FLAG_HAS_NAME) != 0) {
+            val sizeWithoutName = totalSize - (1 + nameBytes!!.size)
+            val allowedName = maxBytes - sizeWithoutName - 1
+            if (allowedName > 0) {
+                nameBytes = nameBytes!!.copyOf(allowedName)
+                totalSize = sizeWithoutName + 1 + nameBytes.size
+            } else {
+                nameBytes = null
+                flags = flags and FLAG_HAS_NAME.inv()
+                totalSize = sizeWithoutName
+            }
+        }
 
         val buffer = ByteBuffer.allocate(totalSize).order(ByteOrder.BIG_ENDIAN)
         buffer.put(MAGIC_BYTE_0)

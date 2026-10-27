@@ -168,6 +168,15 @@ class MeshSyncService : Service() {
                 bleTransport?.updateLatestSequence(latestEntry.sequence)
             }
 
+            // Reactively observe log sequences so new posts/actions immediately update BLE 5.0 advertisement
+            serviceScope.launch(Dispatchers.IO) {
+                db.logEntryDao().observeLatestSequenceForAuthor(cryptoManager.authorId).collect { maxSeq ->
+                    if (maxSeq != null && maxSeq > 0) {
+                        bleTransport?.updateLatestSequence(maxSeq)
+                    }
+                }
+            }
+
             db.profileDao().observeProfile(cryptoManager.authorId).collect { profile ->
                 if (profile != null && profile.displayName.isNotBlank()) {
                     syncEngine.myDisplayName = profile.displayName
