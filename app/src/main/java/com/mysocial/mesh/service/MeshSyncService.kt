@@ -20,6 +20,7 @@ import com.mysocial.mesh.transport.BleMeshTransport
 import com.mysocial.mesh.transport.DiscoveredPeer
 import com.mysocial.mesh.transport.MdnsWifiTransport
 import com.mysocial.mesh.ui.MainActivity
+import com.mysocial.mesh.utils.PeerNotificationHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -200,6 +201,7 @@ class MeshSyncService : Service() {
             var lastStatusText: String? = null
             var cachedPostCount = -1
             var lastPostCountQueryTime = 0L
+            var wasPeersEmpty = true
 
             combine(wifiPeers, blePeers, ticker) { w, b, now ->
                 (w + b)
@@ -208,6 +210,10 @@ class MeshSyncService : Service() {
                     .sortedByDescending { it.lastSeenTimestamp }
             }.collect { combined ->
                 _allDiscoveredPeers.value = combined
+                if (combined.isNotEmpty() && wasPeersEmpty) {
+                    PeerNotificationHelper.notifyPeerNearby(this@MeshSyncService, combined.firstOrNull()?.peerName)
+                }
+                wasPeersEmpty = combined.isEmpty()
                 val now = System.currentTimeMillis()
                 if (cachedPostCount == -1 || now - lastPostCountQueryTime > 30_000L) {
                     cachedPostCount = kotlinx.coroutines.withContext(Dispatchers.IO) {

@@ -81,6 +81,7 @@ import com.mysocial.mesh.ui.theme.FbTextPrimary
 import com.mysocial.mesh.ui.theme.FbTextSecondary
 import com.mysocial.mesh.ui.theme.FbTextTertiary
 import androidx.compose.ui.platform.LocalContext
+import com.mysocial.mesh.utils.PeerNotificationHelper
 
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -105,6 +106,17 @@ fun FeedScreen(
     val context = LocalContext.current
     var selectedPostForComments by remember { mutableStateOf<PostWithAuthor?>(null) }
     var autoFocusCommentInput by remember { mutableStateOf(false) }
+
+    val isOnline = activeNearbyPeers.isNotEmpty()
+    var wasOnline by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isOnline) {
+        if (isOnline && !wasOnline) {
+            val peerName = activeNearbyPeers.firstOrNull()?.peerName
+            PeerNotificationHelper.notifyPeerNearby(context, peerName)
+        }
+        wasOnline = isOnline
+    }
 
     BackHandler(enabled = isSearchActive) {
         viewModel.closeSearch()
@@ -300,24 +312,24 @@ fun FacebookTopBar(
                     letterSpacing = (-1.2).sp
                 )
                 Spacer(modifier = Modifier.width(10.dp))
-                // Online Badge
+                // Online / Offline Badge
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
-                        .background(if (activePeersCount > 0) FbGreen.copy(alpha = 0.12f) else FacebookBlueLight)
+                        .background(if (activePeersCount > 0) FbGreen.copy(alpha = 0.12f) else FbSurfaceElevated)
                         .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Box(
                         modifier = Modifier
                             .size(7.dp)
                             .clip(CircleShape)
-                            .background(if (activePeersCount > 0) FbGreen else FacebookBlue)
+                            .background(if (activePeersCount > 0) FbGreen else FbTextSecondary)
                     )
                     Spacer(modifier = Modifier.width(5.dp))
                     Text(
-                        text = if (activePeersCount > 0) "$activePeersCount Nearby" else "Offline Mesh",
-                        color = if (activePeersCount > 0) FbGreen else FacebookBlue,
+                        text = if (activePeersCount > 0) "Online" else "Offline",
+                        color = if (activePeersCount > 0) FbGreen else FbTextSecondary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold
                     )
