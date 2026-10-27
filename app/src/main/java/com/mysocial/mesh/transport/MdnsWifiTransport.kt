@@ -232,9 +232,9 @@ class MdnsWifiTransport(
      * Manual trigger to force immediate sync with a discovered peer.
      */
     fun forceSync(peerId: String) {
-        val peer = _peersMap[peerId] ?: return
+        val peer = _peersMap[peerId] ?: _peersMap.values.find { it.peerId == peerId } ?: return
         if (peer.hostAddress == null || peer.port == null) return
-        triggerOutboundSync(peer.hostAddress, peer.port, peerId, peer.peerName)
+        triggerOutboundSync(peer.hostAddress, peer.port, peer.peerId, peer.peerName)
     }
 
     fun onPeerIdentified(tempKey: String, realAuthorId: String, realDisplayName: String) {
@@ -521,14 +521,9 @@ class MdnsWifiTransport(
         _peersMap[peerId] = peer
         updatePeersState()
 
-        // Deterministic connection tie-breaker:
-        // When running in an emulator or communicating with an emulator's private NAT IP (10.0.2.x),
-        // external devices cannot connect directly to 10.0.2.x. Therefore, the emulator must ALWAYS initiate
-        // outbound connections to reachable peers. Physical devices also attempt connection via candidate hosts.
-        val shouldInitiate = isEmulator || hostAddress.startsWith("10.0.2.") || (localAuthorId < peerId)
-        if (shouldInitiate) {
-            triggerOutboundSync(hostAddress, port, peerId, peerName)
-        }
+        // Trigger immediate outbound sync upon peer resolution so historical posts sync as soon as peer is around
+        // activeSyncPeers deduplicates concurrent sync attempts
+        triggerOutboundSync(hostAddress, port, peerId, peerName)
     }
 
     private fun triggerOutboundSync(hostAddress: String, port: Int, peerId: String, peerName: String) {

@@ -201,19 +201,33 @@ interface FollowDao {
     @Upsert
     suspend fun upsert(follow: FollowViewEntity)
 
-    @Query("SELECT isFollowing FROM follows_view WHERE followerId = :followerId AND followeeId = :targetId LIMIT 1")
+    @Query("""
+        SELECT isFollowing FROM follows_view 
+        WHERE (followerId = :followerId AND followeeId = :targetId) 
+           OR (followerId = :targetId AND followeeId = :followerId)
+        ORDER BY isFollowing DESC LIMIT 1
+    """)
     suspend fun isFollowing(followerId: String, targetId: String): Boolean?
 
-    @Query("SELECT followeeId FROM follows_view WHERE followerId = :followerId AND isFollowing = 1")
+    @Query("""
+        SELECT followeeId FROM follows_view WHERE followerId = :followerId AND isFollowing = 1
+        UNION
+        SELECT followerId FROM follows_view WHERE followeeId = :followerId AND isFollowing = 1
+    """)
     suspend fun getFollowedAuthorIds(followerId: String): List<String>
 
-    @Query("SELECT followeeId FROM follows_view WHERE followerId = :followerId AND isFollowing = 1")
+    @Query("""
+        SELECT followeeId FROM follows_view WHERE followerId = :followerId AND isFollowing = 1
+        UNION
+        SELECT followerId FROM follows_view WHERE followeeId = :followerId AND isFollowing = 1
+    """)
     fun observeFollowedAuthorIds(followerId: String): Flow<List<String>>
 
     @Query("""
         SELECT DISTINCT f2.followeeId FROM follows_view f1
         JOIN follows_view f2 ON f1.followeeId = f2.followerId
-        WHERE f1.followerId = :myAuthorId AND f1.isFollowing = 1 AND f2.isFollowing = 1
+        WHERE (f1.followerId = :myAuthorId OR f1.followeeId = :myAuthorId) 
+          AND f1.isFollowing = 1 AND f2.isFollowing = 1
     """)
     suspend fun getTwoHopFollowedAuthorIds(myAuthorId: String): List<String>
 }

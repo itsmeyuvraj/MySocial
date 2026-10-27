@@ -141,6 +141,7 @@ class MeshSyncService : Service() {
                 }
             } else {
                 wifiTransport?.onPeerIdentified(connectionPeerId, remoteAuthorId, remoteDisplayName)
+                bleTransport?.onPeerIdentified(connectionPeerId, remoteAuthorId, remoteDisplayName)
                 _allDiscoveredPeers.value = _allDiscoveredPeers.value
                     .filter { it.peerId != cryptoManager.authorId }
                     .map { peer ->
@@ -250,6 +251,9 @@ class MeshSyncService : Service() {
     fun forceSyncAll() {
         wifiTransport?.discoveredPeers?.value?.forEach { peer ->
             wifiTransport?.forceSync(peer.peerId)
+        }
+        bleTransport?.discoveredPeers?.value?.forEach { peer ->
+            bleTransport?.forceSync(peer.peerId)
         }
         if (wifiTransport?.isEmulator == true) {
             wifiTransport?.syncWithDirectIp("10.0.2.2", com.mysocial.mesh.transport.MdnsWifiTransport.DEFAULT_PORT, "Host ADB Bridge")

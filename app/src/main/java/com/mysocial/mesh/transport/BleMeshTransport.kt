@@ -346,10 +346,9 @@ class BleMeshTransport(
             updatePeersState()
         }
 
-        // Deterministic connection tie-breaker with cooldown to prevent rapid reconnection loops
+        // Connect and sync with cooldown to prevent rapid reconnection loops
         val lastAttempt = lastSyncAttempt[address] ?: 0L
-        if (localAuthorId.hashCode() < address.hashCode() &&
-            !activeSyncDevices.contains(address) &&
+        if (!activeSyncDevices.contains(address) &&
             (now - lastAttempt >= SYNC_COOLDOWN_MS)
         ) {
             connectAndSync(device)
@@ -604,6 +603,42 @@ class BleMeshTransport(
                 activeSyncDevices.remove(address)
                 updatePeerSyncStatus(address, false)
             }
+        }
+    }
+
+    /**
+     * Manual or periodic trigger to force immediate sync with a discovered BLE peer.
+     */
+    fun forceSync(peerId: String) {
+        val peer = _peersMap[peerId] ?: _peersMap.values.find { it.peerId == peerId } ?: return
+        val mac = if (peer.peerId.contains(":")) peer.peerId else peerId
+        val device = try {
+            bluetoothAdapter?.getRemoteDevice(mac)
+        } catch (_: Exception) {
+            null
+        } ?: return
+        connectAndSync(device)
+    }
+
+    /**
+     * Updates internal peer mapping when real Ed25519 authorId and displayName are resolved during handshake.
+     */
+    fun onPeerIdentified(tempKey: String, realAuthorId: String, realDisplayName: String) {
+        val cleanName = if (realDisplayName.isNotBlank() && realDisplayName != "MeshPeer" && realDisplayName != "User") {
+            realDisplayName
+        } else {
+            "Nearby BLE Peer"
+        }
+        val existing = _peersMap.remove(tempKey)
+            ?: _peersMap.remove(realAuthorId)
+            ?: _peersMap.values.find { it.peerId == tempKey }
+        if (existing != null) {
+            _peersMap[realAuthorId] = existing.copy(
+                peerId = realAuthorId,
+                peerName = cleanName,
+                lastSeenTimestamp = System.currentTimeMillis()
+            )
+            updatePeersState()
         }
     }
 
