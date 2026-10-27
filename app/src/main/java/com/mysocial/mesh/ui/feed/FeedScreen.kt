@@ -31,10 +31,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -468,65 +466,35 @@ fun WhatsOnYourMindCard(onClick: () -> Unit) {
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         shape = RoundedCornerShape(0.dp)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                AvatarView(
-                    seed = "local_user",
-                    displayName = "You",
-                    size = 40.dp
-                )
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(40.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(FbBackground)
-                        .border(1.dp, FbBorder, RoundedCornerShape(20.dp))
-                        .padding(horizontal = 16.dp),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    Text(
-                        text = "What's on your mind?",
-                        color = FbTextSecondary,
-                        fontSize = 14.sp
-                    )
-                }
-            }
-
-            HorizontalDivider(
-                color = FbBorder,
-                thickness = 0.8.dp,
-                modifier = Modifier.padding(top = 12.dp, bottom = 8.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AvatarView(
+                seed = "local_user",
+                displayName = "You",
+                size = 40.dp
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clickable { onClick() }
-                ) {
-                    Icon(Icons.Filled.Image, contentDescription = null, tint = FbGreen, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Photo / Post", color = FbTextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                }
+            Spacer(modifier = Modifier.width(12.dp))
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clickable { onClick() }
-                ) {
-                    Icon(Icons.Filled.WifiTethering, contentDescription = null, tint = FacebookBlue, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Share Nearby", color = FbTextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                }
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(FbBackground)
+                    .border(1.dp, FbBorder, RoundedCornerShape(20.dp))
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Text(
+                    text = "What's on your mind?",
+                    color = FbTextSecondary,
+                    fontSize = 14.sp
+                )
             }
         }
     }

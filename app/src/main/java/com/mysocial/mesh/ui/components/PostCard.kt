@@ -207,8 +207,10 @@ fun PostCard(
                             color = FbTextSecondary,
                             fontSize = 12.sp
                         )
-                        Text(text = "•", color = FbTextTertiary, fontSize = 10.sp)
-                        HopBadge(hopDistance = post.hopDistance)
+                        if (!post.isPublic || post.hopDistance == 0) {
+                            Text(text = "•", color = FbTextTertiary, fontSize = 10.sp)
+                            HopBadge(hopDistance = post.hopDistance)
+                        }
                         Text(text = "•", color = FbTextTertiary, fontSize = 10.sp)
                         Icon(
                             imageVector = if (post.isPublic) Icons.Filled.Public else Icons.Filled.Group,

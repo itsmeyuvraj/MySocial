@@ -12,8 +12,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,7 +25,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
@@ -44,8 +41,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -80,7 +75,6 @@ import com.mysocial.mesh.ui.theme.FbTextPrimary
 import com.mysocial.mesh.ui.theme.FbTextSecondary
 import com.mysocial.mesh.ui.theme.FbTextTertiary
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ComposerScreen(
     viewModel: ComposerViewModel,
@@ -90,14 +84,12 @@ fun ComposerScreen(
 ) {
     val context = LocalContext.current
     val postText by viewModel.postText.collectAsState()
-    val tags by viewModel.tags.collectAsState()
     val selectedImageUri by viewModel.selectedImageUri.collectAsState()
     val isPublishing by viewModel.isPublishing.collectAsState()
     val statusMessage by viewModel.statusMessage.collectAsState()
     val isPublic by viewModel.isPublic.collectAsState()
     val myProfile by viewModel.myProfile.collectAsState(initial = null)
 
-    var newTagInput by remember { mutableStateOf("") }
     var showAudienceDialog by remember { mutableStateOf(false) }
 
     val authorId = viewModel.authorId
@@ -350,76 +342,7 @@ fun ComposerScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
-                HorizontalDivider(color = FbBorder, thickness = 0.8.dp)
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Tags section
-                Text(
-                    text = "Tags & Topics",
-                    color = FbTextSecondary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (tags.isNotEmpty()) {
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        tags.forEach { tag ->
-                            FbTagChip(tag = tag, onRemove = { viewModel.removeTag(tag) })
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
-                }
-
-                // Add Custom Tag Input
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = newTagInput,
-                        onValueChange = { newTagInput = it },
-                        placeholder = { Text("Add a topic (e.g. news, music)", color = FbTextTertiary, fontSize = 13.sp) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = FbTextPrimary,
-                            unfocusedTextColor = FbTextPrimary,
-                            focusedBorderColor = FacebookBlue,
-                            unfocusedBorderColor = FbBorder,
-                            focusedContainerColor = FbBackground,
-                            unfocusedContainerColor = FbBackground
-                        ),
-                        singleLine = true
-                    )
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    IconButton(
-                        onClick = {
-                            if (newTagInput.isNotBlank()) {
-                                viewModel.addTag(newTagInput)
-                                newTagInput = ""
-                            }
-                        },
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(FacebookBlueLight)
-                    ) {
-                        Icon(Icons.Filled.Add, contentDescription = "Add tag", tint = FacebookBlue)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 // Friendly Security & Offline Reassurance Banner
                 Box(
@@ -617,29 +540,6 @@ fun ComposerScreen(
                         Text("Done", color = FacebookBlue, fontWeight = FontWeight.Bold)
                     }
                 }
-            )
-        }
-    }
-}
-
-@Composable
-fun FbTagChip(tag: String, onRemove: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(FacebookBlueLight)
-            .padding(start = 10.dp, top = 5.dp, bottom = 5.dp, end = 6.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(text = "#$tag", color = FacebookBlue, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.width(4.dp))
-            Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = "Remove tag",
-                tint = FacebookBlue,
-                modifier = Modifier
-                    .size(14.dp)
-                    .clickable { onRemove() }
             )
         }
     }
