@@ -545,9 +545,9 @@ fun SettingsScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Filled.Bluetooth, contentDescription = null, tint = FacebookBlue, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Bluetooth LE Mesh", color = FbTextSecondary, fontSize = 13.sp)
+                            Text("Bluetooth 5.0 Extended Mesh", color = FbTextSecondary, fontSize = 13.sp)
                         }
-                        Text("Active", color = FbGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("Active (2M PHY)", color = FbGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))

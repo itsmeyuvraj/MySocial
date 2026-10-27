@@ -116,8 +116,13 @@ fun PeerCard(
                             tint = FacebookBlue,
                             modifier = Modifier.size(12.dp)
                         )
+                        val transportLabel = when {
+                            peer.transportType == TransportType.MDNS_WIFI -> "Local Wi-Fi"
+                            peer.isExtendedAdvertising -> "BLE 5.0 (${peer.phyType ?: "2M PHY"})"
+                            else -> "Bluetooth Nearby"
+                        }
                         Text(
-                            text = if (peer.transportType == TransportType.MDNS_WIFI) "Local Wi-Fi" else "Bluetooth Nearby",
+                            text = transportLabel,
                             color = FbTextSecondary,
                             fontSize = 12.sp
                         )

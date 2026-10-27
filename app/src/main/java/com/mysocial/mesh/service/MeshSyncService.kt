@@ -160,11 +160,19 @@ class MeshSyncService : Service() {
             val name = current?.displayName ?: initialName
             syncEngine.myDisplayName = name
             wifiTransport?.updateDisplayName(name)
+            bleTransport?.updateDisplayName(name)
+
+            // Initial log sequence
+            val latestEntry = db.logEntryDao().getLatestEntryForAuthor(cryptoManager.authorId)
+            if (latestEntry != null) {
+                bleTransport?.updateLatestSequence(latestEntry.sequence)
+            }
 
             db.profileDao().observeProfile(cryptoManager.authorId).collect { profile ->
                 if (profile != null && profile.displayName.isNotBlank()) {
                     syncEngine.myDisplayName = profile.displayName
                     wifiTransport?.updateDisplayName(profile.displayName)
+                    bleTransport?.updateDisplayName(profile.displayName)
                 }
             }
         }

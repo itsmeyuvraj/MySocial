@@ -13,7 +13,11 @@ data class DiscoveredPeer(
     val port: Int? = null,
     val rssi: Int? = null,
     val lastSeenTimestamp: Long = System.currentTimeMillis(),
-    val isSyncing: Boolean = false
+    val isSyncing: Boolean = false,
+    val isExtendedAdvertising: Boolean = false,
+    val phyType: String? = null,
+    val l2capPsm: Int? = null,
+    val latestSequence: Long? = null
 ) {
     val displayId: String
         get() = if (peerId.length > 16) "${peerId.take(8)}...${peerId.takeLast(6)}" else peerId
