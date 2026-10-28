@@ -1,6 +1,7 @@
-- Added ShareIt-style animated radar with pulsing sonar rings and rotating sweep beam
-- Plotted discovered nearby friends directly onto the radar circles around user avatar
-- Removed connect with Wi-Fi address feature and top searching status pill
-- Replaced technical jargon with human-friendly words across all screens and notifications
-- Added verified blue checkmark for friends
-- Added developer credits for Yuvraj Poudyal
+* Added inline profile editing to update Name and Bio directly on screen with pencil buttons
+* Added ShareIt-style animated radar for discovering people nearby with real-time peer blips
+* Streamlined profile layout removing cluttered stats cards to focus on your identity and posts
+* Added verified blue checkmark for friends and trusted connections
+* Replaced technical jargon with simple, human-friendly words across all screens
+* Added offline app sharing to share MySocial with friends nearby without internet
+* Added developer credits for creator Yuvraj Poudyal

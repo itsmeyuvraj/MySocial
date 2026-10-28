@@ -34,10 +34,12 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -542,6 +544,94 @@ fun AboutScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // App Overview & Description Card
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp),
+                colors = CardDefaults.cardColors(containerColor = FbSurface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(FacebookBlue)
+                        ) {
+                            Icon(
+                                Icons.Filled.Share,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(14.dp))
+
+                        Column {
+                            Text(
+                                text = "MySocial",
+                                color = FbTextPrimary,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Private Offline Social Network",
+                                color = FacebookBlue,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "MySocial connects you directly with people around you without internet, mobile data, or central servers. Share posts, photos, and messages with complete privacy—your data stays safely on your phone and syncs device-to-device.",
+                        color = FbTextSecondary,
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        AboutFeatureChip(
+                            icon = Icons.Filled.WifiOff,
+                            label = "100% Offline",
+                            modifier = Modifier.weight(1f)
+                        )
+                        AboutFeatureChip(
+                            icon = Icons.Filled.Security,
+                            label = "Zero Cloud",
+                            modifier = Modifier.weight(1f)
+                        )
+                        AboutFeatureChip(
+                            icon = Icons.Filled.Sync,
+                            label = "Peer-to-Peer",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // App Version & Updates Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -591,10 +681,9 @@ fun AboutScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Build ${updateManager.currentVersionCode} • Private offline social network for connecting directly with people nearby without internet or accounts.",
+                        text = "Build ${updateManager.currentVersionCode} • Up to date with latest features",
                         color = FbTextSecondary,
-                        fontSize = 12.sp,
-                        lineHeight = 16.sp
+                        fontSize = 12.sp
                     )
 
                     Spacer(modifier = Modifier.height(14.dp))
@@ -650,6 +739,63 @@ fun AboutScreen(
                             Text("Check for Updates", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // What's New in This Version Card (Directly below App Version & Updates)
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp),
+                colors = CardDefaults.cardColors(containerColor = FbSurface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Filled.History,
+                            contentDescription = null,
+                            tint = FacebookBlue,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "What's New in This Version",
+                            color = FbTextPrimary,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 15.sp
+                        )
+                    }
+
+                    val embeddedNotes = remember {
+                        updateManager.getEmbeddedReleaseNotes().ifBlank {
+                            """
+                            * Added inline profile editing to update Name and Bio directly on screen with pencil buttons
+                            * Added ShareIt-style animated radar for discovering people nearby with real-time peer blips
+                            * Streamlined profile layout removing cluttered stats cards to focus on your identity and posts
+                            * Added verified blue checkmark for friends and trusted connections
+                            * Replaced technical jargon with simple, human-friendly words across all screens
+                            * Added offline app sharing to share MySocial with friends nearby without internet
+                            * Added developer credits for creator Yuvraj Poudyal
+                            """.trimIndent()
+                        }
+                    }
+
+                    ChangelogView(
+                        releaseNotes = embeddedNotes,
+                        maxHeight = 260.dp
+                    )
                 }
             }
 
@@ -760,55 +906,6 @@ fun AboutScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // What's New / Recent Highlights Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp),
-                colors = CardDefaults.cardColors(containerColor = FbSurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Filled.History,
-                            contentDescription = null,
-                            tint = FacebookBlue,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "What's New in This Version",
-                            color = FbTextPrimary,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 15.sp
-                        )
-                    }
-
-                    val embeddedNotes = remember {
-                        updateManager.getEmbeddedReleaseNotes().ifBlank {
-                            "• Replaced technical jargon with human-friendly words across all screens\n• Added verified blue checkmark for friends\n• Simplified menus and settings\n• Improved nearby sharing and radar responsiveness\n• Added developer credits for Yuvraj Poudyal"
-                        }
-                    }
-
-                    ChangelogView(
-                        releaseNotes = embeddedNotes,
-                        maxHeight = 220.dp
-                    )
-                }
-            }
-
             Spacer(modifier = Modifier.height(18.dp))
 
             // Footer Privacy Note
@@ -827,6 +924,39 @@ fun AboutScreen(
                     fontSize = 12.sp
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun AboutFeatureChip(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        color = FbSurfaceElevated,
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = FacebookBlue,
+                modifier = Modifier.size(13.dp)
+            )
+            Spacer(modifier = Modifier.width(5.dp))
+            Text(
+                text = label,
+                color = FbTextPrimary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }

@@ -45,7 +45,7 @@ jobs:
           COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
           mkdir -p app/src/main/assets
-          if [ -n "$COMMIT_MSG" ]; then
+          if [ ! -s "app/src/main/assets/release_notes.txt" ] && [ -n "$COMMIT_MSG" ]; then
             echo "$COMMIT_MSG" > app/src/main/assets/release_notes.txt
           fi
           ./gradlew assembleRelease \
