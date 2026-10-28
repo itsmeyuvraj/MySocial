@@ -573,7 +573,7 @@ fun AboutScreen(
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Text(
-                                text = "v${updateManager.currentVersionName}",
+                                text = "v${updateManager.currentVersionName.removePrefix("v")}",
                                 color = FacebookBlue,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp,

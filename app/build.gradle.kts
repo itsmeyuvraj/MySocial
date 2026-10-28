@@ -1,3 +1,5 @@
+import java.io.ByteArrayOutputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -5,6 +7,38 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp")
 }
+
+fun getGitVersionInfo(): Pair<Int, String> {
+    return try {
+        val stdout = ByteArrayOutputStream()
+        project.exec {
+            commandLine("git", "describe", "--tags", "--abbrev=0")
+            standardOutput = stdout
+        }
+        val latestTag = stdout.toString().trim()
+        val tagVer = latestTag.removePrefix("v")
+        val parts = tagVer.split(".")
+        val baseCode = parts.lastOrNull()?.toIntOrNull() ?: 15
+
+        val aheadStdout = ByteArrayOutputStream()
+        project.exec {
+            commandLine("git", "rev-list", "--count", "$latestTag..HEAD")
+            standardOutput = aheadStdout
+        }
+        val aheadCount = aheadStdout.toString().trim().toIntOrNull() ?: 0
+
+        val code = baseCode + aheadCount
+        val prefix = parts.dropLast(1).joinToString(".")
+        val name = if (prefix.isNotEmpty()) "$prefix.$code" else "$code"
+        Pair(code, name)
+    } catch (_: Exception) {
+        Pair(15, "1.0.15")
+    }
+}
+
+val gitVer = getGitVersionInfo()
+val vCode = (project.findProperty("appVersionCode") as? String)?.toIntOrNull() ?: gitVer.first
+val vName = (project.findProperty("appVersionName") as? String) ?: gitVer.second
 
 android {
     namespace = "com.mysocial.mesh"
@@ -14,8 +48,8 @@ android {
         applicationId = "com.mysocial.mesh"
         minSdk = 26
         targetSdk = 34
-        versionCode = (project.findProperty("appVersionCode") as? String)?.toIntOrNull() ?: 1
-        versionName = (project.findProperty("appVersionName") as? String) ?: "1.0.0"
+        versionCode = vCode
+        versionName = vName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

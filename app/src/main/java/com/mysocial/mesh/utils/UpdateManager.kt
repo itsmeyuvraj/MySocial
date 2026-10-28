@@ -46,9 +46,9 @@ class UpdateManager(private val context: Context) {
                 @Suppress("DEPRECATION")
                 context.packageManager.getPackageInfo(context.packageName, 0)
             }
-            pInfo.versionName ?: "1.0.0"
+            pInfo.versionName ?: "1.0.15"
         } catch (_: Exception) {
-            "1.0.0"
+            "1.0.15"
         }
 
     val currentVersionCode: Long
@@ -66,7 +66,7 @@ class UpdateManager(private val context: Context) {
                 pInfo.versionCode.toLong()
             }
         } catch (_: Exception) {
-            1L
+            15L
         }
 
     suspend fun checkForUpdate(): AppUpdateInfo? = withContext(Dispatchers.IO) {
