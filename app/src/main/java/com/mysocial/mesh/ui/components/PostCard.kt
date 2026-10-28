@@ -255,8 +255,10 @@ fun PostCard(
                             color = FbTextSecondary,
                             fontSize = 12.sp
                         )
-                        Text(text = "•", color = FbTextTertiary, fontSize = 10.sp)
-                        HopBadge(hopCount = post.hopCount, transportSource = post.transportSource)
+                        if (post.hopCount > 1) {
+                            Text(text = "•", color = FbTextTertiary, fontSize = 10.sp)
+                            HopBadge(hopCount = post.hopCount, transportSource = post.transportSource)
+                        }
                         if (post.expiresAt != null) {
                             Text(text = "•", color = FbTextTertiary, fontSize = 10.sp)
                             Text(
