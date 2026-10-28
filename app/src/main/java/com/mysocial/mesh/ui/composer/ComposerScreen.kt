@@ -25,23 +25,34 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Poll
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -89,11 +100,21 @@ fun ComposerScreen(
     val statusMessage by viewModel.statusMessage.collectAsState()
     val isPublic by viewModel.isPublic.collectAsState()
     val myProfile by viewModel.myProfile.collectAsState(initial = null)
+    val expiryOption by viewModel.expiryOption.collectAsState()
+    val isSos by viewModel.isSos.collectAsState()
+    val isPollEnabled by viewModel.isPollEnabled.collectAsState()
+    val pollOptions by viewModel.pollOptions.collectAsState()
 
     var showAudienceDialog by remember { mutableStateOf(false) }
 
     val authorId = viewModel.authorId
     val displayName = myProfile?.displayName ?: "You"
+
+    val canPublish = !isPublishing && (
+        postText.isNotBlank() ||
+        selectedImageUri != null ||
+        (isPollEnabled && pollOptions.count { it.isNotBlank() } >= 2)
+    )
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -156,13 +177,13 @@ fun ComposerScreen(
                     Button(
                         onClick = { viewModel.publishPost(context, onPostPublished) },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = FacebookBlue,
+                            containerColor = if (isSos) Color(0xFFD32F2F) else FacebookBlue,
                             contentColor = Color.White,
                             disabledContainerColor = FbBorder,
                             disabledContentColor = FbTextTertiary
                         ),
                         shape = RoundedCornerShape(6.dp),
-                        enabled = (postText.isNotBlank() || selectedImageUri != null) && !isPublishing
+                        enabled = canPublish
                     ) {
                         if (isPublishing) {
                             CircularProgressIndicator(
@@ -244,7 +265,115 @@ fun ComposerScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // SOS / Urgent Local Broadcast Toggle
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (isSos) Color(0xFFFFEBEE) else FbSurfaceElevated)
+                        .border(
+                            1.dp,
+                            if (isSos) Color(0xFFD32F2F) else FbBorder,
+                            RoundedCornerShape(8.dp)
+                        )
+                        .clickable { viewModel.setSos(!isSos) }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Warning,
+                            contentDescription = "SOS",
+                            tint = if (isSos) Color(0xFFD32F2F) else FbTextSecondary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "SOS / Urgent Local Broadcast",
+                                color = if (isSos) Color(0xFFD32F2F) else FbTextPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Prioritizes delivery across all mesh nodes at top priority",
+                                color = if (isSos) Color(0xFFB71C1C) else FbTextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = isSos,
+                        onCheckedChange = { viewModel.setSos(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = Color(0xFFD32F2F),
+                            uncheckedThumbColor = FbTextSecondary,
+                            uncheckedTrackColor = FbSurfaceElevated
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Ephemeral TTL Chips Row: Forever (Default), 1h, 6h, 24h
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.HourglassEmpty,
+                        contentDescription = "Expiry",
+                        tint = FbTextSecondary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Expiry:",
+                        color = FbTextSecondary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        ExpiryOption.values().forEach { option ->
+                            val isSelected = expiryOption == option
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { viewModel.setExpiryOption(option) },
+                                label = {
+                                    Text(
+                                        text = option.label,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = FacebookBlue,
+                                    selectedLabelColor = Color.White,
+                                    containerColor = FbSurfaceElevated,
+                                    labelColor = FbTextPrimary
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    borderColor = if (isSelected) FacebookBlue else FbBorder,
+                                    enabled = true,
+                                    selected = isSelected
+                                )
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // Post Content Input
                 TextField(
@@ -342,7 +471,137 @@ fun ComposerScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // "Add Poll" Card
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { viewModel.setPollEnabled(!isPollEnabled) },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = androidx.compose.material3.CardDefaults.cardColors(
+                        containerColor = if (isPollEnabled) FacebookBlueLight else FbSurfaceElevated
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (isPollEnabled) FacebookBlue else FbBorder
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Filled.Poll,
+                                contentDescription = "Add Poll",
+                                tint = if (isPollEnabled) FacebookBlue else FbTextSecondary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = if (isPollEnabled) "Poll Attached (Tap to remove)" else "Create a Local Poll",
+                                color = if (isPollEnabled) FacebookBlue else FbTextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+
+                        if (isPollEnabled) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = "Remove Poll",
+                                tint = FacebookBlue,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Poll Builder Options
+                if (isPollEnabled) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = FbSurfaceElevated),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, FbBorder)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = "Poll Options (2 - 4 options)",
+                                color = FbTextSecondary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            pollOptions.forEachIndexed { index, optionText ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    OutlinedTextField(
+                                        value = optionText,
+                                        onValueChange = { viewModel.updatePollOption(index, it) },
+                                        placeholder = { Text("Option ${index + 1}", fontSize = 13.sp, color = FbTextTertiary) },
+                                        singleLine = true,
+                                        modifier = Modifier.weight(1f),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = FacebookBlue,
+                                            unfocusedBorderColor = FbBorder,
+                                            focusedTextColor = FbTextPrimary,
+                                            unfocusedTextColor = FbTextPrimary
+                                        )
+                                    )
+
+                                    if (pollOptions.size > 2) {
+                                        IconButton(
+                                            onClick = { viewModel.removePollOption(index) },
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Delete,
+                                                contentDescription = "Remove option",
+                                                tint = FbTextSecondary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (pollOptions.size < 4) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                TextButton(
+                                    onClick = { viewModel.addPollOption() },
+                                    modifier = Modifier.align(Alignment.Start)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Add,
+                                        contentDescription = "Add option",
+                                        tint = FacebookBlue,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Add Option",
+                                        color = FacebookBlue,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // Friendly Security & Offline Reassurance Banner
                 Box(

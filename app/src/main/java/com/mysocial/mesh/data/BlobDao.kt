@@ -35,6 +35,12 @@ interface BlobDao {
     @Query("UPDATE blob_manifests SET isComplete = 1, localFilePath = :localPath WHERE blobHash = :blobHash")
     suspend fun markComplete(blobHash: String, localPath: String)
 
+    @Query("UPDATE blob_manifests SET isComplete = 0, localFilePath = NULL WHERE blobHash = :blobHash")
+    suspend fun markIncomplete(blobHash: String)
+
+    @Query("DELETE FROM blob_manifests WHERE blobHash = :blobHash")
+    suspend fun deleteManifest(blobHash: String)
+
     // -------------------------------------------------------------
     // CHUNK OPERATIONS
     // -------------------------------------------------------------

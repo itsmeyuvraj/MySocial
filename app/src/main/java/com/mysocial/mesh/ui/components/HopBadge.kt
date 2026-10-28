@@ -9,9 +9,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Public
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,13 +30,15 @@ import com.mysocial.mesh.ui.theme.BadgeYouText
 
 @Composable
 fun HopBadge(
-    hopDistance: Int,
+    hopCount: Int,
+    transportSource: String = "LOCAL",
     modifier: Modifier = Modifier
 ) {
-    val (label, bgColor, textColor, icon) = when (hopDistance) {
-        0 -> Quadruple("You", BadgeYouBg, BadgeYouText, Icons.Filled.Person)
-        1 -> Quadruple("Directly Nearby", BadgeFriendsBg, BadgeFriendsText, Icons.Filled.Group)
-        else -> Quadruple("Shared Nearby", BadgeNearbyBg, BadgeNearbyText, Icons.Filled.Public)
+    val transportLabel = if (transportSource.contains("WIFI", ignoreCase = true)) "Wi-Fi" else "BLE"
+    val (label, bgColor, textColor, icon) = when {
+        hopCount == 0 -> Quadruple("You", BadgeYouBg, BadgeYouText, Icons.Filled.Person)
+        hopCount == 1 -> Quadruple("Direct • $transportLabel", BadgeFriendsBg, BadgeFriendsText, Icons.Filled.NearMe)
+        else -> Quadruple("⚡ $hopCount hops • via Mule", BadgeNearbyBg, BadgeNearbyText, Icons.Filled.Bolt)
     }
 
     Box(

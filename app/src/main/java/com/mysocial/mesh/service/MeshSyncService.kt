@@ -83,7 +83,8 @@ class MeshSyncService : Service() {
             cryptoManager = cryptoManager,
             myDisplayName = initialName,
             openMeshMode = true,
-            context = this
+            context = this,
+            appSettings = appSettings
         )
     }
 
@@ -235,6 +236,19 @@ class MeshSyncService : Service() {
 
         // Start automatic periodic background sync pulse with user-configured interval
         startPeriodicSync()
+
+        // Periodic cleanup worker for Ephemeral TTL posts and Mule Storage Ring-Buffer
+        serviceScope.launch(Dispatchers.IO) {
+            while (isActive && _isMeshActive.value) {
+                delay(30_000L)
+                try {
+                    syncEngine.pruneExpiredPostsAndBlobs()
+                    syncEngine.pruneStrangerMediaIfOverCapacity()
+                } catch (e: Exception) {
+                    Log.w(tag, "Error during periodic storage and TTL pruning: ${e.message}")
+                }
+            }
+        }
 
         // Dynamically adjust sync frequency when setting changes
         serviceScope.launch {

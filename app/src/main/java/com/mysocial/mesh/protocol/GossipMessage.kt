@@ -42,7 +42,8 @@ sealed interface GossipMessage {
     @SerialName("LOG_BATCH")
     data class LogBatch(
         val entries: List<LogEntry>,
-        val hasMore: Boolean = false
+        val hasMore: Boolean = false,
+        val hopCounts: List<Int> = emptyList()
     ) : GossipMessage
 
     /**

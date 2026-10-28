@@ -87,6 +87,11 @@ class RadarViewModel(
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
+    val verifiedAuthorIds: StateFlow<Set<String>> = repository.observeAllProfiles()
+        .map { profiles -> profiles.filter { it.isVerifiedInPerson }.map { it.authorId }.toSet() }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
     fun toggleFollow(targetAuthorId: String, following: Boolean) {
         viewModelScope.launch {
             repository.toggleFollow(targetAuthorId, following)

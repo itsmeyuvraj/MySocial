@@ -3,7 +3,9 @@ package com.mysocial.mesh.ui.feed
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mysocial.mesh.data.MeshRepository
+import com.mysocial.mesh.model.CanonicalJson
 import com.mysocial.mesh.model.PostWithAuthor
+import com.mysocial.mesh.utils.toBbid
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -12,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import com.mysocial.mesh.transport.DiscoveredPeer
 
@@ -76,22 +79,81 @@ class FeedViewModel(
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
+    val pinnedHashtags: StateFlow<Set<String>> = (repository.appSettings?.pinnedHashtags ?: flowOf(emptySet()))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    val mutedHashtags: StateFlow<Set<String>> = (repository.appSettings?.mutedHashtags ?: flowOf(emptySet()))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    fun pinHashtag(tag: String) {
+        viewModelScope.launch {
+            repository.appSettings?.pinHashtag(tag)
+        }
+    }
+
+    fun unpinHashtag(tag: String) {
+        viewModelScope.launch {
+            repository.appSettings?.unpinHashtag(tag)
+        }
+    }
+
+    fun muteHashtag(tag: String) {
+        viewModelScope.launch {
+            repository.appSettings?.muteHashtag(tag)
+        }
+    }
+
+    fun unmuteHashtag(tag: String) {
+        viewModelScope.launch {
+            repository.appSettings?.unmuteHashtag(tag)
+        }
+    }
+
+    fun votePoll(targetHash: String, optionIndex: Int) {
+        viewModelScope.launch {
+            repository.votePoll(targetHash, optionIndex)
+        }
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val feedPosts: StateFlow<List<PostWithAuthor>> = combine(
         _openMeshFilter.flatMapLatest { openFilter -> repository.observeFeed(openFilter) },
-        _searchQuery
-    ) { posts, query ->
+        _searchQuery,
+        mutedHashtags
+    ) { posts, query, muted ->
         if (query.isBlank()) {
-            posts
+            if (!_openMeshFilter.value || muted.isEmpty()) {
+                posts
+            } else {
+                posts.filter { postWithAuthor ->
+                    val authorId = postWithAuthor.post.authorId
+                    if (authorId == currentAuthorId) true
+                    else {
+                        val tags = try {
+                            CanonicalJson.decodeFromString<List<String>>(postWithAuthor.post.tagsJson)
+                        } catch (_: Exception) {
+                            emptyList()
+                        }
+                        if (tags.isNotEmpty() && tags.all { muted.contains(it.lowercase()) }) {
+                            false
+                        } else {
+                            true
+                        }
+                    }
+                }
+            }
         } else {
             val q = query.trim()
+            val cleanQ = q.removePrefix("#").removePrefix("@").trim()
             posts.filter { postWithAuthor ->
-                val textMatch = postWithAuthor.post.text.contains(q, ignoreCase = true)
+                val post = postWithAuthor.post
+                val textMatch = post.text.contains(q, ignoreCase = true)
                 val authorNameMatch = postWithAuthor.authorProfile?.displayName?.contains(q, ignoreCase = true) == true
-                val authorIdMatch = postWithAuthor.post.authorId.contains(q, ignoreCase = true)
-                val tagMatch = postWithAuthor.post.tagsJson.contains(q, ignoreCase = true)
+                val authorIdMatch = post.authorId.contains(cleanQ, ignoreCase = true)
+                val bbidMatch = post.authorId.toBbid().replace("-", "").contains(cleanQ.replace("-", ""), ignoreCase = true)
+                val tagMatch = post.tagsJson.contains(cleanQ, ignoreCase = true)
                 val bioMatch = postWithAuthor.authorProfile?.bio?.contains(q, ignoreCase = true) == true
-                textMatch || authorNameMatch || authorIdMatch || tagMatch || bioMatch
+                textMatch || authorNameMatch || authorIdMatch || bbidMatch || tagMatch || bioMatch
             }
         }
     }

@@ -79,6 +79,9 @@ import androidx.compose.ui.unit.sp
 import com.mysocial.mesh.data.MediaProcessor
 import com.mysocial.mesh.data.MeshDatabase
 import com.mysocial.mesh.model.CanonicalJson
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Warning
+import com.mysocial.mesh.utils.toFormattedBbid
 import com.mysocial.mesh.model.PostWithAuthor
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FbBorder
@@ -101,6 +104,8 @@ fun PostCard(
     onDeleteClick: ((entryHash: String) -> Unit)? = null,
     onShareClick: ((postText: String) -> Unit)? = null,
     onPrioritizeDownload: ((blobHash: String) -> Unit)? = null,
+    onVotePoll: ((targetHash: String, optionIndex: Int) -> Unit)? = null,
+    onTagClick: ((tag: String) -> Unit)? = null,
     currentAuthorId: String? = null,
     isAuthorOnline: Boolean = false,
     isFriend: Boolean = false,
@@ -108,6 +113,7 @@ fun PostCard(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val db = remember(context) { MeshDatabase.getInstance(context) }
     val post = postWithAuthor.post
     val profile = postWithAuthor.authorProfile
 
@@ -155,6 +161,11 @@ fun PostCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .then(
+                if (post.isSos) {
+                    Modifier.border(2.dp, Color(0xFFD32F2F), RoundedCornerShape(8.dp))
+                } else Modifier
+            )
+            .then(
                 if (onPostClick != null) {
                     Modifier.clickable { onPostClick() }
                 } else Modifier
@@ -162,7 +173,33 @@ fun PostCard(
         colors = CardDefaults.cardColors(containerColor = FbSurface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(modifier = Modifier.padding(top = 12.dp, bottom = 6.dp)) {
+        Column(modifier = Modifier.padding(top = if (post.isSos) 0.dp else 12.dp, bottom = 6.dp)) {
+            // SOS High-Priority Alert Banner
+            if (post.isSos) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFFFFEBEE))
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Warning,
+                        contentDescription = "SOS Alert",
+                        tint = Color(0xFFD32F2F),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "🚨 SOS / URGENT LOCAL BROADCAST",
+                        color = Color(0xFFD32F2F),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
             // Header Row: Avatar, Name, Timestamp, Audience Badge, More button
             Row(
                 modifier = Modifier
@@ -193,9 +230,22 @@ fun PostCard(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
                         )
-                        if (isFriend) {
+                        if (postWithAuthor.isAuthorVerifiedInPerson) {
+                            VerifiedShieldBadge(size = 15.dp)
+                        } else if (isFriend) {
                             VerifiedBadge(size = 15.dp)
                         }
+                        Text(
+                            text = authorId.toFormattedBbid(),
+                            color = FbTextSecondary,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(FbSurfaceElevated)
+                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                        )
                     }
 
                     Row(
@@ -207,9 +257,16 @@ fun PostCard(
                             color = FbTextSecondary,
                             fontSize = 12.sp
                         )
-                        if (!post.isPublic || post.hopDistance == 0) {
+                        Text(text = "•", color = FbTextTertiary, fontSize = 10.sp)
+                        HopBadge(hopCount = post.hopCount, transportSource = post.transportSource)
+                        if (post.expiresAt != null) {
                             Text(text = "•", color = FbTextTertiary, fontSize = 10.sp)
-                            HopBadge(hopDistance = post.hopDistance)
+                            Text(
+                                text = formatTtlRemaining(post.expiresAt),
+                                color = if (post.expiresAt - System.currentTimeMillis() < 3600_000L) Color(0xFFD32F2F) else FbTextSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
                         }
                         Text(text = "•", color = FbTextTertiary, fontSize = 10.sp)
                         Icon(
@@ -334,7 +391,106 @@ fun PostCard(
                 )
             }
 
-            // Hashtags (Facebook Blue style)
+            // 1-Tap Local Polls
+            if (!post.pollOptionsJson.isNullOrBlank()) {
+                val pollOptions: List<String> = remember(post.pollOptionsJson) {
+                    try {
+                        CanonicalJson.decodeFromString<List<String>>(post.pollOptionsJson)
+                    } catch (_: Exception) {
+                        emptyList()
+                    }
+                }
+
+                if (pollOptions.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    val allPollReactions by db.reactionDao().observePollVotesForPost(post.entryHash).collectAsState(initial = emptyList())
+                    val activeVotes = remember(allPollReactions) {
+                        allPollReactions.sortedBy { it.timestamp }.associate { it.authorId to it.pollOptionIndex }
+                    }
+                    val totalVotes = activeVotes.size
+                    val myVotedIndex = currentAuthorId?.let { activeVotes[it] }
+                    val voteCounts = remember(activeVotes) {
+                        val map = mutableMapOf<Int, Int>()
+                        activeVotes.values.filterNotNull().forEach { idx ->
+                            map[idx] = (map[idx] ?: 0) + 1
+                        }
+                        map
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(FbSurfaceElevated)
+                            .border(1.dp, FbBorder, RoundedCornerShape(8.dp))
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        pollOptions.forEachIndexed { index, optionText ->
+                            val votes = voteCounts[index] ?: 0
+                            val percent = if (totalVotes > 0) (votes * 100) / totalVotes else 0
+                            val isSelected = myVotedIndex == index
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(if (isSelected) FacebookBlue.copy(alpha = 0.12f) else FbSurface)
+                                    .border(
+                                        1.dp,
+                                        if (isSelected) FacebookBlue else FbBorder,
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .clickable { onVotePoll?.invoke(post.entryHash, index) }
+                                    .padding(vertical = 10.dp, horizontal = 12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        modifier = Modifier.weight(1f),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        if (isSelected) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Check,
+                                                contentDescription = "Selected",
+                                                tint = FacebookBlue,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                        }
+                                        Text(
+                                            text = optionText,
+                                            color = if (isSelected) FacebookBlue else FbTextPrimary,
+                                            fontSize = 14.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                        )
+                                    }
+                                    Text(
+                                        text = "$percent% ($votes)",
+                                        color = if (isSelected) FacebookBlue else FbTextSecondary,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        }
+
+                        Text(
+                            text = if (totalVotes == 1) "1 vote total" else "$totalVotes votes total",
+                            color = FbTextTertiary,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                }
+            }
+
+            // Hashtags (Facebook Blue style, clickable)
             if (tags.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 FlowRow(
@@ -347,7 +503,11 @@ fun PostCard(
                             text = "#$tag",
                             color = FacebookBlue,
                             fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { onTagClick?.invoke(tag) }
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
                         )
                     }
                 }
@@ -592,6 +752,18 @@ fun formatRelativeTime(timestamp: Long): String {
         minutes < 60 -> "${minutes}m"
         hours < 24 -> "${hours}h"
         else -> "${days}d"
+    }
+}
+
+fun formatTtlRemaining(expiresAt: Long): String {
+    val diff = expiresAt - System.currentTimeMillis()
+    if (diff <= 0) return "⏳ Expired"
+    val minutes = (diff / (1000 * 60)) % 60
+    val hours = diff / (1000 * 60 * 60)
+    return when {
+        hours > 0 -> "⏳ ${hours}h left"
+        minutes > 0 -> "⏳ ${minutes}m left"
+        else -> "⏳ <1m left"
     }
 }
 

@@ -1,5 +1,6 @@
 package com.mysocial.mesh.data
 
+import android.content.Context
 import com.mysocial.mesh.crypto.CryptoManager
 import com.mysocial.mesh.model.ContentType
 import com.mysocial.mesh.model.FollowPayload
@@ -177,22 +178,90 @@ class MeshRepository(
     }
 
     /**
-     * Creates and signs a new local POST LogEntry (with optional media attachment), committing it to Room.
+     * Creates and signs a new local POST LogEntry (with optional media attachment, TTL, SOS flag, and Poll options),
+     * committing it to Room.
      */
     suspend fun createPost(
         text: String,
-        tags: List<String>,
+        tags: List<String> = emptyList(),
         media: com.mysocial.mesh.model.MediaAttachment? = null,
-        isPublic: Boolean = true
+        isPublic: Boolean = true,
+        expiresAt: Long? = null,
+        isSos: Boolean = false,
+        pollOptions: List<String>? = null
     ): Result<LogEntry> {
-        val payload = PostPayload(text = text.trim(), tags = tags, media = media, isPublic = isPublic).toJson()
+        val payload = PostPayload(
+            text = text.trim(),
+            tags = tags,
+            media = media,
+            isPublic = isPublic,
+            expiresAt = expiresAt,
+            isSos = isSos,
+            pollOptions = pollOptions
+        ).toJson()
         return syncEngine.createAndPublishLocalEntry(ContentType.POST, payload).also {
             if (it.isSuccess) {
-                val suffix = if (media != null) " with photo" else ""
+                val suffix = when {
+                    isSos -> " [SOS Beacon]"
+                    pollOptions != null -> " with poll"
+                    media != null -> " with photo"
+                    else -> ""
+                }
                 val aud = if (isPublic) "public" else "friends-only"
                 logActivity("Published new $aud post$suffix: \"${text.take(30)}${if (text.length > 30) "..." else ""}\"")
                 onContentPublished?.invoke()
             }
+        }
+    }
+
+    /**
+     * Casts a 1-tap poll vote on a target post with option index.
+     */
+    suspend fun votePoll(targetHash: String, optionIndex: Int): Result<LogEntry> {
+        val payload = ReactionPayload(
+            targetHash = targetHash,
+            emoji = "poll:$optionIndex",
+            pollOptionIndex = optionIndex
+        ).toJson()
+        return syncEngine.createAndPublishLocalEntry(ContentType.REACTION, payload).also {
+            if (it.isSuccess) {
+                logActivity("Voted option ${optionIndex + 1} on poll")
+                onContentPublished?.invoke()
+            }
+        }
+    }
+
+    /**
+     * Observes live poll votes for a given post.
+     */
+    fun observePollVotes(targetHash: String): Flow<List<com.mysocial.mesh.model.ReactionEntity>> {
+        return db.reactionDao().observePollVotesForPost(targetHash)
+    }
+
+    suspend fun setVerifiedInPerson(authorId: String, verified: Boolean) {
+        db.followDao().upsert(
+            com.mysocial.mesh.model.FollowViewEntity(
+                followerId = cryptoManager.authorId,
+                followeeId = authorId,
+                isFollowing = true,
+                updatedAtSeq = System.currentTimeMillis(),
+                isVerifiedInPerson = verified
+            )
+        )
+        db.profileDao().setVerifiedInPerson(authorId, verified)
+        db.followDao().setVerifiedInPerson(authorId, verified)
+    }
+
+    suspend fun isVerifiedInPerson(targetAuthorId: String): Boolean {
+        return db.followDao().isVerifiedInPerson(cryptoManager.authorId, targetAuthorId) ?: false
+    }
+
+    fun getBlobsDirectorySizeBytes(context: Context): Long {
+        return try {
+            val blobsDir = MediaProcessor.getBlobsDirectory(context)
+            blobsDir.listFiles { f -> f.extension == "blob" }?.sumOf { it.length() } ?: 0L
+        } catch (_: Exception) {
+            0L
         }
     }
 

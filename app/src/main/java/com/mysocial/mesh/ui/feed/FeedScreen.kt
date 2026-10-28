@@ -33,6 +33,11 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material.icons.filled.WifiTethering
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import com.mysocial.mesh.ui.components.ShareApkBottomSheet
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -102,10 +107,14 @@ fun FeedScreen(
     val followedAuthorIds by viewModel.followedAuthorIds.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isSearchActive by viewModel.isSearchActive.collectAsState()
+    val pinnedHashtags by viewModel.pinnedHashtags.collectAsState()
+    val mutedHashtags by viewModel.mutedHashtags.collectAsState()
 
     val context = LocalContext.current
     var selectedPostForComments by remember { mutableStateOf<PostWithAuthor?>(null) }
     var autoFocusCommentInput by remember { mutableStateOf(false) }
+    var showShareApkSheet by remember { mutableStateOf(false) }
+    var selectedTagForAction by remember { mutableStateOf<String?>(null) }
 
     val isOnline = activeNearbyPeers.isNotEmpty()
     var wasOnline by remember { mutableStateOf(false) }
@@ -135,7 +144,8 @@ fun FeedScreen(
             ) {
                 FacebookTopBar(
                     activePeersCount = activeNearbyPeers.size,
-                    onSearchClick = { viewModel.openSearch() }
+                    onSearchClick = { viewModel.openSearch() },
+                    onShareNearbyClick = { showShareApkSheet = true }
                 )
             }
             AnimatedVisibility(
@@ -173,6 +183,60 @@ fun FeedScreen(
                                 onSelectFilter = { viewModel.setFilter(it) }
                             )
                         }
+
+                        // Pinned Hashtag Radio Channels
+                        if (pinnedHashtags.isNotEmpty()) {
+                            item {
+                                LazyRow(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 2.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    item {
+                                        Text(
+                                            text = "Channels:",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = FbTextSecondary
+                                        )
+                                    }
+                                    items(pinnedHashtags.toList()) { tag ->
+                                        val isTagActive = searchQuery.equals("#$tag", ignoreCase = true) || searchQuery.equals(tag, ignoreCase = true)
+                                        FilterChip(
+                                            selected = isTagActive,
+                                            onClick = {
+                                                if (isTagActive) {
+                                                    viewModel.closeSearch()
+                                                } else {
+                                                    viewModel.openSearch()
+                                                    viewModel.setSearchQuery("#$tag")
+                                                }
+                                            },
+                                            label = {
+                                                Text(
+                                                    text = "📌 #$tag",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = if (isTagActive) FontWeight.Bold else FontWeight.Medium
+                                                )
+                                            },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                containerColor = FbSurfaceElevated,
+                                                labelColor = FacebookBlue,
+                                                selectedContainerColor = FacebookBlueLight,
+                                                selectedLabelColor = FacebookBlue
+                                            ),
+                                            border = FilterChipDefaults.filterChipBorder(
+                                                borderColor = if (isTagActive) FacebookBlue else FbBorder,
+                                                enabled = true,
+                                                selected = isTagActive
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     } else {
                         // In Search Mode:
                         if (searchQuery.isBlank()) {
@@ -198,6 +262,60 @@ fun FeedScreen(
                                 isNearbyFilter = isOpenMeshFilter,
                                 onSelectFilter = { viewModel.setFilter(it) }
                             )
+                        }
+
+                        // Pinned Hashtag Radio Channels
+                        if (pinnedHashtags.isNotEmpty()) {
+                            item {
+                                LazyRow(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 2.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    item {
+                                        Text(
+                                            text = "Channels:",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = FbTextSecondary
+                                        )
+                                    }
+                                    items(pinnedHashtags.toList()) { tag ->
+                                        val isTagActive = searchQuery.equals("#$tag", ignoreCase = true) || searchQuery.equals(tag, ignoreCase = true)
+                                        FilterChip(
+                                            selected = isTagActive,
+                                            onClick = {
+                                                if (isTagActive) {
+                                                    viewModel.closeSearch()
+                                                } else {
+                                                    viewModel.openSearch()
+                                                    viewModel.setSearchQuery("#$tag")
+                                                }
+                                            },
+                                            label = {
+                                                Text(
+                                                    text = "📌 #$tag",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = if (isTagActive) FontWeight.Bold else FontWeight.Medium
+                                                )
+                                            },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                containerColor = FbSurfaceElevated,
+                                                labelColor = FacebookBlue,
+                                                selectedContainerColor = FacebookBlueLight,
+                                                selectedLabelColor = FacebookBlue
+                                            ),
+                                            border = FilterChipDefaults.filterChipBorder(
+                                                borderColor = if (isTagActive) FacebookBlue else FbBorder,
+                                                enabled = true,
+                                                selected = isTagActive
+                                            )
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -236,6 +354,8 @@ fun FeedScreen(
                                 onEditClick = { hash, newText -> viewModel.editPost(hash, newText) },
                                 onDeleteClick = { hash -> viewModel.deletePost(hash) },
                                 onPrioritizeDownload = { hash -> viewModel.prioritizeBlobDownload(hash) },
+                                onVotePoll = { hash, idx -> viewModel.votePoll(hash, idx) },
+                                onTagClick = { tag -> selectedTagForAction = tag },
                                 currentAuthorId = viewModel.currentAuthorId,
                                 isAuthorOnline = isOnline,
                                 isFriend = isFriend,
@@ -282,13 +402,99 @@ fun FeedScreen(
             )
         }
 
+        // Offline APK Dispenser Bottom Sheet
+        if (showShareApkSheet) {
+            ShareApkBottomSheet(onDismiss = { showShareApkSheet = false })
+        }
+
+        // Hashtag Radio Channel Action Dialog
+        if (selectedTagForAction != null) {
+            val tag = selectedTagForAction!!
+            val isPinned = pinnedHashtags.contains(tag.lowercase())
+            val isMuted = mutedHashtags.contains(tag.lowercase())
+
+            AlertDialog(
+                onDismissRequest = { selectedTagForAction = null },
+                containerColor = FbSurface,
+                title = {
+                    Text(
+                        text = "#$tag Radio Channel",
+                        color = FbTextPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Tune in to this channel or customize your mesh media sync rules:",
+                            color = FbTextSecondary,
+                            fontSize = 13.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Action 1: Filter Feed
+                        Button(
+                            onClick = {
+                                selectedTagForAction = null
+                                viewModel.openSearch()
+                                viewModel.setSearchQuery("#$tag")
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = FacebookBlue),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Filter Feed by #$tag")
+                        }
+
+                        // Action 2: Pin / Unpin
+                        Button(
+                            onClick = {
+                                if (isPinned) viewModel.unpinHashtag(tag) else viewModel.pinHashtag(tag)
+                                selectedTagForAction = null
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isPinned) FbSurfaceElevated else FbGreen,
+                                contentColor = if (isPinned) FbTextPrimary else Color.White
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (isPinned) "Unpin Channel" else "📌 Pin Channel (Auto-download photos)")
+                        }
+
+                        // Action 3: Mute / Unmute
+                        Button(
+                            onClick = {
+                                if (isMuted) viewModel.unmuteHashtag(tag) else viewModel.muteHashtag(tag)
+                                selectedTagForAction = null
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isMuted) FbSurfaceElevated else Color(0xFFD32F2F),
+                                contentColor = if (isMuted) FbTextPrimary else Color.White
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (isMuted) "Unmute Channel" else "🔇 Mute Channel (Skip photo downloads)")
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { selectedTagForAction = null }) {
+                        Text("Close", color = FbTextSecondary)
+                    }
+                }
+            )
+        }
+
     }
 }
 
 @Composable
 fun FacebookTopBar(
     activePeersCount: Int = 0,
-    onSearchClick: () -> Unit = {}
+    onSearchClick: () -> Unit = {},
+    onShareNearbyClick: () -> Unit = {}
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -336,8 +542,23 @@ fun FacebookTopBar(
                 }
             }
 
-            // Top action buttons (Search)
+            // Top action buttons (Share Nearby & Search)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                IconButton(
+                    onClick = onShareNearbyClick,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(FbSurfaceElevated)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.WifiTethering,
+                        contentDescription = "Share Nearby APK",
+                        tint = FacebookBlue,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
                 IconButton(
                     onClick = onSearchClick,
                     modifier = Modifier

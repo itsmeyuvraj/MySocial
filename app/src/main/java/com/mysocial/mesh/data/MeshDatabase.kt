@@ -105,6 +105,9 @@ interface ProfileDao {
 
     @Query("SELECT * FROM profiles_view")
     fun observeAllProfiles(): Flow<List<ProfileViewEntity>>
+
+    @Query("UPDATE profiles_view SET isVerifiedInPerson = :verified WHERE authorId = :authorId")
+    suspend fun setVerifiedInPerson(authorId: String, verified: Boolean)
 }
 
 @Dao
@@ -115,8 +118,17 @@ interface PostViewDao {
     @Query("SELECT * FROM posts_view WHERE entryHash = :hash LIMIT 1")
     suspend fun getPost(hash: String): PostViewEntity?
 
+    @Query("SELECT * FROM posts_view WHERE mediaBlobHash = :blobHash LIMIT 1")
+    suspend fun getPostByBlobHash(blobHash: String): PostViewEntity?
+
     @Query("DELETE FROM posts_view WHERE entryHash = :hash OR replyToHash = :hash")
     suspend fun deletePost(hash: String)
+
+    @Query("DELETE FROM posts_view WHERE expiresAt IS NOT NULL AND expiresAt <= :now")
+    suspend fun deleteExpiredPosts(now: Long = System.currentTimeMillis()): Int
+
+    @Query("SELECT mediaBlobHash FROM posts_view WHERE expiresAt IS NOT NULL AND expiresAt <= :now AND mediaBlobHash IS NOT NULL")
+    suspend fun getExpiredBlobHashes(now: Long = System.currentTimeMillis()): List<String>
 
     @Query("UPDATE posts_view SET text = :newText WHERE entryHash = :hash")
     suspend fun updatePostText(hash: String, newText: String)
@@ -131,20 +143,22 @@ interface PostViewDao {
     @Query("""
         SELECT * FROM posts_view 
         WHERE replyToHash IS NULL 
+        AND (expiresAt IS NULL OR expiresAt > :now)
         AND (
             isPublic = 1 
             OR authorId = :myAuthorId 
             OR :myAuthorId IN (SELECT followeeId FROM follows_view WHERE followerId = authorId AND isFollowing = 1)
             OR authorId IN (SELECT followeeId FROM follows_view WHERE followerId = :myAuthorId AND isFollowing = 1)
         )
-        ORDER BY timestamp DESC
+        ORDER BY isSos DESC, timestamp DESC
     """)
-    fun observeAllFeed(myAuthorId: String): Flow<List<PostWithAuthor>>
+    fun observeAllFeed(myAuthorId: String, now: Long = System.currentTimeMillis()): Flow<List<PostWithAuthor>>
 
     @Transaction
     @Query("""
         SELECT * FROM posts_view 
         WHERE replyToHash IS NULL 
+        AND (expiresAt IS NULL OR expiresAt > :now)
         AND (
             authorId = :myAuthorId 
             OR authorId IN (SELECT followeeId FROM follows_view WHERE followerId = :myAuthorId AND isFollowing = 1)
@@ -161,9 +175,9 @@ interface PostViewDao {
             OR :myAuthorId IN (SELECT followeeId FROM follows_view WHERE followerId = authorId AND isFollowing = 1)
             OR authorId IN (SELECT followeeId FROM follows_view WHERE followerId = :myAuthorId AND isFollowing = 1)
         )
-        ORDER BY timestamp DESC
+        ORDER BY isSos DESC, timestamp DESC
     """)
-    fun observeFollowedAndTwoHopFeed(myAuthorId: String): Flow<List<PostWithAuthor>>
+    fun observeFollowedAndTwoHopFeed(myAuthorId: String, now: Long = System.currentTimeMillis()): Flow<List<PostWithAuthor>>
 
     @Transaction
     @Query("SELECT * FROM posts_view WHERE replyToHash = :parentHash OR rootHash = :parentHash ORDER BY timestamp ASC")
@@ -197,12 +211,29 @@ interface ReactionDao {
 
     @Query("SELECT * FROM reactions_view WHERE targetHash = :targetHash")
     fun observeReactionsForPost(targetHash: String): Flow<List<ReactionEntity>>
+
+    @Query("SELECT * FROM reactions_view WHERE targetHash = :targetHash AND pollOptionIndex IS NOT NULL")
+    fun observePollVotesForPost(targetHash: String): Flow<List<ReactionEntity>>
+
+    @Query("DELETE FROM reactions_view WHERE targetHash = :targetHash AND authorId = :authorId AND pollOptionIndex IS NOT NULL")
+    suspend fun deleteExistingPollVote(targetHash: String, authorId: String)
 }
 
 @Dao
 interface FollowDao {
     @Upsert
     suspend fun upsert(follow: FollowViewEntity)
+
+    @Query("UPDATE follows_view SET isVerifiedInPerson = :verified WHERE followeeId = :authorId OR followerId = :authorId")
+    suspend fun setVerifiedInPerson(authorId: String, verified: Boolean)
+
+    @Query("""
+        SELECT isVerifiedInPerson FROM follows_view 
+        WHERE (followerId = :followerId AND followeeId = :targetId) 
+           OR (followerId = :targetId AND followeeId = :followerId)
+        ORDER BY isVerifiedInPerson DESC LIMIT 1
+    """)
+    suspend fun isVerifiedInPerson(followerId: String, targetId: String): Boolean?
 
     @Query("""
         SELECT isFollowing FROM follows_view 
@@ -350,7 +381,7 @@ object LogValidator {
             when (contentType) {
                 ContentType.POST -> {
                     val p = PostPayload.fromJson(json)
-                    p.text.isNotBlank()
+                    p.text.isNotBlank() || p.media != null || !p.pollOptions.isNullOrEmpty()
                 }
                 ContentType.REPLY -> {
                     val r = ReplyPayload.fromJson(json)
@@ -358,7 +389,7 @@ object LogValidator {
                 }
                 ContentType.REACTION -> {
                     val rx = ReactionPayload.fromJson(json)
-                    rx.targetHash.isNotBlank() && rx.emoji.isNotBlank()
+                    rx.targetHash.isNotBlank() && (rx.emoji.isNotBlank() || rx.pollOptionIndex != null)
                 }
                 ContentType.PROFILE -> {
                     val pr = ProfilePayload.fromJson(json)
@@ -388,8 +419,20 @@ object LogProjector {
     /**
      * Synchronously projects a verified LogEntry into the query-optimized materialized view tables.
      */
-    suspend fun project(entry: LogEntry, db: MeshDatabase, hopDistance: Int) {
-        projectSingleWithoutSyncState(entry, db, hopDistance)
+    suspend fun project(
+        entry: LogEntry,
+        db: MeshDatabase,
+        hopDistance: Int = 0,
+        hopCount: Int = 0,
+        transportSource: String = "LOCAL"
+    ) {
+        projectSingleWithoutSyncState(
+            entry = entry,
+            db = db,
+            hopDistance = hopDistance,
+            hopCount = hopCount,
+            transportSource = transportSource
+        )
 
         // Update peer_sync_state Vector Clock entry for this author
         val existingState = db.peerSyncStateDao().getState(entry.authorId)
@@ -408,9 +451,21 @@ object LogProjector {
     /**
      * Projects a verified LogEntry without touching peer_sync_state (used during batch processing).
      */
-    suspend fun projectSingleWithoutSyncState(entry: LogEntry, db: MeshDatabase, hopDistance: Int) {
+    suspend fun projectSingleWithoutSyncState(
+        entry: LogEntry,
+        db: MeshDatabase,
+        hopDistance: Int = 0,
+        hopCount: Int = 0,
+        transportSource: String = "LOCAL"
+    ) {
         // 1. Insert into raw ledger log_entries table
-        db.logEntryDao().insert(entry.toEntity(hopDistance))
+        db.logEntryDao().insert(
+            entry.toEntity(
+                hopDistance = hopDistance,
+                hopCount = hopCount,
+                transportSource = transportSource
+            )
+        )
 
         // 2. Project into Materialized Views based on ContentType
         when (entry.contentType) {
@@ -424,7 +479,8 @@ object LogProjector {
                             displayName = payload.displayName,
                             bio = payload.bio,
                             avatarSeed = payload.avatarSeed,
-                            updatedAtSeq = entry.sequence
+                            updatedAtSeq = entry.sequence,
+                            isVerifiedInPerson = current?.isVerifiedInPerson ?: false
                         )
                     )
                 }
@@ -433,6 +489,7 @@ object LogProjector {
             ContentType.POST -> {
                 val payload = PostPayload.fromJson(entry.contentJson)
                 val tagsJson = CanonicalJson.encodeToString(payload.tags)
+                val pollOptionsJson = payload.pollOptions?.let { CanonicalJson.encodeToString(it) }
                 val media = payload.media
                 db.postViewDao().upsert(
                     PostViewEntity(
@@ -451,7 +508,12 @@ object LogProjector {
                         mediaTotalBytes = media?.totalBytes,
                         mediaChunkCount = media?.chunkCount,
                         microPreviewBase64 = media?.microPreviewBase64,
-                        isPublic = payload.isPublic
+                        isPublic = payload.isPublic,
+                        hopCount = hopCount,
+                        transportSource = transportSource,
+                        expiresAt = payload.expiresAt,
+                        isSos = payload.isSos,
+                        pollOptionsJson = pollOptionsJson
                     )
                 )
 
@@ -485,7 +547,9 @@ object LogProjector {
                         rootHash = payload.rootHash,
                         likeCount = 0,
                         replyCount = 0,
-                        hopDistance = hopDistance
+                        hopDistance = hopDistance,
+                        hopCount = hopCount,
+                        transportSource = transportSource
                     )
                 )
                 // Increment reply counts on parent and root posts
@@ -497,28 +561,35 @@ object LogProjector {
 
             ContentType.REACTION -> {
                 val payload = ReactionPayload.fromJson(entry.contentJson)
+                if (payload.pollOptionIndex != null) {
+                    db.reactionDao().deleteExistingPollVote(payload.targetHash, entry.authorId)
+                }
+                val emojiValue = if (payload.pollOptionIndex != null) "poll:${payload.pollOptionIndex}" else payload.emoji
                 val insertedRow = db.reactionDao().insertReaction(
                     ReactionEntity(
                         targetHash = payload.targetHash,
                         authorId = entry.authorId,
-                        emoji = payload.emoji,
-                        timestamp = entry.timestamp
+                        emoji = emojiValue,
+                        timestamp = entry.timestamp,
+                        pollOptionIndex = payload.pollOptionIndex
                     )
                 )
-                // Only increment likeCount if this reaction was newly inserted (prevents duplicate gossip counts)
-                if (insertedRow != -1L) {
+                // Only increment likeCount if this reaction was newly inserted and not a poll vote
+                if (insertedRow != -1L && payload.pollOptionIndex == null) {
                     db.postViewDao().incrementLikeCount(payload.targetHash)
                 }
             }
 
             ContentType.FOLLOW -> {
                 val payload = FollowPayload.fromJson(entry.contentJson)
+                val isVerified = db.followDao().isVerifiedInPerson(entry.authorId, payload.targetAuthorId) ?: false
                 db.followDao().upsert(
                     FollowViewEntity(
                         followerId = entry.authorId,
                         followeeId = payload.targetAuthorId,
                         isFollowing = payload.following,
-                        updatedAtSeq = entry.sequence
+                        updatedAtSeq = entry.sequence,
+                        isVerifiedInPerson = isVerified
                     )
                 )
             }
@@ -559,7 +630,7 @@ data class BatchResult(val acceptedCount: Int, val errors: List<String>)
         BlobManifestEntity::class,
         BlobChunkEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -576,7 +647,12 @@ abstract class MeshDatabase : RoomDatabase() {
     /**
      * Atomically validates a LogEntry and projects it into the materialized views.
      */
-    suspend fun insertAndProject(entry: LogEntry, hopDistance: Int = 0): Result<Unit> {
+    suspend fun insertAndProject(
+        entry: LogEntry,
+        hopDistance: Int = 0,
+        hopCount: Int = 0,
+        transportSource: String = "LOCAL"
+    ): Result<Unit> {
         return try {
             withTransaction {
                 when (val validation = LogValidator.validate(entry, this)) {
@@ -587,7 +663,13 @@ abstract class MeshDatabase : RoomDatabase() {
                         Result.failure(IllegalArgumentException("LogEntry validation failed: ${validation.reason}"))
                     }
                     is ValidationResult.Valid -> {
-                        LogProjector.project(entry, this, hopDistance)
+                        LogProjector.project(
+                            entry = entry,
+                            db = this,
+                            hopDistance = hopDistance,
+                            hopCount = hopCount,
+                            transportSource = transportSource
+                        )
                         Result.success(Unit)
                     }
                 }
@@ -602,14 +684,19 @@ abstract class MeshDatabase : RoomDatabase() {
      * minimizing disk fsync operations, reducing Room table invalidation notifications,
      * and coalescing peer_sync_state vector clock updates.
      */
-    suspend fun insertAndProjectBatch(entries: List<LogEntry>, hopDistance: Int = 1): BatchResult {
+    suspend fun insertAndProjectBatch(
+        entries: List<LogEntry>,
+        hopDistance: Int = 1,
+        hopCounts: List<Int>? = null,
+        transportSource: String = "LOCAL"
+    ): BatchResult {
         if (entries.isEmpty()) return BatchResult(0, emptyList())
         return withTransaction {
             var acceptedCount = 0
             val errors = mutableListOf<String>()
             val maxSequencePerAuthor = mutableMapOf<String, Pair<Long, String>>()
 
-            for (entry in entries) {
+            for ((index, entry) in entries.withIndex()) {
                 when (val validation = LogValidator.validate(entry, this@MeshDatabase)) {
                     is ValidationResult.AlreadyExists -> {
                         // Idempotent skip
@@ -618,7 +705,14 @@ abstract class MeshDatabase : RoomDatabase() {
                         errors.add("${entry.authorId}#${entry.sequence}: ${validation.reason}")
                     }
                     is ValidationResult.Valid -> {
-                        LogProjector.projectSingleWithoutSyncState(entry, this@MeshDatabase, hopDistance)
+                        val entryHopCount = hopCounts?.getOrNull(index) ?: hopDistance
+                        LogProjector.projectSingleWithoutSyncState(
+                            entry = entry,
+                            db = this@MeshDatabase,
+                            hopDistance = hopDistance,
+                            hopCount = entryHopCount,
+                            transportSource = transportSource
+                        )
                         acceptedCount++
 
                         val currentMax = maxSequencePerAuthor[entry.authorId]?.first ?: 0L

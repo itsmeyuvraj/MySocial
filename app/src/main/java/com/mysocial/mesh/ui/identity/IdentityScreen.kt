@@ -1,6 +1,10 @@
 package com.mysocial.mesh.ui.identity
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,20 +26,31 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Article
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,6 +61,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -53,15 +69,19 @@ import androidx.compose.ui.unit.sp
 import com.mysocial.mesh.model.PostWithAuthor
 import com.mysocial.mesh.ui.components.AvatarView
 import com.mysocial.mesh.ui.components.PostCard
+import com.mysocial.mesh.ui.components.VerifiedShieldBadge
+import com.mysocial.mesh.ui.qr.QrScannerDialog
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FacebookBlueLight
 import com.mysocial.mesh.ui.theme.FbBackground
 import com.mysocial.mesh.ui.theme.FbBorder
+import com.mysocial.mesh.ui.theme.FbGreen
 import com.mysocial.mesh.ui.theme.FbSurface
 import com.mysocial.mesh.ui.theme.FbSurfaceElevated
 import com.mysocial.mesh.ui.theme.FbTextPrimary
 import com.mysocial.mesh.ui.theme.FbTextSecondary
 import com.mysocial.mesh.ui.theme.FbTextTertiary
+import com.mysocial.mesh.utils.toFormattedBbid
 
 @Composable
 fun IdentityScreen(
@@ -73,12 +93,21 @@ fun IdentityScreen(
     val dbStats by viewModel.dbStats.collectAsState()
     val myPosts by viewModel.myPosts.collectAsState()
     val followedAuthorIds by viewModel.followedAuthorIds.collectAsState()
+    val qrBitmap by viewModel.qrBitmap.collectAsState()
+    val maxStrangerMediaCacheMb by viewModel.maxStrangerMediaCacheMb.collectAsState()
+    val storageUsageBytes by viewModel.storageUsageBytes.collectAsState()
 
     var showEditDialog by remember { mutableStateOf(false) }
     var editName by remember { mutableStateOf("") }
     var editBio by remember { mutableStateOf("") }
+    var showTrustQrDialog by remember { mutableStateOf(false) }
+    var showScannerDialog by remember { mutableStateOf(false) }
     var selectedPostForComments by remember { mutableStateOf<com.mysocial.mesh.model.PostWithAuthor?>(null) }
     var autoFocusCommentInput by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        viewModel.refreshStorageUsage(context)
+    }
 
     val authorId = viewModel.authorId
     val displayName = myProfile?.displayName ?: "User"
@@ -123,7 +152,101 @@ fun IdentityScreen(
                             fontWeight = FontWeight.Bold
                         )
 
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // Deterministic BBID Row with 1-tap Copy
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(FbSurfaceElevated)
+                                .clickable {
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    clipboard.setPrimaryClip(ClipData.newPlainText("BBID", authorId.toFormattedBbid()))
+                                    Toast.makeText(context, "BBID copied: ${authorId.toFormattedBbid()}", Toast.LENGTH_SHORT).show()
+                                }
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = authorId.toFormattedBbid(),
+                                color = FacebookBlue,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Filled.ContentCopy,
+                                contentDescription = "Copy BBID",
+                                tint = FacebookBlue,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // Expandable Raw Public Key Row
+                        var isRawKeyExpanded by remember { mutableStateOf(false) }
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .clickable { isRawKeyExpanded = !isRawKeyExpanded }
+                                    .padding(vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = if (isRawKeyExpanded) "Hide Raw Public Key" else "Advanced / Raw Public Key",
+                                    color = FbTextTertiary,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = if (isRawKeyExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                                    contentDescription = null,
+                                    tint = FbTextTertiary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                            if (isRawKeyExpanded) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(FbBackground)
+                                        .clickable {
+                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                            clipboard.setPrimaryClip(ClipData.newPlainText("PublicKey", authorId))
+                                            Toast.makeText(context, "Raw public key copied", Toast.LENGTH_SHORT).show()
+                                        }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = authorId,
+                                        color = FbTextSecondary,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 10.sp,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Icon(
+                                        imageVector = Icons.Filled.ContentCopy,
+                                        contentDescription = "Copy",
+                                        tint = FbTextSecondary,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
 
                         Text(
                             text = bio,
@@ -176,6 +299,149 @@ fun IdentityScreen(
                         ProfileStatItem(number = "${myPosts.size}", label = "Your Posts")
                         ProfileStatItem(number = "${dbStats.totalAuthors}", label = "Peers & Friends")
                         ProfileStatItem(number = "Active", label = "Offline Mode")
+                    }
+                }
+            }
+
+            // In-Person Web of Trust Card
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp),
+                    colors = CardDefaults.cardColors(containerColor = FbSurface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            VerifiedShieldBadge(size = 20.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "In-Person Web of Trust",
+                                color = FbTextPrimary,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Verify friends in person via signed QR codes to display a green Verified Shield next to their posts.",
+                            color = FbTextSecondary,
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = { showTrustQrDialog = true },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(6.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = FacebookBlue)
+                            ) {
+                                Icon(Icons.Filled.QrCode2, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("My Trust QR", fontSize = 12.sp)
+                            }
+                            Button(
+                                onClick = { showScannerDialog = true },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(6.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = FbGreen)
+                            ) {
+                                Icon(Icons.Filled.QrCodeScanner, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Scan Friend", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Mesh Data Mule Storage Card
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp),
+                    colors = CardDefaults.cardColors(containerColor = FbSurface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Filled.Storage,
+                                    contentDescription = null,
+                                    tint = FacebookBlue,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Mesh Data Mule Storage",
+                                    color = FbTextPrimary,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            val usedMb = storageUsageBytes / (1024 * 1024)
+                            Text(
+                                text = "$usedMb MB used",
+                                color = FacebookBlue,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Auto-evicts oldest strangers' media when limit is reached. Media from followed friends is never deleted.",
+                            color = FbTextSecondary,
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "Max Stranger Media Cache:",
+                            color = FbTextPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf(50, 100, 250).forEach { mb ->
+                                val isSelected = maxStrangerMediaCacheMb == mb
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { viewModel.setMaxStrangerMediaCacheMb(mb) },
+                                    label = { Text("$mb MB", fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = FacebookBlue,
+                                        selectedLabelColor = Color.White,
+                                        containerColor = FbSurfaceElevated,
+                                        labelColor = FbTextPrimary
+                                    ),
+                                    border = FilterChipDefaults.filterChipBorder(
+                                        borderColor = if (isSelected) FacebookBlue else FbBorder,
+                                        enabled = true,
+                                        selected = isSelected
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -365,6 +631,97 @@ fun IdentityScreen(
                 dismissButton = {
                     TextButton(onClick = { showEditDialog = false }) {
                         Text("Cancel", color = FbTextSecondary)
+                    }
+                }
+            )
+        }
+
+        // Show My Trust QR Dialog
+        if (showTrustQrDialog) {
+            AlertDialog(
+                onDismissRequest = { showTrustQrDialog = false },
+                containerColor = FbSurface,
+                title = {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            VerifiedShieldBadge(size = 20.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "My Trust QR Code",
+                                color = FbTextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp
+                            )
+                        }
+                        IconButton(onClick = { showTrustQrDialog = false }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Filled.Close, contentDescription = "Close", tint = FbTextSecondary)
+                        }
+                    }
+                },
+                text = {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Ask a friend to scan this with their phone to verify your identity with zero internet.",
+                            color = FbTextSecondary,
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                        qrBitmap?.let { bmp ->
+                            Box(
+                                modifier = Modifier
+                                    .size(220.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color.White)
+                                    .padding(8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    bitmap = bmp,
+                                    contentDescription = "Trust QR Code",
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = authorId.toFormattedBbid(),
+                            color = FacebookBlue,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = { showTrustQrDialog = false },
+                        colors = ButtonDefaults.buttonColors(containerColor = FacebookBlue),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text("Done")
+                    }
+                }
+            )
+        }
+
+        // Scan Friend's Trust QR Dialog
+        if (showScannerDialog) {
+            QrScannerDialog(
+                onDismiss = { showScannerDialog = false },
+                onQrScanned = { payload ->
+                    viewModel.processScannedQr(payload) { success, message ->
+                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                        if (success) {
+                            showScannerDialog = false
+                        }
                     }
                 }
             )

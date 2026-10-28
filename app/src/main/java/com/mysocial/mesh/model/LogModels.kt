@@ -50,7 +50,10 @@ data class PostPayload(
     val text: String,
     val tags: List<String> = emptyList(),
     val media: MediaAttachment? = null,
-    val isPublic: Boolean = true
+    val isPublic: Boolean = true,
+    val expiresAt: Long? = null,
+    val isSos: Boolean = false,
+    val pollOptions: List<String>? = null
 ) {
     fun toJson(): String = CanonicalJson.encodeToString(this)
 
@@ -98,7 +101,8 @@ data class ReplyPayload(
 @Serializable
 data class ReactionPayload(
     val targetHash: String,
-    val emoji: String
+    val emoji: String = "❤️",
+    val pollOptionIndex: Int? = null
 ) {
     fun toJson(): String = CanonicalJson.encodeToString(this)
 
@@ -147,7 +151,11 @@ data class LogEntry(
     val signature: String,
     val entryHash: String
 ) {
-    fun toEntity(hopDistance: Int = 0): LogEntryEntity = LogEntryEntity(
+    fun toEntity(
+        hopDistance: Int = 0,
+        hopCount: Int = 0,
+        transportSource: String = "LOCAL"
+    ): LogEntryEntity = LogEntryEntity(
         entryHash = entryHash,
         authorId = authorId,
         sequence = sequence,
@@ -156,7 +164,9 @@ data class LogEntry(
         contentType = contentType,
         contentJson = contentJson,
         signature = signature,
-        hopDistance = hopDistance
+        hopDistance = hopDistance,
+        hopCount = hopCount,
+        transportSource = transportSource
     )
 }
 
@@ -185,7 +195,9 @@ data class LogEntryEntity(
     val contentType: ContentType,
     val contentJson: String,
     val signature: String,
-    val hopDistance: Int = 0 // 0 = self/local, 1 = 1-hop direct, >=2 = mule
+    val hopDistance: Int = 0, // 0 = self/local, 1 = 1-hop direct, >=2 = mule
+    val hopCount: Int = 0,
+    val transportSource: String = "LOCAL" // LOCAL, BLE, WIFI
 ) {
     fun toDomain(): LogEntry = LogEntry(
         authorId = authorId,
@@ -209,7 +221,8 @@ data class ProfileViewEntity(
     val displayName: String,
     val bio: String,
     val avatarSeed: String,
-    val updatedAtSeq: Long
+    val updatedAtSeq: Long,
+    val isVerifiedInPerson: Boolean = false
 )
 
 /**
@@ -221,7 +234,9 @@ data class ProfileViewEntity(
         Index(value = ["timestamp"]),
         Index(value = ["authorId"]),
         Index(value = ["replyToHash"]),
-        Index(value = ["rootHash"])
+        Index(value = ["rootHash"]),
+        Index(value = ["expiresAt"]),
+        Index(value = ["isSos"])
     ]
 )
 data class PostViewEntity(
@@ -241,7 +256,12 @@ data class PostViewEntity(
     val mediaTotalBytes: Long? = null,
     val mediaChunkCount: Int? = null,
     val microPreviewBase64: String? = null,
-    val isPublic: Boolean = true
+    val isPublic: Boolean = true,
+    val hopCount: Int = 0,
+    val transportSource: String = "LOCAL",
+    val expiresAt: Long? = null,
+    val isSos: Boolean = false,
+    val pollOptionsJson: String? = null
 )
 
 /**
@@ -259,7 +279,8 @@ data class ReactionEntity(
     val targetHash: String,
     val authorId: String,
     val emoji: String,
-    val timestamp: Long
+    val timestamp: Long,
+    val pollOptionIndex: Int? = null
 )
 
 /**
@@ -277,7 +298,8 @@ data class FollowViewEntity(
     val followerId: String,
     val followeeId: String,
     val isFollowing: Boolean,
-    val updatedAtSeq: Long
+    val updatedAtSeq: Long,
+    val isVerifiedInPerson: Boolean = false
 )
 
 /**
@@ -306,7 +328,10 @@ data class PostWithAuthor(
         entityColumn = "authorId"
     )
     val authorProfile: ProfileViewEntity?
-)
+) {
+    val isAuthorVerifiedInPerson: Boolean
+        get() = authorProfile?.isVerifiedInPerson == true
+}
 
 /**
  * Vector Clock tuple representation.

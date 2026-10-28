@@ -1,17 +1,21 @@
 package com.mysocial.mesh.ui.identity
 
+import android.content.Context
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mysocial.mesh.data.AppSettings
 import com.mysocial.mesh.data.DatabaseStats
 import com.mysocial.mesh.data.MeshRepository
 import com.mysocial.mesh.model.ProfileViewEntity
 import com.mysocial.mesh.ui.qr.QrCodeGenerator
+import com.mysocial.mesh.utils.TrustQrUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -58,6 +62,24 @@ class IdentityViewModel(
         }
     }
 
+    val maxStrangerMediaCacheMb: StateFlow<Int> = (repository.appSettings?.maxStrangerMediaCacheMb ?: flowOf(AppSettings.DEFAULT_MAX_STRANGER_MEDIA_CACHE_MB))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings.DEFAULT_MAX_STRANGER_MEDIA_CACHE_MB)
+
+    private val _storageUsageBytes = MutableStateFlow(0L)
+    val storageUsageBytes: StateFlow<Long> = _storageUsageBytes.asStateFlow()
+
+    fun refreshStorageUsage(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _storageUsageBytes.value = repository.getBlobsDirectorySizeBytes(context)
+        }
+    }
+
+    fun setMaxStrangerMediaCacheMb(mb: Int) {
+        viewModelScope.launch {
+            repository.appSettings?.setMaxStrangerMediaCacheMb(mb)
+        }
+    }
+
     private val _qrBitmap = MutableStateFlow<ImageBitmap?>(null)
     val qrBitmap: StateFlow<ImageBitmap?> = _qrBitmap.asStateFlow()
 
@@ -68,9 +90,10 @@ class IdentityViewModel(
         generateQr()
     }
 
-    private fun generateQr() {
+    fun generateQr() {
         viewModelScope.launch(Dispatchers.Default) {
-            val qrPayload = "mysocial://follow?authorId=$authorId"
+            val name = myProfile.value?.displayName ?: "User"
+            val qrPayload = TrustQrUtils.createTrustPayload(authorId, name, repository.cryptoManager)
             val bitmap = QrCodeGenerator.generateQrBitmap(qrPayload, size = 480)
             _qrBitmap.value = bitmap
         }
@@ -85,18 +108,38 @@ class IdentityViewModel(
         }
     }
 
-    fun followAuthorFromScan(targetAuthorId: String, onComplete: (Boolean) -> Unit) {
-        viewModelScope.launch {
-            val clean = targetAuthorId.trim().let { raw ->
+    fun processScannedQr(scannedText: String, onResult: (success: Boolean, message: String) -> Unit): kotlinx.coroutines.Job {
+        return viewModelScope.launch {
+            val trustData = TrustQrUtils.parseAndVerifyTrustPayload(scannedText)
+            if (trustData != null && trustData.isValidSignature) {
+                repository.toggleFollow(trustData.authorId, true)
+                repository.setVerifiedInPerson(trustData.authorId, true)
+                onResult(true, "Verified ${trustData.displayName} in person!")
+            } else if (trustData != null) {
+                repository.toggleFollow(trustData.authorId, true)
+                onResult(true, "Followed ${trustData.displayName}")
+            } else {
+                val raw = scannedText.trim()
                 val id = if (raw.contains("authorId=")) {
                     raw.substringAfter("authorId=").substringBefore("&")
-                } else {
+                } else if (raw.startsWith("@") || raw.contains(".ed25519")) {
                     raw
-                }.trim()
-                if (!id.startsWith("@") && id.isNotBlank()) "@$id" else id
+                } else null
+
+                if (id != null) {
+                    val cleanId = if (!id.startsWith("@")) "@$id" else id
+                    repository.toggleFollow(cleanId, true)
+                    onResult(true, "Followed $cleanId")
+                } else {
+                    onResult(false, "Invalid QR code format")
+                }
             }
-            val result = repository.toggleFollow(clean, true)
-            onComplete(result.isSuccess)
+        }
+    }
+
+    fun followAuthorFromScan(targetAuthorId: String, onComplete: (Boolean) -> Unit) {
+        processScannedQr(targetAuthorId) { success, _ ->
+            onComplete(success)
         }
     }
 

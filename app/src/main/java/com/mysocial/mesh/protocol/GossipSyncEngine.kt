@@ -55,7 +55,8 @@ class GossipSyncEngine(
     private val openMeshMode: Boolean = true,
     private val batchSize: Int = 50,
     private val handshakeTimeoutMs: Long = 10_000L,
-    private val context: Context? = null
+    private val context: Context? = null,
+    val appSettings: com.mysocial.mesh.data.AppSettings? = null
 ) {
     private val tag = "GossipSyncEngine"
 
@@ -155,7 +156,23 @@ class GossipSyncEngine(
 
             coroutineScope {
                 val senderJob = launch {
-                    for ((authorId, reqSeq) in remoteDelta.requests) {
+                    // Prioritize authors who have active isSos posts at the very front of the sync queue
+                    val authorHasSos = mutableMapOf<String, Boolean>()
+                    for ((authorId, _) in remoteDelta.requests) {
+                        try {
+                            val latest = db.logEntryDao().getLatestEntryForAuthor(authorId)
+                            authorHasSos[authorId] = if (latest?.contentType == com.mysocial.mesh.model.ContentType.POST) {
+                                com.mysocial.mesh.model.PostPayload.fromJson(latest.contentJson).isSos
+                            } else false
+                        } catch (_: Exception) {
+                            authorHasSos[authorId] = false
+                        }
+                    }
+                    val sortedRequests = remoteDelta.requests.entries.sortedByDescending { (authorId, _) ->
+                        authorHasSos[authorId] == true
+                    }
+
+                    for ((authorId, reqSeq) in sortedRequests) {
                         var afterSeq = reqSeq - 1L
                         while (isActive && connection.isConnected) {
                             val entities = db.logEntryDao().getEntriesForAuthorAfter(
@@ -166,10 +183,12 @@ class GossipSyncEngine(
                             if (entities.isEmpty()) break
 
                             val domainEntries = entities.map { it.toDomain() }
+                            val hopCounts = entities.map { it.hopCount }
                             connection.send(
                                 GossipMessage.LogBatch(
                                     entries = domainEntries,
-                                    hasMore = entities.size == batchSize
+                                    hasMore = entities.size == batchSize,
+                                    hopCounts = hopCounts
                                 )
                             )
                             entriesSent += domainEntries.size
@@ -186,7 +205,21 @@ class GossipSyncEngine(
                         val msg = connection.receiveMessage()
                         when (msg) {
                             is GossipMessage.LogBatch -> {
-                                val batchResult = db.insertAndProjectBatch(msg.entries, hopDistance = 1)
+                                val incomingHopCounts = if (msg.hopCounts.isNotEmpty()) {
+                                    msg.hopCounts.map { it + 1 }
+                                } else {
+                                    msg.entries.map { 1 }
+                                }
+                                val transport = when (connection.transportType) {
+                                    TransportType.BLE -> "BLE"
+                                    TransportType.MDNS_WIFI -> "WIFI"
+                                }
+                                val batchResult = db.insertAndProjectBatch(
+                                    entries = msg.entries,
+                                    hopDistance = 1,
+                                    hopCounts = incomingHopCounts,
+                                    transportSource = transport
+                                )
                                 if (batchResult.acceptedCount > 0) {
                                     entriesReceived += batchResult.acceptedCount
                                     val last = msg.entries.last()
@@ -298,10 +331,60 @@ class GossipSyncEngine(
     }
 
     /**
-     * Inspects incomplete manifests in Room and requests missing 16 KB chunks from peer.
+     * Filters incomplete manifests to skip muted hashtags and prioritizes
+     * manifests with pinned hashtags and followed peers.
+     */
+    private suspend fun filterAndPrioritizeIncompleteManifests(
+        manifests: List<com.mysocial.mesh.data.BlobManifestEntity>
+    ): List<com.mysocial.mesh.data.BlobManifestEntity> {
+        if (manifests.isEmpty()) return emptyList()
+
+        val mutedTags = appSettings?.mutedHashtags?.value ?: emptySet()
+        val pinnedTags = appSettings?.pinnedHashtags?.value ?: emptySet()
+        val followedIds = try {
+            db.followDao().getFollowedAuthorIds(cryptoManager.authorId).toSet() + cryptoManager.authorId
+        } catch (_: Exception) {
+            setOf(cryptoManager.authorId)
+        }
+
+        val candidates = mutableListOf<Pair<com.mysocial.mesh.data.BlobManifestEntity, Int>>()
+
+        for (manifest in manifests) {
+            val post = db.postViewDao().getPostByBlobHash(manifest.blobHash)
+            val tags = post?.tagsJson?.let {
+                try {
+                    com.mysocial.mesh.model.CanonicalJson.decodeFromString<List<String>>(it).map { t -> t.lowercase().removePrefix("#") }
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            } ?: emptyList()
+
+            // Skip automatic background download for muted hashtags
+            if (tags.any { mutedTags.contains(it) }) {
+                continue
+            }
+
+            val isPinned = tags.any { pinnedTags.contains(it) }
+            val isFollowed = post != null && followedIds.contains(post.authorId)
+
+            val score = when {
+                isPinned && isFollowed -> 3
+                isPinned -> 2
+                isFollowed -> 1
+                else -> 0
+            }
+            candidates.add(manifest to score)
+        }
+
+        return candidates.sortedByDescending { it.second }.map { it.first }
+    }
+
+    /**
+     * Inspects incomplete manifests in Room and requests missing 16 KB chunks from peer,
+     * prioritizing pinned hashtags / followed authors and skipping muted hashtags.
      */
     private suspend fun requestMissingBlobs(connection: PeerConnection) {
-        val incomplete = db.blobDao().getIncompleteManifests()
+        val incomplete = filterAndPrioritizeIncompleteManifests(db.blobDao().getIncompleteManifests())
         for (manifest in incomplete) {
             if (!connection.isConnected) break
             val received = db.blobDao().getReceivedChunkIndices(manifest.blobHash).toSet()
@@ -319,23 +402,23 @@ class GossipSyncEngine(
     }
 
     /**
-     * Handles peer's BLOB_HAVE: requests missing chunks for matching incomplete manifests.
+     * Handles peer's BLOB_HAVE: requests missing chunks for matching incomplete manifests,
+     * respecting hashtag priorities and mute preferences.
      */
     private suspend fun handleBlobHave(connection: PeerConnection, have: GossipMessage.BlobHave) {
-        val incomplete = db.blobDao().getIncompleteManifests()
-        for (manifest in incomplete) {
-            if (have.blobHashes.contains(manifest.blobHash)) {
-                val received = db.blobDao().getReceivedChunkIndices(manifest.blobHash).toSet()
-                val missing = (0 until manifest.chunkCount).filter { !received.contains(it) }
-                if (missing.isNotEmpty()) {
-                    val bitfield = BlobBitfieldHelper.encodeMissingIndices(missing, manifest.chunkCount)
-                    connection.send(
-                        GossipMessage.BlobReq(
-                            blobHash = manifest.blobHash,
-                            missingChunksBitfield = bitfield
-                        )
+        val matching = db.blobDao().getIncompleteManifests().filter { have.blobHashes.contains(it.blobHash) }
+        val prioritized = filterAndPrioritizeIncompleteManifests(matching)
+        for (manifest in prioritized) {
+            val received = db.blobDao().getReceivedChunkIndices(manifest.blobHash).toSet()
+            val missing = (0 until manifest.chunkCount).filter { !received.contains(it) }
+            if (missing.isNotEmpty()) {
+                val bitfield = BlobBitfieldHelper.encodeMissingIndices(missing, manifest.chunkCount)
+                connection.send(
+                    GossipMessage.BlobReq(
+                        blobHash = manifest.blobHash,
+                        missingChunksBitfield = bitfield
                     )
-                }
+                )
             }
         }
     }
@@ -459,10 +542,93 @@ class GossipSyncEngine(
 
                 Log.i(tag, "Successfully verified and assembled blob $blobHash (${blobFile.length()} bytes)")
                 _syncEvents.emit(SyncEvent.BlobCompleted(peerId, blobHash))
+
+                // Mule Storage Ring-Buffer auto-eviction check for strangers' media
+                pruneStrangerMediaIfOverCapacity()
             } else {
                 tempFile.delete()
                 Log.e(tag, "SHA-256 verification failed for blob $blobHash: computed $computedHash")
             }
+        }
+    }
+
+    /**
+     * Mule Storage Ring-Buffer:
+     * If total blob directory size exceeds user's configured cap (e.g. 50MB, 100MB, 250MB),
+     * auto-evicts the oldest .blob files belonging to unfollowed strangers (mules)
+     * and marks isComplete = false, reverting them to their 200-byte microPreviewBase64 thumbnail,
+     * while NEVER deleting blobs authored by the user or their friends-only follow graph.
+     */
+    suspend fun pruneStrangerMediaIfOverCapacity() = withContext(Dispatchers.IO) {
+        val blobsDir = if (context != null) {
+            MediaProcessor.getBlobsDirectory(context)
+        } else {
+            File(System.getProperty("java.io.tmpdir"), "blobs")
+        }
+        if (!blobsDir.exists()) return@withContext
+
+        val maxMb = appSettings?.maxStrangerMediaCacheMb?.value ?: com.mysocial.mesh.data.AppSettings.DEFAULT_MAX_STRANGER_MEDIA_CACHE_MB
+        val maxBytes = maxMb.toLong() * 1024L * 1024L
+
+        val allBlobFiles = blobsDir.listFiles { f -> f.extension == "blob" } ?: return@withContext
+        var totalBytes = allBlobFiles.sumOf { it.length() }
+        if (totalBytes <= maxBytes) return@withContext
+
+        val followedIds = try {
+            db.followDao().getFollowedAuthorIds(cryptoManager.authorId).toSet() + cryptoManager.authorId
+        } catch (_: Exception) {
+            setOf(cryptoManager.authorId)
+        }
+
+        // Stranger blobs: blobs not authored by self or followed peers
+        val evictableCandidates = allBlobFiles.mapNotNull { file ->
+            val hash = file.nameWithoutExtension
+            val post = db.postViewDao().getPostByBlobHash(hash)
+            if (post != null && !followedIds.contains(post.authorId)) {
+                Triple(file, hash, file.lastModified())
+            } else if (post == null) {
+                // Orphaned blob file
+                Triple(file, hash, file.lastModified())
+            } else {
+                null
+            }
+        }.sortedBy { it.third } // Oldest first
+
+        for ((file, hash, _) in evictableCandidates) {
+            if (totalBytes <= maxBytes) break
+            val size = file.length()
+            if (file.delete()) {
+                totalBytes -= size
+                db.blobDao().markIncomplete(hash)
+                Log.i(tag, "Pruned stranger media blob $hash ($size bytes) to satisfy mule storage ring buffer limit ($maxMb MB)")
+            }
+        }
+    }
+
+    /**
+     * Ephemeral TTL Post and Media cleanup:
+     * Removes expired posts from posts_view and deletes their associated media .blob files,
+     * while retaining sequence continuity in log_entries.
+     */
+    suspend fun pruneExpiredPostsAndBlobs() = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        val expiredBlobHashes = db.postViewDao().getExpiredBlobHashes(now)
+        val blobsDir = if (context != null) {
+            MediaProcessor.getBlobsDirectory(context)
+        } else {
+            File(System.getProperty("java.io.tmpdir"), "blobs")
+        }
+        for (blobHash in expiredBlobHashes) {
+            val file = File(blobsDir, "$blobHash.blob")
+            if (file.exists()) {
+                file.delete()
+            }
+            db.blobDao().deleteManifest(blobHash)
+            db.blobDao().deleteChunksForBlob(blobHash)
+        }
+        val deletedCount = db.postViewDao().deleteExpiredPosts(now)
+        if (deletedCount > 0) {
+            Log.i(tag, "Pruned $deletedCount expired posts and associated blobs")
         }
     }
 

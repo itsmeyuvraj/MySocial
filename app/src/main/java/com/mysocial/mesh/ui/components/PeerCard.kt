@@ -33,17 +33,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mysocial.mesh.protocol.TransportType
 import com.mysocial.mesh.transport.DiscoveredPeer
+import com.mysocial.mesh.ui.components.VerifiedShieldBadge
+import com.mysocial.mesh.utils.toFormattedBbid
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FacebookBlueLight
 import com.mysocial.mesh.ui.theme.FbBorder
 import com.mysocial.mesh.ui.theme.FbGreen
 import com.mysocial.mesh.ui.theme.FbSurface
+import com.mysocial.mesh.ui.theme.FbSurfaceElevated
 import com.mysocial.mesh.ui.theme.FbTextPrimary
 import com.mysocial.mesh.ui.theme.FbTextSecondary
 import com.mysocial.mesh.ui.theme.FbTextTertiary
@@ -53,6 +57,7 @@ fun PeerCard(
     peer: DiscoveredPeer,
     onForceSyncClick: (() -> Unit)? = null,
     isFriend: Boolean = false,
+    isVerifiedInPerson: Boolean = false,
     onToggleFriend: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -98,9 +103,22 @@ fun PeerCard(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
                         )
-                        if (isFriend) {
+                        if (isVerifiedInPerson) {
+                            VerifiedShieldBadge(size = 15.dp)
+                        } else if (isFriend) {
                             VerifiedBadge(size = 15.dp)
                         }
+                        Text(
+                            text = peer.peerId.toFormattedBbid(),
+                            color = FbTextSecondary,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(FbSurfaceElevated)
+                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                        )
                     }
 
                     Row(

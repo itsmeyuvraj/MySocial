@@ -12,6 +12,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+enum class ExpiryOption(val label: String, val durationMs: Long?) {
+    FOREVER("Forever (Default)", null),
+    ONE_HOUR("1h", 3600_000L),
+    SIX_HOURS("6h", 6 * 3600_000L),
+    TWENTY_FOUR_HOURS("24h", 24 * 3600_000L)
+}
+
 class ComposerViewModel(
     private val repository: MeshRepository
 ) : ViewModel() {
@@ -31,11 +38,63 @@ class ComposerViewModel(
     private val _isPublic = MutableStateFlow(true)
     val isPublic: StateFlow<Boolean> = _isPublic.asStateFlow()
 
+    // Mesh-native mechanics: Ephemeral TTL, SOS beacon, Polls
+    private val _expiryOption = MutableStateFlow(ExpiryOption.FOREVER)
+    val expiryOption: StateFlow<ExpiryOption> = _expiryOption.asStateFlow()
+
+    private val _isSos = MutableStateFlow(false)
+    val isSos: StateFlow<Boolean> = _isSos.asStateFlow()
+
+    private val _isPollEnabled = MutableStateFlow(false)
+    val isPollEnabled: StateFlow<Boolean> = _isPollEnabled.asStateFlow()
+
+    private val _pollOptions = MutableStateFlow(listOf("", ""))
+    val pollOptions: StateFlow<List<String>> = _pollOptions.asStateFlow()
+
     val authorId: String = repository.cryptoManager.authorId
     val myProfile = repository.observeMyProfile()
 
     private val _statusMessage = MutableStateFlow<String?>(null)
     val statusMessage: StateFlow<String?> = _statusMessage.asStateFlow()
+
+    fun setExpiryOption(option: ExpiryOption) {
+        _expiryOption.value = option
+    }
+
+    fun setSos(isSos: Boolean) {
+        _isSos.value = isSos
+    }
+
+    fun setPollEnabled(enabled: Boolean) {
+        _isPollEnabled.value = enabled
+        if (enabled && _pollOptions.value.size < 2) {
+            _pollOptions.value = listOf("", "")
+        }
+    }
+
+    fun updatePollOption(index: Int, text: String) {
+        val current = _pollOptions.value.toMutableList()
+        if (index in current.indices) {
+            current[index] = text
+            _pollOptions.value = current
+        }
+    }
+
+    fun addPollOption() {
+        val current = _pollOptions.value.toMutableList()
+        if (current.size < 4) {
+            current.add("")
+            _pollOptions.value = current
+        }
+    }
+
+    fun removePollOption(index: Int) {
+        val current = _pollOptions.value.toMutableList()
+        if (current.size > 2 && index in current.indices) {
+            current.removeAt(index)
+            _pollOptions.value = current
+        }
+    }
 
     fun setPublic(isPublic: Boolean) {
         _isPublic.value = isPublic
@@ -64,7 +123,11 @@ class ComposerViewModel(
     fun publishPost(context: Context, onSuccess: () -> Unit) {
         val text = _postText.value.trim()
         val imageUri = _selectedImageUri.value
-        if (text.isBlank() && imageUri == null) return
+        val validPollOptions = if (_isPollEnabled.value) {
+            _pollOptions.value.map { it.trim() }.filter { it.isNotBlank() }.takeIf { it.size >= 2 }
+        } else null
+
+        if (text.isBlank() && imageUri == null && validPollOptions == null) return
 
         viewModelScope.launch {
             _isPublishing.value = true
@@ -84,14 +147,34 @@ class ComposerViewModel(
                     )
                 }
 
-                val postBody = if (text.isBlank() && mediaAttachment != null) "Shared a photo" else text
-                val result = repository.createPost(postBody, _tags.value, media = mediaAttachment, isPublic = _isPublic.value)
+                val postBody = when {
+                    text.isNotBlank() -> text
+                    mediaAttachment != null -> "Shared a photo"
+                    validPollOptions != null -> "Participate in this poll"
+                    else -> "Beacon update"
+                }
+
+                val expiresAt = _expiryOption.value.durationMs?.let { System.currentTimeMillis() + it }
+
+                val result = repository.createPost(
+                    text = postBody,
+                    tags = _tags.value,
+                    media = mediaAttachment,
+                    isPublic = _isPublic.value,
+                    expiresAt = expiresAt,
+                    isSos = _isSos.value,
+                    pollOptions = validPollOptions
+                )
                 _isPublishing.value = false
 
                 if (result.isSuccess) {
                     _postText.value = ""
                     _selectedImageUri.value = null
                     _isPublic.value = true
+                    _isSos.value = false
+                    _isPollEnabled.value = false
+                    _pollOptions.value = listOf("", "")
+                    _expiryOption.value = ExpiryOption.FOREVER
                     _statusMessage.value = "Post shared successfully!"
                     onSuccess()
                 } else {
@@ -99,7 +182,7 @@ class ComposerViewModel(
                 }
             } catch (e: Exception) {
                 _isPublishing.value = false
-                _statusMessage.value = "Error processing media: ${e.message}"
+                _statusMessage.value = "Error processing post: ${e.message}"
             }
         }
     }
