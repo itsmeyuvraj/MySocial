@@ -64,7 +64,7 @@ class FeedViewModel(
         repository.discoveredPeers,
         ticker
     ) { peers, now ->
-        peers.filter { now - it.lastSeenTimestamp <= 15_000L }
+        peers.filter { now - it.lastSeenTimestamp <= 45_000L }
     }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

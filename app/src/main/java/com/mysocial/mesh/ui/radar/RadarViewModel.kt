@@ -40,16 +40,13 @@ class RadarViewModel(
         ticker
     ) { peers, profiles, now ->
         val myAuthorId = repository.cryptoManager.authorId
-        val myProfile = profiles.find { it.authorId == myAuthorId }
-        val myDisplayName = myProfile?.displayName
         val profileMap = profiles.associateBy { it.authorId }
         val otherProfiles = profiles.filter { it.authorId != myAuthorId }
 
         peers
             .filter { peer ->
                 peer.peerId != myAuthorId &&
-                (now - peer.lastSeenTimestamp <= 15_000L) &&
-                (myDisplayName.isNullOrBlank() || (peer.peerName != myDisplayName && !peer.peerName.startsWith(myDisplayName)))
+                (now - peer.lastSeenTimestamp <= 45_000L)
             }
             .distinctBy { it.peerId }
             .map { peer ->
@@ -62,7 +59,7 @@ class RadarViewModel(
                     peer.peerName.startsWith("Nearby Device") ||
                     peer.peerName == "MeshPeer"
                 ) {
-                    val fallback = otherProfiles.firstOrNull()?.displayName
+                    val fallback = otherProfiles.firstOrNull { it.authorId == peer.peerId }?.displayName
                     if (!fallback.isNullOrBlank()) {
                         peer.copy(peerName = fallback)
                     } else {
@@ -73,8 +70,7 @@ class RadarViewModel(
                 }
             }
             .filter { peer ->
-                peer.peerId != myAuthorId &&
-                (myDisplayName.isNullOrBlank() || peer.peerName != myDisplayName)
+                peer.peerId != myAuthorId
             }
     }
         .distinctUntilChanged()

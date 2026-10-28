@@ -121,15 +121,6 @@ fun FeedScreen(
     var selectedTagForAction by remember { mutableStateOf<String?>(null) }
 
     val isOnline = activeNearbyPeers.isNotEmpty()
-    var wasOnline by remember { mutableStateOf(false) }
-
-    LaunchedEffect(isOnline) {
-        if (isOnline && !wasOnline) {
-            val peerName = activeNearbyPeers.firstOrNull()?.peerName
-            PeerNotificationHelper.notifyPeerNearby(context, peerName)
-        }
-        wasOnline = isOnline
-    }
 
     BackHandler(enabled = isSearchActive) {
         viewModel.closeSearch()

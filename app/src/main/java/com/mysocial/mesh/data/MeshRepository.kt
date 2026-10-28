@@ -61,7 +61,7 @@ class MeshRepository(
             while (isActive) {
                 delay(3000)
                 val now = System.currentTimeMillis()
-                val staleThresholdMs = 15_000L
+                val staleThresholdMs = 45_000L
                 val current = _discoveredPeers.value
                 val fresh = current.filter { now - it.lastSeenTimestamp <= staleThresholdMs }
                 if (fresh.size != current.size) {
@@ -102,7 +102,7 @@ class MeshRepository(
     fun updateDiscoveredPeers(peers: List<DiscoveredPeer>) {
         val myAuthorId = cryptoManager.authorId
         val now = System.currentTimeMillis()
-        val staleThresholdMs = 15_000L
+        val staleThresholdMs = 45_000L
         val filtered = peers.filter { it.peerId != myAuthorId && (now - it.lastSeenTimestamp <= staleThresholdMs) }
         val oldSize = _discoveredPeers.value.size
         val deduplicated = filtered.distinctBy { it.peerId }
@@ -142,7 +142,7 @@ class MeshRepository(
             )
         }
         val deduplicated = current
-            .filter { it.peerId != myAuthorId && (now - it.lastSeenTimestamp <= 15_000L) }
+            .filter { it.peerId != myAuthorId && (now - it.lastSeenTimestamp <= 45_000L) }
             .distinctBy { it.peerId }
         _discoveredPeers.value = deduplicated
         if (newPeerName.isNotBlank() && newPeerName != "MeshPeer" && newPeerName != "Nearby Device" && !newPeerName.startsWith("Host ADB")) {

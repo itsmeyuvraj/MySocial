@@ -154,7 +154,7 @@ class MdnsWifiTransport(
             while (isActive && isRunning.get()) {
                 delay(3000)
                 val now = System.currentTimeMillis()
-                val staleThresholdMs = 15_000L
+                val staleThresholdMs = 45_000L
                 val staleKeys = _peersMap.entries
                     .filter { now - it.value.lastSeenTimestamp > staleThresholdMs }
                     .map { it.key }

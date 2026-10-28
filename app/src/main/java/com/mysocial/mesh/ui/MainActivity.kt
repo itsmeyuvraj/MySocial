@@ -119,6 +119,16 @@ class MainActivity : ComponentActivity() {
 
     private var hasPermissions by mutableStateOf(false)
     private var pendingUpdateInfo by mutableStateOf<AppUpdateInfo?>(null)
+    private var targetTab by mutableIntStateOf(0)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val tab = intent.getIntExtra("open_tab", -1)
+        if (tab != -1) {
+            targetTab = tab
+        }
+    }
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -232,6 +242,11 @@ class MainActivity : ComponentActivity() {
             } catch (_: Exception) {}
         }
 
+        val initialTab = intent?.getIntExtra("open_tab", -1) ?: -1
+        if (initialTab != -1) {
+            targetTab = initialTab
+        }
+
         setContent {
             val isDarkMode by appSettings.isDarkMode.collectAsState()
             MySocialTheme(darkTheme = isDarkMode) {
@@ -292,7 +307,10 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun MainAppScaffold() {
-        var selectedTab by remember { mutableIntStateOf(0) }
+        var selectedTab by remember { mutableIntStateOf(targetTab) }
+        LaunchedEffect(targetTab) {
+            selectedTab = targetTab
+        }
         var showComposer by remember { mutableStateOf(false) }
         var currentSettingsSubScreen by remember { mutableStateOf<SettingsSubScreen?>(null) }
         var showShareApkSheet by remember { mutableStateOf(false) }

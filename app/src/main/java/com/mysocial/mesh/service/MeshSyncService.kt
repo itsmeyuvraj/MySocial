@@ -206,7 +206,7 @@ class MeshSyncService : Service() {
 
             combine(wifiPeers, blePeers, ticker) { w, b, now ->
                 (w + b)
-                    .filter { now - it.lastSeenTimestamp <= 15_000L }
+                    .filter { now - it.lastSeenTimestamp <= 45_000L }
                     .distinctBy { it.peerId }
                     .sortedByDescending { it.lastSeenTimestamp }
             }.collect { combined ->

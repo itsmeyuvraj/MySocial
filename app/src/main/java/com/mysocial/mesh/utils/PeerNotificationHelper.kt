@@ -23,8 +23,8 @@ object PeerNotificationHelper {
 
     fun notifyPeerNearby(context: Context, peerName: String? = null) {
         val now = System.currentTimeMillis()
-        // Rate-limit notifications to at most once per 20 seconds to prevent alert floods
-        if (now - lastNotifiedTimestamp < 20_000L) {
+        // Rate-limit notifications to at most once per 60 seconds to prevent alert floods
+        if (now - lastNotifiedTimestamp < 60_000L) {
             return
         }
         lastNotifiedTimestamp = now
@@ -55,6 +55,7 @@ object PeerNotificationHelper {
 
         val launchIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("open_tab", 1) // Switch to People Nearby / Radar tab
         }
         val pendingIntent = PendingIntent.getActivity(
             context,
