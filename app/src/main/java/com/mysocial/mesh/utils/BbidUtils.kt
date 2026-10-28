@@ -1,18 +1,26 @@
 package com.mysocial.mesh.utils
 
 import java.security.MessageDigest
+import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Deterministic human-friendly Crockford Base32 BBID generator.
+ * Deterministic human-friendly Crockford Base32 BBID generator with in-memory caching.
  * Takes the author's public key (e.g. "@D3LYRoV...=.ed25519"), strips "@" and ".ed25519",
  * computes its SHA-256 hash, extracts the first 40 bits (5 bytes), and encodes them
  * using Crockford Base32 formatted as XXXX-XXXX (e.g. "K7M9-4X2P").
+ *
+ * Caches author BBIDs in memory for instant O(1) lock-free retrieval without repeated
+ * cryptographic hashing or GC allocations during feed scrolling.
  */
 object BbidUtils {
     // Crockford Base32 alphabet (excludes I, L, O, U to avoid confusion)
     private const val CROCKFORD_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
+    private val bbidCache = ConcurrentHashMap<String, String>()
+
     fun generateBbid(authorId: String): String {
+        bbidCache[authorId]?.let { return it }
+
         val clean = authorId.trim()
             .removePrefix("@")
             .removeSuffix(".ed25519")
@@ -42,7 +50,9 @@ object BbidUtils {
                 sb.append('-')
             }
         }
-        return sb.toString()
+        val result = sb.toString()
+        bbidCache[authorId] = result
+        return result
     }
 }
 
@@ -55,4 +65,3 @@ fun String.toBbid(): String = BbidUtils.generateBbid(this)
  * Pure Kotlin extension function returning the BBID formatted with leading '#' badge.
  */
 fun String.toFormattedBbid(): String = "#${toBbid()}"
-

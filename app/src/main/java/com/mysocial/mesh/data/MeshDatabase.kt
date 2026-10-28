@@ -761,6 +761,7 @@ abstract class MeshDatabase : RoomDatabase() {
                 MeshDatabase::class.java,
                 DATABASE_NAME
             )
+                .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
                 .fallbackToDestructiveMigration()
                 .build()
         }

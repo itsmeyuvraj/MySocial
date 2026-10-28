@@ -44,6 +44,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -457,25 +458,32 @@ fun ShareItRadarView(
                 }
             }
 
-            // Discovered Peers: Positioned around radar like ShareIt avatar blips
+            // Precalculate peer radar radial positions once when peer list or dimensions change,
+            // avoiding repetitive trigonometric cos/sin operations on every 60/120fps animation frame.
             val maxVisiblePeers = minOf(peers.size, 6)
-            peers.take(maxVisiblePeers).forEachIndexed { index, peer ->
-                val angleStep = 360f / maxOf(maxVisiblePeers, 1)
-                val peerHash = peer.peerId.hashCode().absoluteValue
-                // Distribute evenly around circle with deterministic jitter
-                val angleDeg = (index * angleStep + (peerHash % 25) - 12f)
-                val angleRad = Math.toRadians(angleDeg.toDouble())
+            val radarPeerPositions = remember(peers, widthPx, heightPx) {
+                peers.take(maxVisiblePeers).mapIndexed { index, peer ->
+                    val angleStep = 360f / maxOf(maxVisiblePeers, 1)
+                    val peerHash = peer.peerId.hashCode().absoluteValue
+                    val angleDeg = (index * angleStep + (peerHash % 25) - 12f)
+                    val angleRad = Math.toRadians(angleDeg.toDouble())
+                    val distanceFraction = 0.52f + ((peerHash % 30) / 100f)
+                    val distancePx = maxRadiusPx * distanceFraction
+                    val peerX = center.x + (cos(angleRad) * distancePx).toFloat()
+                    val peerY = center.y + (sin(angleRad) * distancePx).toFloat()
 
-                // Distance between 0.52 and 0.82 of maxRadiusPx
-                val distanceFraction = 0.52f + ((peerHash % 30) / 100f)
-                val distancePx = maxRadiusPx * distanceFraction
+                    val xDp = with(density) { (peerX - 22.dp.toPx()).toDp() }
+                    val yDp = with(density) { (peerY - 24.dp.toPx()).toDp() }
+                    RadarPeerLayout(peer = peer, index = index, baseX = xDp, baseY = yDp)
+                }
+            }
 
-                val peerX = center.x + (cos(angleRad) * distancePx).toFloat()
-                val peerY = center.y + (sin(angleRad) * distancePx).toFloat()
-
-                val xDp = with(density) { (peerX - 22.dp.toPx()).toDp() }
-                val yDp = with(density) { (peerY - 24.dp.toPx() + (if (index % 2 == 0) floatOffset else -floatOffset).dp.toPx()).toDp() }
-
+            // Discovered Peers: Positioned around radar like ShareIt avatar blips
+            for (item in radarPeerPositions) {
+                val peer = item.peer
+                val index = item.index
+                val xDp = item.baseX
+                val yDp = item.baseY + (if (index % 2 == 0) floatOffset else -floatOffset).dp
                 val isVerified = verifiedAuthorIds.contains(peer.peerId)
 
                 Column(
@@ -656,3 +664,10 @@ fun ActivityLogCard(logs: List<String>) {
         }
     }
 }
+
+private data class RadarPeerLayout(
+    val peer: DiscoveredPeer,
+    val index: Int,
+    val baseX: Dp,
+    val baseY: Dp
+)
