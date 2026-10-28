@@ -44,6 +44,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -84,6 +85,12 @@ fun SettingsScreen(
     val dbStats by viewModel.dbStats.collectAsState()
     val syncIntervalSeconds by viewModel.syncIntervalSeconds.collectAsState()
     val isDarkMode by viewModel.isDarkMode.collectAsState()
+    val maxStrangerMediaCacheMb by viewModel.maxStrangerMediaCacheMb.collectAsState()
+    val storageUsageBytes by viewModel.storageUsageBytes.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.refreshStorageUsage(context)
+    }
 
     var showShareApkSheet by remember { mutableStateOf(false) }
 
@@ -327,7 +334,102 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 3. Offline APK Dispenser Card
+            // 3. Mesh Data Mule Storage Card
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp),
+                colors = CardDefaults.cardColors(containerColor = FbSurface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(FacebookBlueLight),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Storage,
+                                    contentDescription = null,
+                                    tint = FacebookBlue,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Mesh Data Mule Storage",
+                                    color = FbTextPrimary,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 15.sp
+                                )
+                                Text(
+                                    text = "Stranger media cache limit",
+                                    color = FbTextSecondary,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+
+                        val usedMb = storageUsageBytes / (1024 * 1024)
+                        Surface(
+                            color = FacebookBlueLight,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(
+                                text = "$usedMb MB used",
+                                color = FacebookBlue,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Auto-evicts oldest strangers' media when limit is reached. Media from followed friends is never deleted.",
+                        color = FbTextSecondary,
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    val storageOptions = listOf(50, 100, 250)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        storageOptions.forEach { mb ->
+                            val isSelected = maxStrangerMediaCacheMb == mb
+                            IntervalChip(
+                                label = "$mb MB",
+                                isSelected = isSelected,
+                                onClick = { viewModel.setMaxStrangerMediaCacheMb(mb) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 4. Offline APK Dispenser Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -395,7 +497,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 4. Decentralized Mesh Network Card
+            // 5. Decentralized Mesh Network Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -469,7 +571,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // 5. App Version & Updates Card
+            // 6. App Version & Updates Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()

@@ -34,14 +34,11 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.QrCodeScanner
-import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -94,8 +91,6 @@ fun IdentityScreen(
     val myPosts by viewModel.myPosts.collectAsState()
     val followedAuthorIds by viewModel.followedAuthorIds.collectAsState()
     val qrBitmap by viewModel.qrBitmap.collectAsState()
-    val maxStrangerMediaCacheMb by viewModel.maxStrangerMediaCacheMb.collectAsState()
-    val storageUsageBytes by viewModel.storageUsageBytes.collectAsState()
 
     var showEditDialog by remember { mutableStateOf(false) }
     var editName by remember { mutableStateOf("") }
@@ -104,10 +99,6 @@ fun IdentityScreen(
     var showScannerDialog by remember { mutableStateOf(false) }
     var selectedPostForComments by remember { mutableStateOf<com.mysocial.mesh.model.PostWithAuthor?>(null) }
     var autoFocusCommentInput by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        viewModel.refreshStorageUsage(context)
-    }
 
     val authorId = viewModel.authorId
     val displayName = myProfile?.displayName ?: "User"
@@ -361,92 +352,7 @@ fun IdentityScreen(
                 }
             }
 
-            // Mesh Data Mule Storage Card
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp),
-                    colors = CardDefaults.cardColors(containerColor = FbSurface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Filled.Storage,
-                                    contentDescription = null,
-                                    tint = FacebookBlue,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Mesh Data Mule Storage",
-                                    color = FbTextPrimary,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            val usedMb = storageUsageBytes / (1024 * 1024)
-                            Text(
-                                text = "$usedMb MB used",
-                                color = FacebookBlue,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Auto-evicts oldest strangers' media when limit is reached. Media from followed friends is never deleted.",
-                            color = FbTextSecondary,
-                            fontSize = 12.sp,
-                            lineHeight = 17.sp
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            text = "Max Stranger Media Cache:",
-                            color = FbTextPrimary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            listOf(50, 100, 250).forEach { mb ->
-                                val isSelected = maxStrangerMediaCacheMb == mb
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = { viewModel.setMaxStrangerMediaCacheMb(mb) },
-                                    label = { Text("$mb MB", fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = FacebookBlue,
-                                        selectedLabelColor = Color.White,
-                                        containerColor = FbSurfaceElevated,
-                                        labelColor = FbTextPrimary
-                                    ),
-                                    border = FilterChipDefaults.filterChipBorder(
-                                        borderColor = if (isSelected) FacebookBlue else FbBorder,
-                                        enabled = true,
-                                        selected = isSelected
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 3. Section Header: My Posts
+            // 2. Section Header: My Posts
             item {
                 Row(
                     modifier = Modifier

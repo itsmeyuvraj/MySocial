@@ -181,4 +181,13 @@ class Step4UiIntegrationTest {
         val isVerified = repository.isVerifiedInPerson(friendCrypto.authorId)
         assertTrue(isVerified)
     }
+
+    @Test
+    fun testSettingsViewModelMuleStorage() = runBlocking {
+        val settingsVm = com.mysocial.mesh.ui.settings.SettingsViewModel(repository)
+        settingsVm.setMaxStrangerMediaCacheMb(100)
+        assertEquals(100, settingsVm.maxStrangerMediaCacheMb.first())
+        settingsVm.setMaxStrangerMediaCacheMb(50)
+        assertEquals(50, settingsVm.maxStrangerMediaCacheMb.first())
+    }
 }
