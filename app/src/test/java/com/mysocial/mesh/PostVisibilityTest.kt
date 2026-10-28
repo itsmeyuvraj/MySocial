@@ -229,5 +229,53 @@ class PostVisibilityTest {
         assertEquals(3, friendProfileView.size)
         assertTrue(friendProfileView.any { it.post.text == "Bob's older friends-only secret" })
     }
+
+    @Test
+    fun testFriendsOnlyFeedExcludesSelfPosts() = runBlocking {
+        val aliceId = cryptoAlice.authorId
+        val bobId = cryptoBob.authorId
+
+        // Alice creates a post
+        val alicePayload = PostPayload(text = "Alice's post", isPublic = true).toJson()
+        val aliceSig = cryptoAlice.signEntry(1L, null, 1000L, ContentType.POST.name, alicePayload)
+        val aliceEntry = LogEntry(
+            authorId = aliceId, sequence = 1L, previousHash = null, timestamp = 1000L,
+            contentType = ContentType.POST, contentJson = alicePayload, signature = aliceSig,
+            entryHash = CryptoManager.computeEntryHash(aliceId, 1L, null, 1000L, ContentType.POST.name, alicePayload, aliceSig)
+        )
+        db.insertAndProject(aliceEntry)
+
+        // Bob creates a post
+        val bobPayload = PostPayload(text = "Bob's post", isPublic = true).toJson()
+        val bobSig = cryptoBob.signEntry(1L, null, 1500L, ContentType.POST.name, bobPayload)
+        val bobEntry = LogEntry(
+            authorId = bobId, sequence = 1L, previousHash = null, timestamp = 1500L,
+            contentType = ContentType.POST, contentJson = bobPayload, signature = bobSig,
+            entryHash = CryptoManager.computeEntryHash(bobId, 1L, null, 1500L, ContentType.POST.name, bobPayload, bobSig)
+        )
+        db.insertAndProject(bobEntry)
+
+        // Alice adds Bob as a friend
+        val followPayload = FollowPayload(targetAuthorId = bobId, following = true).toJson()
+        val followSig = cryptoAlice.signEntry(2L, aliceEntry.entryHash, 2000L, ContentType.FOLLOW.name, followPayload)
+        val followEntry = LogEntry(
+            authorId = aliceId, sequence = 2L, previousHash = aliceEntry.entryHash, timestamp = 2000L,
+            contentType = ContentType.FOLLOW, contentJson = followPayload, signature = followSig,
+            entryHash = CryptoManager.computeEntryHash(aliceId, 2L, aliceEntry.entryHash, 2000L, ContentType.FOLLOW.name, followPayload, followSig)
+        )
+        db.insertAndProject(followEntry)
+
+        // All Feed (Nearby): Alice sees both her own post and Bob's post
+        val allFeed = db.postViewDao().observeAllFeed(aliceId).first()
+        assertEquals(2, allFeed.size)
+        assertTrue(allFeed.any { it.post.authorId == aliceId })
+        assertTrue(allFeed.any { it.post.authorId == bobId })
+
+        // Friends Only Feed: Alice sees ONLY Bob's post, NOT her own post
+        val friendsOnlyFeed = db.postViewDao().observeFollowedAndTwoHopFeed(aliceId).first()
+        assertEquals(1, friendsOnlyFeed.size)
+        assertEquals("Bob's post", friendsOnlyFeed[0].post.text)
+        assertFalse(friendsOnlyFeed.any { it.post.authorId == aliceId })
+    }
 }
 

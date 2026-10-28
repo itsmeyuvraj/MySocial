@@ -120,7 +120,12 @@ class FeedViewModel(
         _openMeshFilter.flatMapLatest { openFilter -> repository.observeFeed(openFilter) },
         _searchQuery,
         mutedHashtags
-    ) { posts, query, muted ->
+    ) { rawPosts, query, muted ->
+        val posts = if (!_openMeshFilter.value) {
+            rawPosts.filter { it.post.authorId != currentAuthorId }
+        } else {
+            rawPosts
+        }
         if (query.isBlank()) {
             if (!_openMeshFilter.value || muted.isEmpty()) {
                 posts

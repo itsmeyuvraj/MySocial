@@ -159,9 +159,9 @@ interface PostViewDao {
         SELECT * FROM posts_view 
         WHERE replyToHash IS NULL 
         AND (expiresAt IS NULL OR expiresAt > :now)
+        AND authorId != :myAuthorId
         AND (
-            authorId = :myAuthorId 
-            OR authorId IN (SELECT followeeId FROM follows_view WHERE followerId = :myAuthorId AND isFollowing = 1)
+            authorId IN (SELECT followeeId FROM follows_view WHERE followerId = :myAuthorId AND isFollowing = 1)
             OR :myAuthorId IN (SELECT followeeId FROM follows_view WHERE followerId = authorId AND isFollowing = 1)
             OR authorId IN (
                 SELECT f2.followeeId FROM follows_view f1 
@@ -171,7 +171,6 @@ interface PostViewDao {
         )
         AND (
             isPublic = 1 
-            OR authorId = :myAuthorId 
             OR :myAuthorId IN (SELECT followeeId FROM follows_view WHERE followerId = authorId AND isFollowing = 1)
             OR authorId IN (SELECT followeeId FROM follows_view WHERE followerId = :myAuthorId AND isFollowing = 1)
         )
