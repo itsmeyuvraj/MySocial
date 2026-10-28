@@ -6,7 +6,7 @@ import com.mysocial.mesh.crypto.CryptoManager
 import com.mysocial.mesh.data.MeshDatabase
 import com.mysocial.mesh.data.MeshRepository
 import com.mysocial.mesh.protocol.GossipSyncEngine
-import com.mysocial.mesh.ui.settings.SettingsViewModel
+import com.mysocial.mesh.ui.identity.IdentityViewModel
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -35,7 +35,7 @@ class FriendAdditionSecurityTest {
     private lateinit var crypto: CryptoManager
     private lateinit var syncEngine: GossipSyncEngine
     private lateinit var repository: MeshRepository
-    private lateinit var settingsViewModel: SettingsViewModel
+    private lateinit var identityViewModel: IdentityViewModel
     private val testDispatcher = UnconfinedTestDispatcher()
 
     @Before
@@ -55,7 +55,7 @@ class FriendAdditionSecurityTest {
             cryptoManager = crypto,
             syncEngine = syncEngine
         )
-        settingsViewModel = SettingsViewModel(repository)
+        identityViewModel = IdentityViewModel(repository)
     }
 
     @After
@@ -65,47 +65,50 @@ class FriendAdditionSecurityTest {
     }
 
     @Test
-    fun testSettingsScan_withUrlPayload() = runBlocking {
+    fun testQrScan_withUrlPayload() = runBlocking {
         val deferred = CompletableDeferred<Pair<Boolean, String>>()
 
-        settingsViewModel.followAuthorFromScan("mysocial://follow?authorId=@alice1234&name=Alice") { success, id ->
-            deferred.complete(Pair(success, id))
+        val job = identityViewModel.processScannedQr("mysocial://follow?authorId=@alice1234&name=Alice") { success, msg ->
+            deferred.complete(Pair(success, msg))
         }
+        job.join()
 
-        val (callbackSuccess, callbackId) = deferred.await()
+        val (callbackSuccess, callbackMsg) = deferred.await()
         assertTrue(callbackSuccess)
-        assertEquals("@alice1234", callbackId)
+        assertTrue(callbackMsg.contains("Alice") || callbackMsg.contains("@alice1234"))
 
         val followed = repository.observeFollowedAuthorIds().filter { it.contains("@alice1234") }.first()
         assertTrue(followed.contains("@alice1234"))
     }
 
     @Test
-    fun testSettingsScan_withManualFriendCode() = runBlocking {
+    fun testQrScan_withManualFriendCode() = runBlocking {
         val deferred = CompletableDeferred<Pair<Boolean, String>>()
 
-        settingsViewModel.followAuthorFromScan("bob5678") { success, id ->
-            deferred.complete(Pair(success, id))
+        val job = identityViewModel.processScannedQr("bob5678") { success, msg ->
+            deferred.complete(Pair(success, msg))
         }
+        job.join()
 
-        val (callbackSuccess, callbackId) = deferred.await()
+        val (callbackSuccess, callbackMsg) = deferred.await()
         assertTrue(callbackSuccess)
-        assertEquals("@bob5678", callbackId)
+        assertEquals("Followed @bob5678", callbackMsg)
 
         val followed = repository.observeFollowedAuthorIds().filter { it.contains("@bob5678") }.first()
         assertTrue(followed.contains("@bob5678"))
     }
 
     @Test
-    fun testSettingsScan_invalidBlankCodeFails() = runBlocking {
+    fun testQrScan_invalidBlankCodeFails() = runBlocking {
         val deferred = CompletableDeferred<Pair<Boolean, String>>()
 
-        settingsViewModel.followAuthorFromScan("   ") { success, msg ->
+        val job = identityViewModel.processScannedQr("   ") { success, msg ->
             deferred.complete(Pair(success, msg))
         }
+        job.join()
 
         val (callbackSuccess, errorMessage) = deferred.await()
         assertFalse(callbackSuccess)
-        assertEquals("Invalid QR code payload", errorMessage)
+        assertEquals("Invalid QR code format", errorMessage)
     }
 }

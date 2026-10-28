@@ -852,7 +852,7 @@ fun FeedEmptyState(
                 text = if (isNearby)
                     "Share something with people around you! Posts sync automatically when devices come close to each other."
                 else
-                    "Connect with friends by scanning their QR code in the Settings tab.",
+                    "Connect with friends by scanning their QR code in the Profile tab.",
                 color = FbTextSecondary,
                 fontSize = 13.sp,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,

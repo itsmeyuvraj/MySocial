@@ -122,11 +122,11 @@ class IdentityViewModel(
                 val raw = scannedText.trim()
                 val id = if (raw.contains("authorId=")) {
                     raw.substringAfter("authorId=").substringBefore("&")
-                } else if (raw.startsWith("@") || raw.contains(".ed25519")) {
+                } else if (raw.isNotBlank()) {
                     raw
                 } else null
 
-                if (id != null) {
+                if (!id.isNullOrBlank()) {
                     val cleanId = if (!id.startsWith("@")) "@$id" else id
                     repository.toggleFollow(cleanId, true)
                     onResult(true, "Followed $cleanId")

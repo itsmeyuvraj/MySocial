@@ -61,10 +61,25 @@ object TrustQrUtils {
             return TrustIdentity(authorId = id, displayName = name, isValidSignature = isValid)
         } else if (clean.startsWith("mysocial://follow?")) {
             // Legacy follow URI support
-            val id = clean.substringAfter("authorId=").substringBefore("&")
-            if (id.isNotBlank()) {
-                val formattedId = if (id.startsWith("@")) id else "@$id"
-                return TrustIdentity(authorId = formattedId, displayName = "Peer", isValidSignature = false)
+            val query = clean.substringAfter("mysocial://follow?")
+            val params = query.split("&").associate { param ->
+                val eqIdx = param.indexOf('=')
+                if (eqIdx != -1) {
+                    param.substring(0, eqIdx) to param.substring(eqIdx + 1)
+                } else {
+                    param to ""
+                }
+            }
+            val rawId = params["authorId"] ?: ""
+            val rawName = params["name"]
+            val name = if (!rawName.isNullOrBlank()) {
+                try { URLDecoder.decode(rawName, "UTF-8") } catch (_: Exception) { rawName }
+            } else null
+
+            if (rawId.isNotBlank()) {
+                val formattedId = if (rawId.startsWith("@")) rawId else "@$rawId"
+                val display = name ?: formattedId
+                return TrustIdentity(authorId = formattedId, displayName = display, isValidSignature = false)
             }
         }
         return null

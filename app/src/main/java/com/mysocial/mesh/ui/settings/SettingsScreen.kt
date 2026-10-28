@@ -1,10 +1,7 @@
 package com.mysocial.mesh.ui.settings
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,18 +23,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bluetooth
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.QrCode2
-import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Wifi
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -46,7 +38,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -66,6 +57,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.mysocial.mesh.ui.components.UpdateDialog
 import com.mysocial.mesh.utils.AppUpdateInfo
 import com.mysocial.mesh.utils.UpdateManager
+import com.mysocial.mesh.utils.toBbid
 import kotlinx.coroutines.launch
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -74,7 +66,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mysocial.mesh.ui.components.AvatarView
-import com.mysocial.mesh.ui.qr.QrScannerDialog
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FacebookBlueLight
 import com.mysocial.mesh.ui.theme.FbBackground
@@ -94,12 +85,8 @@ fun SettingsScreen(
     val context = LocalContext.current
     val myProfile by viewModel.myProfile.collectAsState()
     val dbStats by viewModel.dbStats.collectAsState()
-    val qrBitmap by viewModel.qrBitmap.collectAsState()
     val syncIntervalSeconds by viewModel.syncIntervalSeconds.collectAsState()
     val isDarkMode by viewModel.isDarkMode.collectAsState()
-
-    var showScanner by remember { mutableStateOf(false) }
-    var showMyQr by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
     val updateManager = remember { UpdateManager(context) }
@@ -138,124 +125,6 @@ fun SettingsScreen(
             onDismiss = {
                 if (!isDownloadingUpdate) {
                     showUpdateDialog = false
-                }
-            }
-        )
-    }
-
-    if (showScanner) {
-        QrScannerDialog(
-            onDismiss = { showScanner = false },
-            onQrScanned = { payload ->
-                viewModel.followAuthorFromScan(payload) { success, cleanId ->
-                    showScanner = false
-                    if (success) {
-                        Toast.makeText(
-                            context,
-                            "Connected with peer! Followed ${cleanId.take(12)}...",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    } else {
-                        Toast.makeText(
-                            context,
-                            "Could not connect: $cleanId",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                }
-            }
-        )
-    }
-
-    if (showMyQr) {
-        AlertDialog(
-            onDismissRequest = { showMyQr = false },
-            containerColor = FbSurface,
-            title = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "Your Offline QR Code",
-                        color = FbTextPrimary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
-                    )
-                    IconButton(onClick = { showMyQr = false }, modifier = Modifier.size(24.dp)) {
-                        Icon(Icons.Filled.Close, contentDescription = "Close", tint = FbTextSecondary)
-                    }
-                }
-            },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "Let nearby peers scan this code to connect and follow you without internet.",
-                        color = FbTextSecondary,
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // QR Image container (crisp white background always for optical scanner contrast)
-                    Box(
-                        modifier = Modifier
-                            .size(230.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color.White)
-                            .border(1.dp, FbBorder, RoundedCornerShape(12.dp))
-                            .padding(14.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (qrBitmap != null) {
-                            Image(
-                                bitmap = qrBitmap!!,
-                                contentDescription = "Your QR Code",
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            Text("Generating QR...", color = Color.Gray, fontSize = 12.sp)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    val cleanCode = authorId.removeSuffix(".ed25519").removePrefix("@")
-                    val displayCode = "@" + if (cleanCode.length > 20) "${cleanCode.take(8)}...${cleanCode.takeLast(6)}" else cleanCode
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(FbSurfaceElevated)
-                            .border(1.dp, FbBorder, RoundedCornerShape(8.dp))
-                            .clickable {
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                clipboard.setPrimaryClip(ClipData.newPlainText("FriendCode", authorId))
-                                Toast.makeText(context, "Friend Code copied!", Toast.LENGTH_SHORT).show()
-                            }
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text("Your Friend Code", color = FbTextSecondary, fontSize = 11.sp)
-                            Text(displayCode, color = FacebookBlue, fontFamily = FontFamily.Monospace, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                        Icon(Icons.Filled.ContentCopy, contentDescription = "Copy", tint = FacebookBlue, modifier = Modifier.size(16.dp))
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = { showMyQr = false },
-                    colors = ButtonDefaults.buttonColors(containerColor = FacebookBlue, contentColor = Color.White),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("Done")
                 }
             }
         )
@@ -300,7 +169,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // 1. Profile & Quick QR Actions Card
+            // 1. Profile Summary Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -333,52 +202,30 @@ fun SettingsScreen(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            val clean = authorId.removeSuffix(".ed25519").removePrefix("@")
-                            Text(
-                                text = "@" + if (clean.length > 16) "${clean.take(6)}...${clean.takeLast(4)}" else clean,
-                                color = FbTextSecondary,
-                                fontSize = 12.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        // Show QR Button
-                        Button(
-                            onClick = { showMyQr = true },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = FacebookBlueLight,
-                                contentColor = FacebookBlue
-                            ),
-                            contentPadding = PaddingValues(vertical = 10.dp)
-                        ) {
-                            Icon(Icons.Filled.QrCode2, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("My QR", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        }
-
-                        // Scan QR Button
-                        Button(
-                            onClick = { showScanner = true },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = FacebookBlue,
-                                contentColor = Color.White
-                            ),
-                            contentPadding = PaddingValues(vertical = 10.dp)
-                        ) {
-                            Icon(Icons.Filled.QrCodeScanner, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Scan QR", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Spacer(modifier = Modifier.height(3.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Surface(
+                                    color = FacebookBlueLight,
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Text(
+                                        text = "#${authorId.toBbid()}",
+                                        color = FacebookBlue,
+                                        fontSize = 11.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                val clean = authorId.removeSuffix(".ed25519").removePrefix("@")
+                                Text(
+                                    text = "@" + if (clean.length > 12) "${clean.take(4)}...${clean.takeLast(4)}" else clean,
+                                    color = FbTextSecondary,
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
                         }
                     }
                 }
