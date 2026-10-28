@@ -196,35 +196,50 @@ private fun ChangelogItemRow(item: ParsedChangelogItem) {
     }
 }
 
-private fun parseReleaseNotes(notes: String): List<ParsedChangelogItem> {
+internal fun parseReleaseNotes(notes: String): List<ParsedChangelogItem> {
     if (notes.isBlank()) return emptyList()
 
-    val lines = notes.lines()
-        .map { it.trim() }
-        .filter { it.isNotBlank() && !it.startsWith("---") && !it.startsWith("### What's New") && !it.startsWith("*Automated") }
+    val rawLines = notes.lines()
+    val validLines = mutableListOf<Pair<String, Boolean>>() // (cleanLine, isIndented)
+
+    for (raw in rawLines) {
+        val trimmed = raw.trim()
+        if (trimmed.isBlank()) continue
+        // Skip markdown headings
+        if (trimmed.startsWith("#")) continue
+        // Skip markdown horizontal dividers
+        if (trimmed.matches(Regex("^[-*_]{3,}$"))) continue
+        // Skip automated CI/CD footers and commit metadata
+        if (trimmed.startsWith("*Automated", ignoreCase = true) ||
+            trimmed.contains("Automated CI/CD", ignoreCase = true) ||
+            trimmed.contains("Full Changelog", ignoreCase = true) ||
+            trimmed.contains("github.com/", ignoreCase = true) ||
+            trimmed.startsWith("Merge branch", ignoreCase = true) ||
+            trimmed.startsWith("Merge pull request", ignoreCase = true)
+        ) continue
+
+        val isIndented = raw.startsWith("  ") || raw.startsWith("\t")
+        validLines.add(Pair(trimmed, isIndented))
+    }
 
     val items = mutableListOf<ParsedChangelogItem>()
     var currentItem: ParsedChangelogItem? = null
     val currentSubItems = mutableListOf<String>()
 
-    for (line in lines) {
-        val clean = line.trimStart('-', '*', '•', ' ').trim()
-        if (clean.isBlank()) continue
+    for ((line, isIndented) in validLines) {
+        val text = stripCommitPrefix(line)
+        if (text.isBlank()) continue
 
-        // Check if sub-bullet
-        if (line.startsWith("  -") || line.startsWith("    -") || (currentItem != null && !isCommitOrCategoryLine(clean))) {
-            currentSubItems.add(clean)
-            continue
+        if (isIndented && currentItem != null) {
+            currentSubItems.add(text)
+        } else {
+            if (currentItem != null) {
+                items.add(currentItem.copy(subItems = currentSubItems.toList()))
+                currentSubItems.clear()
+            }
+            val category = detectCategory(text)
+            currentItem = ParsedChangelogItem(category, text)
         }
-
-        if (currentItem != null) {
-            items.add(currentItem.copy(subItems = currentSubItems.toList()))
-            currentSubItems.clear()
-        }
-
-        val category = detectCategory(clean)
-        val text = stripCommitPrefix(clean)
-        currentItem = ParsedChangelogItem(category, text)
     }
 
     if (currentItem != null) {
@@ -234,26 +249,42 @@ private fun parseReleaseNotes(notes: String): List<ParsedChangelogItem> {
     return items
 }
 
-private fun isCommitOrCategoryLine(line: String): Boolean {
-    val lower = line.lowercase()
-    return lower.startsWith("feat") || lower.startsWith("fix") || lower.startsWith("perf") ||
-            lower.startsWith("refactor") || lower.startsWith("style") || lower.startsWith("docs") ||
-            lower.startsWith("build") || lower.startsWith("ci") || lower.startsWith("security") ||
-            lower.startsWith("add") || lower.startsWith("improve") || lower.startsWith("update")
-}
-
-private fun detectCategory(line: String): ChangelogCategory {
+internal fun detectCategory(line: String): ChangelogCategory {
     val lower = line.lowercase()
     return when {
-        lower.startsWith("feat") || lower.contains("feature") || lower.startsWith("add ") -> ChangelogCategory.FEATURE
-        lower.startsWith("fix") || lower.contains("bug") || lower.contains("resolve") -> ChangelogCategory.FIX
-        lower.startsWith("perf") || lower.startsWith("optimize") || lower.contains("performance") || lower.startsWith("refactor") -> ChangelogCategory.IMPROVEMENT
-        lower.contains("security") || lower.contains("cve") || lower.contains("keystore") -> ChangelogCategory.SECURITY
+        lower.startsWith("feat") || lower.contains("feature") || lower.startsWith("add") ||
+            lower.contains("add ") || lower.contains("added") || lower.contains("new") ||
+            lower.contains("support") || lower.contains("badge") || lower.contains("checkmark") -> ChangelogCategory.FEATURE
+        lower.startsWith("fix") || lower.contains("bug") || lower.contains("resolve") ||
+            lower.contains("crash") || lower.contains("patch") || lower.contains("restore") -> ChangelogCategory.FIX
+        lower.contains("security") || lower.contains("keystore") || lower.contains("cve") ||
+            lower.contains("verify") || lower.contains("private") || lower.contains("privacy") -> ChangelogCategory.SECURITY
+        lower.startsWith("perf") || lower.startsWith("optimize") || lower.contains("performance") ||
+            lower.startsWith("refactor") || lower.startsWith("improve") || lower.contains("clean") ||
+            lower.contains("simplif") || lower.contains("human") || lower.contains("friendly") ||
+            lower.contains("faster") || lower.contains("speed") -> ChangelogCategory.IMPROVEMENT
         else -> ChangelogCategory.OTHER
     }
 }
 
-private fun stripCommitPrefix(line: String): String {
-    val regex = Regex("^(feat|fix|perf|refactor|style|docs|test|build|ci)(\\([a-zA-Z0-9_-]+\\))?:\\s*", RegexOption.IGNORE_CASE)
-    return line.replace(regex, "").replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+internal fun stripCommitPrefix(line: String): String {
+    var text = line.trim()
+    // Strip bullet markers
+    text = text.replace(Regex("^[-*•+]\\s*"), "")
+    text = text.replace(Regex("^\\d+\\.\\s*"), "")
+    // Strip conventional commit prefix
+    text = text.replace(Regex("^(feat|fix|perf|refactor|style|docs|test|build|ci|chore|add|update|remove|revert)(\\([a-zA-Z0-9_.-]+\\))?:\\s*", RegexOption.IGNORE_CASE), "")
+    // Strip markdown formatting
+    text = text.replace(Regex("`([^`]+)`"), "$1")
+    text = text.replace(Regex("\\*\\*([^*]+)\\*\\*"), "$1")
+    text = text.replace(Regex("\\[([^\\]]+)\\]\\([^)]+\\)"), "$1")
+    // Strip trailing commit hashes like (abc1234) or `abc1234`
+    text = text.replace(Regex("\\s*\\([0-9a-f]{7,40}\\)\\s*$"), "")
+    text = text.replace(Regex("\\s*by\\s+@[a-zA-Z0-9_-]+\\s*$"), "")
+    text = text.trim()
+    return if (text.isNotEmpty()) {
+        text.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+    } else {
+        line
+    }
 }

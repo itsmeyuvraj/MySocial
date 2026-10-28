@@ -1,0 +1,5 @@
+- Replaced technical jargon with human-friendly words across all screens and notifications
+- Added verified blue checkmark for friends
+- Simplified menus with top-right dropdown and segregated settings
+- Improved nearby device discovery and radar visibility
+- Added offline app sharing and developer credits for Yuvraj Poudyal

@@ -41,9 +41,13 @@ jobs:
           echo "ver_name=$VER_NAME" >> $GITHUB_OUTPUT
 
       - name: Build Release APK
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
           mkdir -p app/src/main/assets
-          echo "${{ github.event.head_commit.message }}" > app/src/main/assets/release_notes.txt
+          if [ -n "$COMMIT_MSG" ]; then
+            echo "$COMMIT_MSG" > app/src/main/assets/release_notes.txt
+          fi
           ./gradlew assembleRelease \
             -PappVersionCode=${{ steps.vars.outputs.ver_code }} \
             -PappVersionName=${{ steps.vars.outputs.ver_name }}
