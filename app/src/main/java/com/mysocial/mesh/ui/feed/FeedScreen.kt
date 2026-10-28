@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -94,6 +95,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 fun FeedScreen(
     viewModel: FeedViewModel,
     onNavigateToCompose: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
     onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -141,7 +143,8 @@ fun FeedScreen(
             ) {
                 FacebookTopBar(
                     activePeersCount = activeNearbyPeers.size,
-                    onSearchClick = { viewModel.openSearch() }
+                    onSearchClick = { viewModel.openSearch() },
+                    onSettingsClick = onNavigateToSettings
                 )
             }
             AnimatedVisibility(
@@ -167,11 +170,9 @@ fun FeedScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     if (!isSearchActive) {
-                        // "What's on your mind?" Post Creator Box (Nearby Feed only)
-                        if (isOpenMeshFilter) {
-                            item {
-                                WhatsOnYourMindCard(onClick = onNavigateToCompose)
-                            }
+                        // "What's on your mind?" Post Creator Box
+                        item {
+                            WhatsOnYourMindCard(onClick = onNavigateToCompose)
                         }
 
                         // Friendly Feed Filter Tabs (Nearby vs Friends)
@@ -485,7 +486,8 @@ fun FeedScreen(
 @Composable
 fun FacebookTopBar(
     activePeersCount: Int = 0,
-    onSearchClick: () -> Unit = {}
+    onSearchClick: () -> Unit = {},
+    onSettingsClick: () -> Unit = {}
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -533,20 +535,40 @@ fun FacebookTopBar(
                 }
             }
 
-            // Top action button (Search)
-            IconButton(
-                onClick = onSearchClick,
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(FbSurfaceElevated)
+            // Top action buttons (Search & Settings)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Search,
-                    contentDescription = "Search",
-                    tint = FbTextPrimary,
-                    modifier = Modifier.size(20.dp)
-                )
+                IconButton(
+                    onClick = onSearchClick,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(FbSurfaceElevated)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Search,
+                        contentDescription = "Search",
+                        tint = FbTextPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = onSettingsClick,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(FbSurfaceElevated)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Settings,
+                        contentDescription = "Settings",
+                        tint = FbTextPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }

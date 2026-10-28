@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Security
@@ -79,6 +80,7 @@ import com.mysocial.mesh.ui.theme.FbTextTertiary
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
+    onNavigateBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -155,16 +157,27 @@ fun SettingsScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                        .padding(horizontal = 8.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.Settings,
-                        contentDescription = null,
-                        tint = FacebookBlue,
-                        modifier = Modifier.size(22.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
+                    if (onNavigateBack != null) {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = FbTextPrimary
+                            )
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = null,
+                            tint = FacebookBlue,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
                     Text(
                         text = "Settings",
                         color = FbTextPrimary,
@@ -176,7 +189,10 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // 1. Appearance Section (Dark Mode)
+            // 1. Appearance Section
+            SettingsCategoryHeader("Appearance")
+            Spacer(modifier = Modifier.height(4.dp))
+
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -239,9 +255,13 @@ fun SettingsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // 2. Mesh Sync Frequency Card
+            // 2. Mesh & Storage Section
+            SettingsCategoryHeader("Mesh Network & Storage")
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Sync Frequency Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -427,9 +447,13 @@ fun SettingsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // 4. Offline APK Dispenser Card
+            // 3. Offline Sharing Section
+            SettingsCategoryHeader("Offline Tools & Distribution")
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Offline APK Dispenser Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -495,9 +519,13 @@ fun SettingsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // 5. Decentralized Mesh Network Card
+            // 4. Diagnostics Section
+            SettingsCategoryHeader("Network Diagnostics & Status")
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Decentralized Mesh Network Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -569,9 +597,13 @@ fun SettingsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // 6. App Version & Updates Card
+            // 5. About & Updates Section
+            SettingsCategoryHeader("About & Updates")
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // App Version & Updates Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -738,6 +770,18 @@ private fun IntervalChip(
             textAlign = TextAlign.Center
         )
     }
+}
+
+@Composable
+private fun SettingsCategoryHeader(title: String) {
+    Text(
+        text = title.uppercase(),
+        color = FacebookBlue,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 0.8.sp,
+        modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp)
+    )
 }
 
 private fun formatIntervalShort(seconds: Int): String {
