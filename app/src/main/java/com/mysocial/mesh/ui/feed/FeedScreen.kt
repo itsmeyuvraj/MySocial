@@ -34,6 +34,25 @@ import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.WifiTethering
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.runtime.rememberCoroutineScope
+import com.mysocial.mesh.ui.components.ShareApkBottomSheet
+import com.mysocial.mesh.ui.components.UpdateDialog
+import com.mysocial.mesh.utils.AppUpdateInfo
+import com.mysocial.mesh.utils.UpdateManager
+import com.mysocial.mesh.ui.settings.SettingsViewModel
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -94,8 +113,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 @Composable
 fun FeedScreen(
     viewModel: FeedViewModel,
+    settingsViewModel: SettingsViewModel? = null,
     onNavigateToCompose: () -> Unit = {},
-    onNavigateToSettings: () -> Unit = {},
     onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -117,6 +136,89 @@ fun FeedScreen(
 
     val isOnline = activeNearbyPeers.isNotEmpty()
     var wasOnline by remember { mutableStateOf(false) }
+
+    // Settings States
+    val isDarkMode by (settingsViewModel?.isDarkMode ?: flowOf(false)).collectAsState(initial = false)
+    val syncIntervalSeconds by (settingsViewModel?.syncIntervalSeconds ?: flowOf(10)).collectAsState(initial = 10)
+    val maxStrangerMediaCacheMb by (settingsViewModel?.maxStrangerMediaCacheMb ?: flowOf(com.mysocial.mesh.data.AppSettings.DEFAULT_MAX_STRANGER_MEDIA_CACHE_MB)).collectAsState(initial = com.mysocial.mesh.data.AppSettings.DEFAULT_MAX_STRANGER_MEDIA_CACHE_MB)
+    val storageUsageBytes by (settingsViewModel?.storageUsageBytes ?: flowOf(0L)).collectAsState(initial = 0L)
+    val dbStats by (settingsViewModel?.dbStats ?: flowOf(com.mysocial.mesh.data.DatabaseStats(0, 0, 0))).collectAsState(initial = com.mysocial.mesh.data.DatabaseStats(0, 0, 0))
+
+    LaunchedEffect(Unit) {
+        settingsViewModel?.refreshStorageUsage(context)
+    }
+
+    var showSyncDialog by remember { mutableStateOf(false) }
+    var showMuleStorageDialog by remember { mutableStateOf(false) }
+    var showNetworkStatusDialog by remember { mutableStateOf(false) }
+    var showShareApkSheet by remember { mutableStateOf(false) }
+
+    val updateScope = rememberCoroutineScope()
+    val updateManager = remember { UpdateManager(context) }
+    var updateInfo by remember { mutableStateOf<AppUpdateInfo?>(null) }
+    var isCheckingUpdate by remember { mutableStateOf(false) }
+    var isDownloadingUpdate by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableStateOf<Float?>(null) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
+
+    if (showShareApkSheet) {
+        ShareApkBottomSheet(onDismiss = { showShareApkSheet = false })
+    }
+
+    if (showSyncDialog) {
+        SyncFrequencyDialog(
+            currentInterval = syncIntervalSeconds,
+            onSelectInterval = { settingsViewModel?.setSyncInterval(it) },
+            onDismiss = { showSyncDialog = false }
+        )
+    }
+
+    if (showMuleStorageDialog) {
+        MuleStorageDialog(
+            currentLimitMb = maxStrangerMediaCacheMb,
+            usedBytes = storageUsageBytes,
+            onSelectLimit = { settingsViewModel?.setMaxStrangerMediaCacheMb(it) },
+            onDismiss = { showMuleStorageDialog = false }
+        )
+    }
+
+    if (showNetworkStatusDialog) {
+        NetworkStatusDialog(
+            totalEntries = dbStats.totalEntries,
+            onDismiss = { showNetworkStatusDialog = false }
+        )
+    }
+
+    if (showUpdateDialog && updateInfo != null) {
+        UpdateDialog(
+            updateInfo = updateInfo!!,
+            downloadProgress = downloadProgress,
+            isDownloading = isDownloadingUpdate,
+            onConfirmUpdate = {
+                val url = updateInfo?.downloadUrl
+                if (!url.isNullOrBlank()) {
+                    updateScope.launch {
+                        isDownloadingUpdate = true
+                        val file = updateManager.downloadApk(url) { progress ->
+                            downloadProgress = progress
+                        }
+                        isDownloadingUpdate = false
+                        if (file != null) {
+                            showUpdateDialog = false
+                            updateManager.promptInstall(file)
+                        } else {
+                            android.widget.Toast.makeText(context, "Download failed. Please check internet connection.", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            },
+            onDismiss = {
+                if (!isDownloadingUpdate) {
+                    showUpdateDialog = false
+                }
+            }
+        )
+    }
 
     LaunchedEffect(isOnline) {
         if (isOnline && !wasOnline) {
@@ -144,7 +246,44 @@ fun FeedScreen(
                 FacebookTopBar(
                     activePeersCount = activeNearbyPeers.size,
                     onSearchClick = { viewModel.openSearch() },
-                    onSettingsClick = onNavigateToSettings
+                    isDarkMode = isDarkMode,
+                    onToggleDarkMode = { settingsViewModel?.setDarkMode(!isDarkMode) },
+                    syncIntervalSeconds = syncIntervalSeconds,
+                    onOpenSyncFrequency = { showSyncDialog = true },
+                    maxStrangerMediaCacheMb = maxStrangerMediaCacheMb,
+                    storageUsageBytes = storageUsageBytes,
+                    onOpenMuleStorage = {
+                        settingsViewModel?.refreshStorageUsage(context)
+                        showMuleStorageDialog = true
+                    },
+                    onOpenShareApk = { showShareApkSheet = true },
+                    onOpenNetworkStatus = { showNetworkStatusDialog = true },
+                    onCheckForUpdates = {
+                        updateScope.launch {
+                            isCheckingUpdate = true
+                            try {
+                                val info = updateManager.checkForUpdate()
+                                isCheckingUpdate = false
+                                if (info != null && info.isUpdateAvailable) {
+                                    updateInfo = info
+                                    showUpdateDialog = true
+                                } else {
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        "You're on the latest version (v${updateManager.currentVersionName})",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            } catch (e: Exception) {
+                                isCheckingUpdate = false
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "Update check failed: ${e.localizedMessage}",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    }
                 )
             }
             AnimatedVisibility(
@@ -487,7 +626,16 @@ fun FeedScreen(
 fun FacebookTopBar(
     activePeersCount: Int = 0,
     onSearchClick: () -> Unit = {},
-    onSettingsClick: () -> Unit = {}
+    isDarkMode: Boolean = false,
+    onToggleDarkMode: () -> Unit = {},
+    syncIntervalSeconds: Int = 10,
+    onOpenSyncFrequency: () -> Unit = {},
+    maxStrangerMediaCacheMb: Int = 100,
+    storageUsageBytes: Long = 0L,
+    onOpenMuleStorage: () -> Unit = {},
+    onOpenShareApk: () -> Unit = {},
+    onOpenNetworkStatus: () -> Unit = {},
+    onCheckForUpdates: () -> Unit = {}
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -535,7 +683,7 @@ fun FacebookTopBar(
                 }
             }
 
-            // Top action buttons (Search & Settings)
+            // Top action buttons (Search & Settings Dropdown)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -555,18 +703,52 @@ fun FacebookTopBar(
                     )
                 }
 
-                IconButton(
-                    onClick = onSettingsClick,
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(FbSurfaceElevated)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Settings,
-                        contentDescription = "Settings",
-                        tint = FbTextPrimary,
-                        modifier = Modifier.size(20.dp)
+                Box {
+                    var showDropdown by remember { mutableStateOf(false) }
+
+                    IconButton(
+                        onClick = { showDropdown = true },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(FbSurfaceElevated)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = "Settings",
+                            tint = FbTextPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    SettingsDropdownMenu(
+                        expanded = showDropdown,
+                        onDismissRequest = { showDropdown = false },
+                        isDarkMode = isDarkMode,
+                        onToggleDarkMode = onToggleDarkMode,
+                        syncIntervalSeconds = syncIntervalSeconds,
+                        onOpenSyncFrequency = {
+                            showDropdown = false
+                            onOpenSyncFrequency()
+                        },
+                        maxStrangerMediaCacheMb = maxStrangerMediaCacheMb,
+                        storageUsageBytes = storageUsageBytes,
+                        onOpenMuleStorage = {
+                            showDropdown = false
+                            onOpenMuleStorage()
+                        },
+                        onOpenShareApk = {
+                            showDropdown = false
+                            onOpenShareApk()
+                        },
+                        onOpenNetworkStatus = {
+                            showDropdown = false
+                            onOpenNetworkStatus()
+                        },
+                        onCheckForUpdates = {
+                            showDropdown = false
+                            onCheckForUpdates()
+                        }
                     )
                 }
             }
@@ -998,6 +1180,475 @@ fun SearchEmptyState(
                 Text("Clear Search", fontWeight = FontWeight.Bold)
             }
         }
+    }
+}
+
+@Composable
+fun SettingsDropdownMenu(
+    expanded: Boolean,
+    onDismissRequest: () -> Unit,
+    isDarkMode: Boolean,
+    onToggleDarkMode: () -> Unit,
+    syncIntervalSeconds: Int,
+    onOpenSyncFrequency: () -> Unit,
+    maxStrangerMediaCacheMb: Int,
+    storageUsageBytes: Long,
+    onOpenMuleStorage: () -> Unit,
+    onOpenShareApk: () -> Unit,
+    onOpenNetworkStatus: () -> Unit,
+    onCheckForUpdates: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismissRequest,
+        modifier = modifier
+            .width(260.dp)
+            .background(FbSurface)
+    ) {
+        // --- 1. APPEARANCE ---
+        DropdownSectionHeader(title = "Appearance")
+
+        DropdownMenuItem(
+            text = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Dark Mode",
+                            color = FbTextPrimary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = if (isDarkMode) "Enabled" else "Disabled",
+                            color = FbTextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                    Switch(
+                        checked = isDarkMode,
+                        onCheckedChange = { onToggleDarkMode() },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = FacebookBlue,
+                            uncheckedThumbColor = Color.White,
+                            uncheckedTrackColor = FbBorder
+                        )
+                    )
+                }
+            },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Filled.DarkMode,
+                    contentDescription = null,
+                    tint = FacebookBlue,
+                    modifier = Modifier.size(20.dp)
+                )
+            },
+            onClick = onToggleDarkMode
+        )
+
+        HorizontalDivider(color = FbBorder, modifier = Modifier.padding(vertical = 4.dp))
+
+        // --- 2. MESH & STORAGE ---
+        DropdownSectionHeader(title = "Mesh Network & Storage")
+
+        DropdownMenuItem(
+            text = {
+                Column {
+                    Text(
+                        text = "Sync Frequency",
+                        color = FbTextPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "Every ${formatIntervalShort(syncIntervalSeconds)}",
+                        color = FbTextSecondary,
+                        fontSize = 11.sp
+                    )
+                }
+            },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Filled.Sync,
+                    contentDescription = null,
+                    tint = FacebookBlue,
+                    modifier = Modifier.size(20.dp)
+                )
+            },
+            onClick = onOpenSyncFrequency
+        )
+
+        DropdownMenuItem(
+            text = {
+                Column {
+                    Text(
+                        text = "Mule Storage Cache",
+                        color = FbTextPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    val usedMb = storageUsageBytes / (1024 * 1024)
+                    Text(
+                        text = "$maxStrangerMediaCacheMb MB cap • $usedMb MB used",
+                        color = FbTextSecondary,
+                        fontSize = 11.sp
+                    )
+                }
+            },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Filled.Storage,
+                    contentDescription = null,
+                    tint = FacebookBlue,
+                    modifier = Modifier.size(20.dp)
+                )
+            },
+            onClick = onOpenMuleStorage
+        )
+
+        HorizontalDivider(color = FbBorder, modifier = Modifier.padding(vertical = 4.dp))
+
+        // --- 3. OFFLINE TOOLS ---
+        DropdownSectionHeader(title = "Offline Distribution")
+
+        DropdownMenuItem(
+            text = {
+                Column {
+                    Text(
+                        text = "Share APK Offline",
+                        color = FbTextPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "Hotspot QR dispenser",
+                        color = FbTextSecondary,
+                        fontSize = 11.sp
+                    )
+                }
+            },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Filled.WifiTethering,
+                    contentDescription = null,
+                    tint = FacebookBlue,
+                    modifier = Modifier.size(20.dp)
+                )
+            },
+            onClick = onOpenShareApk
+        )
+
+        HorizontalDivider(color = FbBorder, modifier = Modifier.padding(vertical = 4.dp))
+
+        // --- 4. DIAGNOSTICS & UPDATES ---
+        DropdownSectionHeader(title = "Diagnostics & Updates")
+
+        DropdownMenuItem(
+            text = {
+                Column {
+                    Text(
+                        text = "Network Status",
+                        color = FbTextPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "BLE 5.0 + Wi-Fi • Active",
+                        color = FbGreen,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Filled.Wifi,
+                    contentDescription = null,
+                    tint = FacebookBlue,
+                    modifier = Modifier.size(20.dp)
+                )
+            },
+            onClick = onOpenNetworkStatus
+        )
+
+        DropdownMenuItem(
+            text = {
+                Column {
+                    Text(
+                        text = "Check for Updates",
+                        color = FbTextPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "GitHub Releases",
+                        color = FbTextSecondary,
+                        fontSize = 11.sp
+                    )
+                }
+            },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Filled.SystemUpdate,
+                    contentDescription = null,
+                    tint = FacebookBlue,
+                    modifier = Modifier.size(20.dp)
+                )
+            },
+            onClick = onCheckForUpdates
+        )
+    }
+}
+
+@Composable
+private fun DropdownSectionHeader(title: String) {
+    Text(
+        text = title.uppercase(),
+        color = FacebookBlue,
+        fontSize = 10.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 0.8.sp,
+        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+    )
+}
+
+@Composable
+fun SyncFrequencyDialog(
+    currentInterval: Int,
+    onSelectInterval: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Mesh Sync Frequency",
+                color = FbTextPrimary,
+                fontWeight = FontWeight.Bold,
+                fontSize = 17.sp
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    text = "Controls how often mysocial scans and exchanges data with nearby peers in the background.",
+                    color = FbTextSecondary,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                val options = listOf(5 to "5s", 10 to "10s", 30 to "30s", 60 to "1m", 300 to "5m")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    options.forEach { (seconds, label) ->
+                        val isSelected = currentInterval == seconds
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) FacebookBlue else FbSurfaceElevated)
+                                .border(1.dp, if (isSelected) FacebookBlue else FbBorder, RoundedCornerShape(8.dp))
+                                .clickable {
+                                    onSelectInterval(seconds)
+                                    onDismiss()
+                                }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                color = if (isSelected) Color.White else FbTextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close", color = FacebookBlue, fontWeight = FontWeight.Bold)
+            }
+        },
+        containerColor = FbSurface,
+        shape = RoundedCornerShape(14.dp)
+    )
+}
+
+@Composable
+fun MuleStorageDialog(
+    currentLimitMb: Int,
+    usedBytes: Long,
+    onSelectLimit: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val usedMb = usedBytes / (1024 * 1024)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Mule Storage Cache",
+                    color = FbTextPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp
+                )
+                Surface(
+                    color = FacebookBlueLight,
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        text = "$usedMb MB used",
+                        color = FacebookBlue,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+            }
+        },
+        text = {
+            Column {
+                Text(
+                    text = "Auto-evicts oldest strangers' media when the cap is reached. Media from followed friends is never deleted.",
+                    color = FbTextSecondary,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                Text(
+                    text = "Max Stranger Media Cache:",
+                    color = FbTextPrimary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(50, 100, 250).forEach { mb ->
+                        val isSelected = currentLimitMb == mb
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) FacebookBlue else FbSurfaceElevated)
+                                .border(1.dp, if (isSelected) FacebookBlue else FbBorder, RoundedCornerShape(8.dp))
+                                .clickable { onSelectLimit(mb) }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "$mb MB",
+                                color = if (isSelected) Color.White else FbTextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Done", color = FacebookBlue, fontWeight = FontWeight.Bold)
+            }
+        },
+        containerColor = FbSurface,
+        shape = RoundedCornerShape(14.dp)
+    )
+}
+
+@Composable
+fun NetworkStatusDialog(
+    totalEntries: Int,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Network Diagnostics & Status",
+                color = FbTextPrimary,
+                fontWeight = FontWeight.Bold,
+                fontSize = 17.sp
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Wifi, contentDescription = null, tint = FacebookBlue, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Wi-Fi mDNS Discovery", color = FbTextSecondary, fontSize = 13.sp)
+                    }
+                    Text("Active", color = FbGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+
+                HorizontalDivider(color = FbBorder)
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Bluetooth, contentDescription = null, tint = FacebookBlue, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Bluetooth 5.0 (2M PHY)", color = FbTextSecondary, fontSize = 13.sp)
+                    }
+                    Text("Active", color = FbGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+
+                HorizontalDivider(color = FbBorder)
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Storage, contentDescription = null, tint = FacebookBlue, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Local Ledger Entries", color = FbTextSecondary, fontSize = 13.sp)
+                    }
+                    Text("$totalEntries", color = FbTextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close", color = FacebookBlue, fontWeight = FontWeight.Bold)
+            }
+        },
+        containerColor = FbSurface,
+        shape = RoundedCornerShape(14.dp)
+    )
+}
+
+private fun formatIntervalShort(seconds: Int): String {
+    return when {
+        seconds < 60 -> "${seconds}s"
+        seconds % 60 == 0 -> "${seconds / 60}m"
+        else -> "${seconds}s"
     }
 }
 

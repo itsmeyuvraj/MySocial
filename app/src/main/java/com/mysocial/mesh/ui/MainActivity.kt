@@ -283,7 +283,6 @@ class MainActivity : ComponentActivity() {
     fun MainAppScaffold() {
         var selectedTab by remember { mutableIntStateOf(0) }
         var showComposer by remember { mutableStateOf(false) }
-        var showSettings by remember { mutableStateOf(false) }
 
         val feedViewModel = remember { FeedViewModel(repository) }
         val composerViewModel = remember { ComposerViewModel(repository) }
@@ -327,40 +326,38 @@ class MainActivity : ComponentActivity() {
 
         Scaffold(
             bottomBar = {
-                if (!showSettings) {
-                    NavigationBar(
-                        containerColor = FbSurface,
-                        contentColor = FbTextPrimary,
-                        tonalElevation = 6.dp
-                    ) {
-                        NavigationTab.values().forEachIndexed { index, tab ->
-                            val isSelected = selectedTab == index
-                            NavigationBarItem(
-                                selected = isSelected,
-                                onClick = { selectedTab = index },
-                                icon = {
-                                    Icon(
-                                        imageVector = tab.icon,
-                                        contentDescription = tab.title,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                },
-                                label = {
-                                    Text(
-                                        text = tab.title,
-                                        fontSize = 11.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                    )
-                                },
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = FacebookBlue,
-                                    selectedTextColor = FacebookBlue,
-                                    indicatorColor = FacebookBlueLight,
-                                    unselectedIconColor = FbTextSecondary,
-                                    unselectedTextColor = FbTextSecondary
+                NavigationBar(
+                    containerColor = FbSurface,
+                    contentColor = FbTextPrimary,
+                    tonalElevation = 6.dp
+                ) {
+                    NavigationTab.values().forEachIndexed { index, tab ->
+                        val isSelected = selectedTab == index
+                        NavigationBarItem(
+                            selected = isSelected,
+                            onClick = { selectedTab = index },
+                            icon = {
+                                Icon(
+                                    imageVector = tab.icon,
+                                    contentDescription = tab.title,
+                                    modifier = Modifier.size(24.dp)
                                 )
+                            },
+                            label = {
+                                Text(
+                                    text = tab.title,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                )
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = FacebookBlue,
+                                selectedTextColor = FacebookBlue,
+                                indicatorColor = FacebookBlueLight,
+                                unselectedIconColor = FbTextSecondary,
+                                unselectedTextColor = FbTextSecondary
                             )
-                        }
+                        )
                     }
                 }
             }
@@ -378,29 +375,19 @@ class MainActivity : ComponentActivity() {
 
                     // Screen Body
                     Box(modifier = Modifier.fillMaxSize()) {
-                        if (showSettings) {
-                            BackHandler {
-                                showSettings = false
-                            }
-                            SettingsScreen(
-                                viewModel = settingsViewModel,
-                                onNavigateBack = { showSettings = false }
-                            )
-                        } else {
-                            when (selectedTab) {
-                                0 -> FeedScreen(
-                                    viewModel = feedViewModel,
-                                    onNavigateToCompose = { showComposer = true },
-                                    onNavigateToSettings = { showSettings = true },
-                                    onRefresh = {
-                                        feedViewModel.refresh {
-                                            syncService?.forceSyncAll()
-                                        }
+                        when (selectedTab) {
+                            0 -> FeedScreen(
+                                viewModel = feedViewModel,
+                                settingsViewModel = settingsViewModel,
+                                onNavigateToCompose = { showComposer = true },
+                                onRefresh = {
+                                    feedViewModel.refresh {
+                                        syncService?.forceSyncAll()
                                     }
-                                )
-                                1 -> RadarScreen(viewModel = radarViewModel)
-                                2 -> IdentityScreen(viewModel = identityViewModel)
-                            }
+                                }
+                            )
+                            1 -> RadarScreen(viewModel = radarViewModel)
+                            2 -> IdentityScreen(viewModel = identityViewModel)
                         }
 
                         // Fullscreen Facebook-style Composer Dialog
