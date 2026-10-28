@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -54,18 +55,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import com.mysocial.mesh.ui.components.ShareApkBottomSheet
 import com.mysocial.mesh.ui.components.UpdateDialog
 import com.mysocial.mesh.utils.AppUpdateInfo
 import com.mysocial.mesh.utils.UpdateManager
-import com.mysocial.mesh.utils.toBbid
 import kotlinx.coroutines.launch
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mysocial.mesh.ui.components.AvatarView
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FacebookBlueLight
 import com.mysocial.mesh.ui.theme.FbBackground
@@ -83,10 +81,11 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val myProfile by viewModel.myProfile.collectAsState()
     val dbStats by viewModel.dbStats.collectAsState()
     val syncIntervalSeconds by viewModel.syncIntervalSeconds.collectAsState()
     val isDarkMode by viewModel.isDarkMode.collectAsState()
+
+    var showShareApkSheet by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
     val updateManager = remember { UpdateManager(context) }
@@ -95,9 +94,6 @@ fun SettingsScreen(
     var isDownloadingUpdate by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableStateOf<Float?>(null) }
     var showUpdateDialog by remember { mutableStateOf(false) }
-
-    val authorId = viewModel.authorId
-    val displayName = myProfile?.displayName ?: "User"
 
     if (showUpdateDialog && updateInfo != null) {
         UpdateDialog(
@@ -128,6 +124,10 @@ fun SettingsScreen(
                 }
             }
         )
+    }
+
+    if (showShareApkSheet) {
+        ShareApkBottomSheet(onDismiss = { showShareApkSheet = false })
     }
 
     Surface(
@@ -169,71 +169,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // 1. Profile Summary Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp),
-                colors = CardDefaults.cardColors(containerColor = FbSurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        AvatarView(
-                            seed = authorId,
-                            displayName = displayName,
-                            size = 50.dp,
-                            showOnlineBadge = true
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = displayName,
-                                color = FbTextPrimary,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(modifier = Modifier.height(3.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Surface(
-                                    color = FacebookBlueLight,
-                                    shape = RoundedCornerShape(4.dp)
-                                ) {
-                                    Text(
-                                        text = "#${authorId.toBbid()}",
-                                        color = FacebookBlue,
-                                        fontSize = 11.sp,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                val clean = authorId.removeSuffix(".ed25519").removePrefix("@")
-                                Text(
-                                    text = "@" + if (clean.length > 12) "${clean.take(4)}...${clean.takeLast(4)}" else clean,
-                                    color = FbTextSecondary,
-                                    fontSize = 11.sp,
-                                    fontFamily = FontFamily.Monospace
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // 2. Appearance Section (Dark Mode)
+            // 1. Appearance Section (Dark Mode)
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -298,7 +234,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 3. Mesh Sync Frequency Card
+            // 2. Mesh Sync Frequency Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -320,9 +256,9 @@ fun SettingsScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(FacebookBlueLight),
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(FacebookBlueLight),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
@@ -385,6 +321,74 @@ fun SettingsScreen(
                                 modifier = Modifier.weight(1f)
                             )
                         }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 3. Offline APK Dispenser Card
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp),
+                colors = CardDefaults.cardColors(containerColor = FbSurface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(FacebookBlueLight),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.WifiTethering,
+                                contentDescription = null,
+                                tint = FacebookBlue,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Share APK Offline",
+                                color = FbTextPrimary,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 15.sp
+                            )
+                            Text(
+                                text = "Zero-data local hotspot APK download",
+                                color = FbTextSecondary,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Button(
+                        onClick = { showShareApkSheet = true },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = FacebookBlue,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                    ) {
+                        Text("Share", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }
             }

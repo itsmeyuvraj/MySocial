@@ -34,10 +34,8 @@ import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import com.mysocial.mesh.ui.components.ShareApkBottomSheet
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -113,7 +111,6 @@ fun FeedScreen(
     val context = LocalContext.current
     var selectedPostForComments by remember { mutableStateOf<PostWithAuthor?>(null) }
     var autoFocusCommentInput by remember { mutableStateOf(false) }
-    var showShareApkSheet by remember { mutableStateOf(false) }
     var selectedTagForAction by remember { mutableStateOf<String?>(null) }
 
     val isOnline = activeNearbyPeers.isNotEmpty()
@@ -144,8 +141,7 @@ fun FeedScreen(
             ) {
                 FacebookTopBar(
                     activePeersCount = activeNearbyPeers.size,
-                    onSearchClick = { viewModel.openSearch() },
-                    onShareNearbyClick = { showShareApkSheet = true }
+                    onSearchClick = { viewModel.openSearch() }
                 )
             }
             AnimatedVisibility(
@@ -402,11 +398,6 @@ fun FeedScreen(
             )
         }
 
-        // Offline APK Dispenser Bottom Sheet
-        if (showShareApkSheet) {
-            ShareApkBottomSheet(onDismiss = { showShareApkSheet = false })
-        }
-
         // Hashtag Radio Channel Action Dialog
         if (selectedTagForAction != null) {
             val tag = selectedTagForAction!!
@@ -493,8 +484,7 @@ fun FeedScreen(
 @Composable
 fun FacebookTopBar(
     activePeersCount: Int = 0,
-    onSearchClick: () -> Unit = {},
-    onShareNearbyClick: () -> Unit = {}
+    onSearchClick: () -> Unit = {}
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -542,37 +532,20 @@ fun FacebookTopBar(
                 }
             }
 
-            // Top action buttons (Share Nearby & Search)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                IconButton(
-                    onClick = onShareNearbyClick,
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(FbSurfaceElevated)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.WifiTethering,
-                        contentDescription = "Share Nearby APK",
-                        tint = FacebookBlue,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                IconButton(
-                    onClick = onSearchClick,
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(FbSurfaceElevated)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Search,
-                        contentDescription = "Search",
-                        tint = FbTextPrimary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+            // Top action button (Search)
+            IconButton(
+                onClick = onSearchClick,
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(FbSurfaceElevated)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Search,
+                    contentDescription = "Search",
+                    tint = FbTextPrimary,
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
     }
