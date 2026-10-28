@@ -1,5 +1,6 @@
+- Added ShareIt-style animated radar with pulsing sonar rings and rotating sweep beam
+- Plotted discovered nearby friends directly onto the radar circles around user avatar
+- Removed connect with Wi-Fi address feature and top searching status pill
 - Replaced technical jargon with human-friendly words across all screens and notifications
 - Added verified blue checkmark for friends
-- Simplified menus with top-right dropdown and segregated settings
-- Improved nearby device discovery and radar visibility
-- Added offline app sharing and developer credits for Yuvraj Poudyal
+- Added developer credits for Yuvraj Poudyal

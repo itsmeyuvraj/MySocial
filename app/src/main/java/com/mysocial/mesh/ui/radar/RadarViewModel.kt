@@ -3,6 +3,7 @@ package com.mysocial.mesh.ui.radar
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mysocial.mesh.data.MeshRepository
+import com.mysocial.mesh.model.ProfileViewEntity
 import com.mysocial.mesh.protocol.SyncEvent
 import com.mysocial.mesh.service.MeshSyncService
 import com.mysocial.mesh.transport.DiscoveredPeer
@@ -88,6 +89,11 @@ class RadarViewModel(
         .map { profiles -> profiles.filter { it.isVerifiedInPerson }.map { it.authorId }.toSet() }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    val myProfile: StateFlow<ProfileViewEntity?> = repository.observeMyProfile()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val myAuthorId: String get() = repository.cryptoManager.authorId
 
     fun toggleFollow(targetAuthorId: String, following: Boolean) {
         viewModelScope.launch {

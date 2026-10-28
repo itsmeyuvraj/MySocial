@@ -88,3 +88,4 @@ class ChangelogViewTest {
         assertEquals(ChangelogCategory.IMPROVEMENT, detectCategory("Simplified menus and replaced technical jargon"))
     }
 }
+
