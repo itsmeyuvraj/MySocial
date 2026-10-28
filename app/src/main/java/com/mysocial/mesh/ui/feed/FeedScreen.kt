@@ -167,9 +167,11 @@ fun FeedScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     if (!isSearchActive) {
-                        // "What's on your mind?" Post Creator Box
-                        item {
-                            WhatsOnYourMindCard(onClick = onNavigateToCompose)
+                        // "What's on your mind?" Post Creator Box (Nearby Feed only)
+                        if (isOpenMeshFilter) {
+                            item {
+                                WhatsOnYourMindCard(onClick = onNavigateToCompose)
+                            }
                         }
 
                         // Friendly Feed Filter Tabs (Nearby vs Friends)
@@ -325,8 +327,7 @@ fun FeedScreen(
                                 )
                             } else {
                                 FeedEmptyState(
-                                    isNearby = isOpenMeshFilter,
-                                    onComposeClick = onNavigateToCompose
+                                    isNearby = isOpenMeshFilter
                                 )
                             }
                         }
@@ -779,10 +780,10 @@ fun FeedFilterPills(
 @Composable
 fun FeedEmptyState(
     isNearby: Boolean,
-    onComposeClick: () -> Unit
+    modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(14.dp),
         colors = CardDefaults.cardColors(containerColor = FbSurface),
@@ -803,7 +804,7 @@ fun FeedEmptyState(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Filled.Public,
+                    imageVector = if (isNearby) Icons.Filled.Public else Icons.Filled.Group,
                     contentDescription = null,
                     tint = FacebookBlue,
                     modifier = Modifier.size(32.dp)
@@ -831,19 +832,6 @@ fun FeedEmptyState(
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 lineHeight = 18.sp
             )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Button(
-                onClick = onComposeClick,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = FacebookBlue,
-                    contentColor = Color.White
-                ),
-                shape = RoundedCornerShape(6.dp)
-            ) {
-                Text("Write a Post", fontWeight = FontWeight.Bold)
-            }
         }
     }
 }
