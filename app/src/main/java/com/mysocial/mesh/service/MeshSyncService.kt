@@ -102,7 +102,7 @@ class MeshSyncService : Service() {
         Log.i(tag, "Starting Mesh Engine and Transports")
         _isMeshActive.value = true
 
-        val initialNotification = buildNotification("Mesh Active • Discovering peers...")
+        val initialNotification = buildNotification("Looking for nearby friends & posts...")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(
                 NOTIFICATION_ID,
@@ -223,9 +223,9 @@ class MeshSyncService : Service() {
                     lastPostCountQueryTime = now
                 }
                 val statusText = if (combined.isNotEmpty()) {
-                    "Mesh Active • ${combined.size} Peers Nearby • $cachedPostCount Posts Cached"
+                    "Connected • ${combined.size} ${if (combined.size == 1) "person" else "people"} nearby • $cachedPostCount posts saved"
                 } else {
-                    "Mesh Active • Searching for nearby devices"
+                    "Searching for nearby people..."
                 }
                 if (statusText != lastStatusText) {
                     lastStatusText = statusText
@@ -315,7 +315,7 @@ class MeshSyncService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("MySocial P2P Mesh")
+            .setContentTitle("MySocial Nearby Sharing")
             .setContentText(contentText)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setOngoing(true)
@@ -333,10 +333,10 @@ class MeshSyncService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "MySocial P2P Mesh Service",
+                "MySocial Nearby Sharing",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Monitors nearby BLE and Wi-Fi peers for offline social sync"
+                description = "Connects with nearby phones to share posts without internet"
                 setShowBadge(false)
             }
             val manager = getSystemService(NotificationManager::class.java)

@@ -28,7 +28,7 @@ class SettingsViewModel(
 
     fun setSyncInterval(seconds: Int) {
         repository.appSettings?.setSyncIntervalSeconds(seconds)
-        repository.logActivity("Sync interval set to $seconds seconds")
+        repository.logActivity("Update check set to $seconds seconds")
     }
 
     val isDarkMode: StateFlow<Boolean> =

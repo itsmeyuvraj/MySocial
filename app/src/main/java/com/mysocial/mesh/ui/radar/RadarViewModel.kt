@@ -57,13 +57,14 @@ class RadarViewModel(
                     peer.peerName.startsWith("Direct IP") ||
                     peer.peerName.startsWith("Wi-Fi Peer") ||
                     peer.peerName.startsWith("Nearby Device") ||
+                    peer.peerName.startsWith("Nearby Friend") ||
                     peer.peerName == "MeshPeer"
                 ) {
                     val fallback = otherProfiles.firstOrNull { it.authorId == peer.peerId }?.displayName
                     if (!fallback.isNullOrBlank()) {
                         peer.copy(peerName = fallback)
                     } else {
-                        peer.copy(peerName = "Nearby Peer")
+                        peer.copy(peerName = "Nearby Friend")
                     }
                 } else {
                     peer

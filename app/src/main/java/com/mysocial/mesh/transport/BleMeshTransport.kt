@@ -297,7 +297,7 @@ class BleMeshTransport(
                             val remoteDevice = socket.remoteDevice
                             val address = remoteDevice?.address ?: "BLE_L2CAP"
                             val cachedPeer = _peersMap[address] ?: _peersMap.values.find { it.hostAddress == address || it.peerId == address }
-                            val name = cachedPeer?.peerName ?: remoteDevice?.name ?: "Nearby BLE Peer"
+                            val name = cachedPeer?.peerName ?: remoteDevice?.name ?: "Nearby Friend"
                             val peerId = cachedPeer?.peerId ?: address
                             Log.i(tag, "Accepted incoming high-speed BLE L2CAP channel from $name ($address)")
 
@@ -649,7 +649,7 @@ class BleMeshTransport(
         val device = result.device ?: return
         val address = device.address ?: return
         val rssi = result.rssi
-        val deviceName = device.name ?: "Nearby BLE Peer"
+        val deviceName = device.name ?: "Nearby Friend"
         val now = System.currentTimeMillis()
 
         // Extract Extended Advertising telemetry
@@ -836,7 +836,7 @@ class BleMeshTransport(
         val knownPsm = peerPsmMap[address]
         val cachedPeer = _peersMap[address] ?: _peersMap.values.find { it.hostAddress == address || it.peerId == address }
         val peerId = cachedPeer?.peerId ?: address
-        val peerName = cachedPeer?.peerName ?: (device.name ?: "Nearby BLE Peer")
+        val peerName = cachedPeer?.peerName ?: (device.name ?: "Nearby Friend")
 
         updatePeerSyncStatus(address, true)
         updatePeerSyncStatus(peerId, true)
@@ -1090,7 +1090,7 @@ class BleMeshTransport(
         val cleanName = if (realDisplayName.isNotBlank() && realDisplayName != "MeshPeer" && realDisplayName != "User") {
             realDisplayName
         } else {
-            "Nearby BLE Peer"
+            "Nearby Friend"
         }
         val existing = _peersMap.remove(tempKey)
             ?: _peersMap.remove(realAuthorId)

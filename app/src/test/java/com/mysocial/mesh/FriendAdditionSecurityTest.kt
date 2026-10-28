@@ -92,7 +92,7 @@ class FriendAdditionSecurityTest {
 
         val (callbackSuccess, callbackMsg) = deferred.await()
         assertTrue(callbackSuccess)
-        assertEquals("Followed @bob5678", callbackMsg)
+        assertEquals("Added @bob5678 as friend", callbackMsg)
 
         val followed = repository.observeFollowedAuthorIds().filter { it.contains("@bob5678") }.first()
         assertTrue(followed.contains("@bob5678"))
@@ -109,6 +109,6 @@ class FriendAdditionSecurityTest {
 
         val (callbackSuccess, errorMessage) = deferred.await()
         assertFalse(callbackSuccess)
-        assertEquals("Invalid QR code format", errorMessage)
+        assertEquals("Unrecognized QR code", errorMessage)
     }
 }

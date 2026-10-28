@@ -87,7 +87,7 @@ fun ShareApkBottomSheet(
                 errorMessage = "Failed to render QR Code: ${e.message}"
             }
         } else {
-            errorMessage = "Unable to start local APK server. Make sure Hotspot or Wi-Fi is active."
+            errorMessage = "Unable to share app. Make sure Hotspot or Wi-Fi is turned on."
         }
     }
 
@@ -128,7 +128,7 @@ fun ShareApkBottomSheet(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "Share mysocial APK Offline",
+                text = "Share App Without Internet",
                 color = FbTextPrimary,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
@@ -137,7 +137,7 @@ fun ShareApkBottomSheet(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Zero internet required. Transfer the installed app directly over peer-to-peer Wi-Fi or Hotspot.",
+                text = "No internet needed. Share the app directly with nearby friends over Wi-Fi or Hotspot.",
                 color = FbTextSecondary,
                 fontSize = 13.sp,
                 textAlign = TextAlign.Center,
@@ -171,7 +171,7 @@ fun ShareApkBottomSheet(
                 ) {
                     CircularProgressIndicator(color = FacebookBlue, modifier = Modifier.size(36.dp))
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text("Starting zero-internet APK server...", color = FbTextSecondary, fontSize = 13.sp)
+                    Text("Preparing to share app...", color = FbTextSecondary, fontSize = 13.sp)
                 }
             } else {
                 // QR Code Display Card
@@ -213,8 +213,8 @@ fun ShareApkBottomSheet(
                     Button(
                         onClick = {
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            clipboard.setPrimaryClip(ClipData.newPlainText("APK Link", downloadUrl))
-                            Toast.makeText(context, "URL copied", Toast.LENGTH_SHORT).show()
+                            clipboard.setPrimaryClip(ClipData.newPlainText("Download Link", downloadUrl))
+                            Toast.makeText(context, "Link copied", Toast.LENGTH_SHORT).show()
                         },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = FacebookBlue,
@@ -265,7 +265,7 @@ fun ShareApkBottomSheet(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Ask your friend to scan this QR code with their phone camera to download the app with zero internet.",
+                            text = "Ask your friend to scan this QR code with their phone camera to install the app without internet.",
                             color = FbTextPrimary,
                             fontSize = 13.sp,
                             lineHeight = 18.sp

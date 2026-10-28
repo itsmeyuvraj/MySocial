@@ -30,7 +30,7 @@ fun HopBadge(
 ) {
     if (hopCount <= 1) return
 
-    val label = "⚡ $hopCount hops • via Mule"
+    val label = if (hopCount == 2) "⚡ Passed through 2 phones" else "⚡ Passed through $hopCount phones"
     val bgColor = BadgeNearbyBg
     val textColor = BadgeNearbyText
     val icon = Icons.Filled.Bolt

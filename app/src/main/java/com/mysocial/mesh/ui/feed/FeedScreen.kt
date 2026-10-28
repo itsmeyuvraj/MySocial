@@ -241,7 +241,7 @@ fun FeedScreen(
                         if (searchQuery.isBlank()) {
                             item {
                                 SuggestedTagsRow(
-                                    tags = listOf("#mesh", "#offline", "#sos", "#photo", "#crypto", "#news"),
+                                    tags = listOf("#offline", "#nearby", "#sos", "#photo", "#friends", "#news"),
                                     onTagClick = { tag -> viewModel.setSearchQuery(tag) }
                                 )
                             }
@@ -411,7 +411,7 @@ fun FeedScreen(
                 containerColor = FbSurface,
                 title = {
                     Text(
-                        text = "#$tag Radio Channel",
+                        text = "#$tag Topic",
                         color = FbTextPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
@@ -420,7 +420,7 @@ fun FeedScreen(
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            text = "Tune in to this channel or customize your mesh media sync rules:",
+                            text = "Follow this topic or choose how photos are downloaded:",
                             color = FbTextSecondary,
                             fontSize = 13.sp
                         )
@@ -452,7 +452,7 @@ fun FeedScreen(
                             ),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(if (isPinned) "Unpin Channel" else "📌 Pin Channel (Auto-download photos)")
+                            Text(if (isPinned) "Unpin Topic" else "📌 Pin Topic (Always download photos)")
                         }
 
                         // Action 3: Mute / Unmute
@@ -467,7 +467,7 @@ fun FeedScreen(
                             ),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(if (isMuted) "Unmute Channel" else "🔇 Mute Channel (Skip photo downloads)")
+                            Text(if (isMuted) "Unmute Topic" else "🔇 Mute Topic (Don't download photos)")
                         }
                     }
                 },
@@ -843,7 +843,7 @@ fun FeedEmptyState(
 
             Text(
                 text = if (isNearby)
-                    "Share something with people around you! Posts sync automatically when devices come close to each other."
+                    "Share something with people around you! Posts are shared automatically when other phones with MySocial are nearby."
                 else
                     "Connect with friends by scanning their QR code in the Profile tab.",
                 color = FbTextSecondary,

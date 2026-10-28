@@ -268,7 +268,7 @@ class MdnsWifiTransport(
     /**
      * Connect directly to an IP address (e.g. 192.168.1.5 or 10.0.2.2) to sync gossip posts.
      */
-    fun syncWithDirectIp(targetHost: String, targetPort: Int = DEFAULT_PORT, peerName: String = "Direct IP Peer") {
+    fun syncWithDirectIp(targetHost: String, targetPort: Int = DEFAULT_PORT, peerName: String = "Nearby Friend") {
         val peerKey = "$targetHost:$targetPort"
         if (!activeSyncPeers.add(peerKey)) return
 

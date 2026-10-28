@@ -96,7 +96,7 @@ fun RadarScreen(
             onDismissRequest = { showDirectSyncDialog = false },
             title = {
                 Text(
-                    text = "Direct Connect via IP",
+                    text = "Connect via Wi-Fi Address",
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
                     color = FbTextPrimary
@@ -105,7 +105,7 @@ fun RadarScreen(
             text = {
                 Column {
                     Text(
-                        text = "Enter the local Wi-Fi IP address or host bridge IP to sync directly with nearby devices:",
+                        text = "Enter your friend's Wi-Fi address (IP) to connect directly:",
                         fontSize = 13.sp,
                         color = FbTextSecondary,
                         lineHeight = 18.sp
@@ -135,7 +135,7 @@ fun RadarScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = FacebookBlue)
                 ) {
-                    Text("Connect & Sync")
+                    Text("Connect & Share")
                 }
             },
             dismissButton = {
@@ -163,7 +163,7 @@ fun RadarScreen(
                 // Section Title: People Nearby
                 item {
                     Text(
-                        text = "People & Devices Nearby (${peers.size})",
+                        text = "People Nearby (${peers.size})",
                         color = FbTextPrimary,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
@@ -249,14 +249,14 @@ fun NearbyHeader(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Scanning Bluetooth & Wi-Fi",
+                        text = "Looking for nearby phones",
                         color = FbTextSecondary,
                         fontSize = 11.sp
                     )
                 }
             }
 
-            // Real-time Mesh Discovery Status Pill (No manual sync buttons needed)
+            // Real-time Discovery Status Pill
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -272,7 +272,7 @@ fun NearbyHeader(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = if (peerCount > 0) "$peerCount Active" else "Radar Active",
+                    text = if (peerCount > 0) "$peerCount Nearby" else "Searching Nearby",
                     color = if (peerCount > 0) FbGreen else FacebookBlue,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
@@ -349,7 +349,7 @@ fun NearbyScanningCard(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Devices with MySocial open will connect and exchange posts automatically without internet.",
+                text = "Phones with MySocial open will connect and share posts automatically without internet.",
                 color = FbTextSecondary,
                 fontSize = 13.sp,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -362,7 +362,7 @@ fun NearbyScanningCard(
             ) {
                 Icon(Icons.Filled.Lan, contentDescription = null, modifier = Modifier.size(16.dp), tint = FacebookBlue)
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("Connect via Direct IP", color = FacebookBlue, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("Connect with Wi-Fi Address", color = FacebookBlue, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
         }
     }
@@ -419,7 +419,7 @@ fun ActivityLogCard(logs: List<String>) {
         Column(modifier = Modifier.padding(14.dp)) {
             if (logs.isEmpty()) {
                 Text(
-                    text = "No recent transfer activity yet. Updates will appear here automatically.",
+                    text = "No recent activity yet. When you share or receive updates, they will appear here.",
                     color = FbTextSecondary,
                     fontSize = 13.sp
                 )

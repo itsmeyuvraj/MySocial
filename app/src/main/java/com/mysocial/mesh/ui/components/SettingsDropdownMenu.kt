@@ -100,7 +100,7 @@ fun SettingsMenuButton(
             DropdownMenuItem(
                 text = {
                     Text(
-                        text = "Mesh & Sync",
+                        text = "Nearby Sharing & Sync",
                         color = FbTextPrimary,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium
@@ -109,7 +109,7 @@ fun SettingsMenuButton(
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Sync,
-                        contentDescription = "Mesh & Sync",
+                        contentDescription = "Nearby Sharing & Sync",
                         tint = FacebookBlue,
                         modifier = Modifier.size(20.dp)
                     )
@@ -123,7 +123,7 @@ fun SettingsMenuButton(
             DropdownMenuItem(
                 text = {
                     Text(
-                        text = "Data Mule Storage",
+                        text = "Offline Message Storage",
                         color = FbTextPrimary,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium
@@ -132,7 +132,7 @@ fun SettingsMenuButton(
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Storage,
-                        contentDescription = "Data Mule Storage",
+                        contentDescription = "Offline Message Storage",
                         tint = FacebookBlue,
                         modifier = Modifier.size(20.dp)
                     )
@@ -146,7 +146,7 @@ fun SettingsMenuButton(
             DropdownMenuItem(
                 text = {
                     Text(
-                        text = "Share APK Offline",
+                        text = "Share App Offline",
                         color = FbTextPrimary,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium
@@ -155,7 +155,7 @@ fun SettingsMenuButton(
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.WifiTethering,
-                        contentDescription = "Share APK Offline",
+                        contentDescription = "Share App Offline",
                         tint = FacebookBlue,
                         modifier = Modifier.size(20.dp)
                     )

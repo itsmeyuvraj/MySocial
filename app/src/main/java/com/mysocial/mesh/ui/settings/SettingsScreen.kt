@@ -182,7 +182,7 @@ fun MeshSyncScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            SettingsTopBar(title = "Mesh & Sync", onNavigateBack = onNavigateBack)
+            SettingsTopBar(title = "Nearby Sharing & Sync", onNavigateBack = onNavigateBack)
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -223,13 +223,13 @@ fun MeshSyncScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "Sync Frequency",
+                                    text = "Check Frequency",
                                     color = FbTextPrimary,
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 15.sp
                                 )
                                 Text(
-                                    text = "Background pulse interval",
+                                    text = "How often to check for nearby updates",
                                     color = FbTextSecondary,
                                     fontSize = 12.sp
                                 )
@@ -294,7 +294,7 @@ fun MeshSyncScreen(
                         .padding(16.dp)
                 ) {
                     Text(
-                        text = "Network Diagnostics",
+                        text = "Connection Status",
                         color = FbTextPrimary,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 15.sp
@@ -310,7 +310,7 @@ fun MeshSyncScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Filled.Wifi, contentDescription = null, tint = FacebookBlue, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Wi-Fi mDNS Discovery", color = FbTextSecondary, fontSize = 13.sp)
+                            Text("Local Wi-Fi", color = FbTextSecondary, fontSize = 13.sp)
                         }
                         Text("Active", color = FbGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
@@ -327,7 +327,7 @@ fun MeshSyncScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Filled.Bluetooth, contentDescription = null, tint = FacebookBlue, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Bluetooth 5.0 (2M PHY)", color = FbTextSecondary, fontSize = 13.sp)
+                            Text("Bluetooth", color = FbTextSecondary, fontSize = 13.sp)
                         }
                         Text("Active", color = FbGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
@@ -344,7 +344,7 @@ fun MeshSyncScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Filled.Storage, contentDescription = null, tint = FacebookBlue, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Local Log Entries", color = FbTextSecondary, fontSize = 13.sp)
+                            Text("Saved updates on your device", color = FbTextSecondary, fontSize = 13.sp)
                         }
                         Text("${dbStats.totalEntries}", color = FbTextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     }
@@ -377,7 +377,7 @@ fun MuleStorageScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            SettingsTopBar(title = "Data Mule Storage", onNavigateBack = onNavigateBack)
+            SettingsTopBar(title = "Offline Message Storage", onNavigateBack = onNavigateBack)
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -417,13 +417,13 @@ fun MuleStorageScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "Mesh Data Mule Storage",
+                                    text = "Offline Message Storage",
                                     color = FbTextPrimary,
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 15.sp
                                 )
                                 Text(
-                                    text = "Stranger media cache limit",
+                                    text = "Temporary photos limit",
                                     color = FbTextSecondary,
                                     fontSize = 12.sp
                                 )
@@ -447,7 +447,7 @@ fun MuleStorageScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = "Auto-evicts oldest strangers' media when the limit is reached. Media from followed friends is never deleted.",
+                        text = "When this limit is reached, older photos from people you don't follow are automatically cleared to free up space. Photos from your friends are kept safe.",
                         color = FbTextSecondary,
                         fontSize = 12.sp,
                         lineHeight = 17.sp
@@ -584,7 +584,7 @@ fun AboutScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Build ${updateManager.currentVersionCode} • Offline peer-to-peer mesh social network with Ed25519 identity.",
+                        text = "Build ${updateManager.currentVersionCode} • Private offline social network for connecting directly with people nearby without internet or accounts.",
                         color = FbTextSecondary,
                         fontSize = 12.sp,
                         lineHeight = 16.sp
@@ -659,7 +659,7 @@ fun AboutScreen(
                 Icon(Icons.Filled.Security, contentDescription = null, tint = FbGreen, modifier = Modifier.size(14.dp))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "100% P2P Cryptographic Ledger • Zero Cloud",
+                    text = "100% Private & Direct • No Internet or Servers Needed",
                     color = FbTextTertiary,
                     fontSize = 12.sp
                 )

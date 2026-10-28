@@ -128,7 +128,7 @@ fun UpdateDialog(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Downloading update APK...",
+                                text = "Downloading update...",
                                 color = FbTextPrimary,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium

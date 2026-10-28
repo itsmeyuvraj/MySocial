@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 enum class ExpiryOption(val label: String, val durationMs: Long?) {
-    FOREVER("Forever (Default)", null),
+    FOREVER("Never", null),
     ONE_HOUR("1h", 3600_000L),
     SIX_HOURS("6h", 6 * 3600_000L),
     TWENTY_FOUR_HOURS("24h", 24 * 3600_000L)
@@ -151,7 +151,7 @@ class ComposerViewModel(
                     text.isNotBlank() -> text
                     mediaAttachment != null -> "Shared a photo"
                     validPollOptions != null -> "Participate in this poll"
-                    else -> "Beacon update"
+                    else -> "New update"
                 }
 
                 val expiresAt = _expiryOption.value.durationMs?.let { System.currentTimeMillis() + it }

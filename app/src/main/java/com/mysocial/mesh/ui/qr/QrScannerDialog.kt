@@ -283,7 +283,7 @@ fun QrScannerDialog(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Camera access is needed to scan your friend's QR code offline without the cloud.",
+                        text = "Camera access is needed to scan your friend's QR code without internet.",
                         color = Color.White.copy(alpha = 0.8f),
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center
@@ -317,7 +317,7 @@ fun QrScannerDialog(
                 }
 
                 Text(
-                    text = "Scan Peer QR Code",
+                    text = "Scan Friend's QR Code",
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp
@@ -350,7 +350,7 @@ fun QrScannerDialog(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Align your peer's QR code inside the frame",
+                    text = "Align your friend's QR code inside the frame",
                     color = Color.White,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
@@ -383,7 +383,7 @@ fun QrScannerDialog(
                 text = {
                     Column {
                         Text(
-                            text = "Paste your friend's public author ID or mysocial invite link:",
+                            text = "Paste your friend's account ID or invite link:",
                             color = FbTextSecondary,
                             fontSize = 13.sp
                         )

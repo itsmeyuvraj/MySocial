@@ -296,13 +296,13 @@ fun ComposerScreen(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "SOS / Urgent Local Broadcast",
+                                text = "SOS / Urgent Emergency Alert",
                                 color = if (isSos) Color(0xFFD32F2F) else FbTextPrimary,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Prioritizes delivery across all mesh nodes at top priority",
+                                text = "Delivers to all nearby phones immediately with highest priority",
                                 color = if (isSos) Color(0xFFB71C1C) else FbTextSecondary,
                                 fontSize = 11.sp
                             )
@@ -322,20 +322,20 @@ fun ComposerScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Ephemeral TTL Chips Row: Forever (Default), 1h, 6h, 24h
+                // Post duration options row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Filled.HourglassEmpty,
-                        contentDescription = "Expiry",
+                        contentDescription = "Expires in",
                         tint = FbTextSecondary,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Expiry:",
+                        text = "Expires in:",
                         color = FbTextSecondary,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
@@ -628,7 +628,7 @@ fun ComposerScreen(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Your post stays on your phone and shares automatically with nearby community members without internet.",
+                                text = "Your post stays on your phone and shares directly with people nearby without internet.",
                                 color = FbTextSecondary,
                                 fontSize = 11.sp,
                                 lineHeight = 16.sp
@@ -722,7 +722,7 @@ fun ComposerScreen(
                                     fontSize = 15.sp
                                 )
                                 Text(
-                                    text = "Anyone nearby on the offline mesh network",
+                                    text = "Anyone nearby, even if not added as friends",
                                     color = FbTextSecondary,
                                     fontSize = 12.sp
                                 )
@@ -778,7 +778,7 @@ fun ComposerScreen(
                                     fontSize = 15.sp
                                 )
                                 Text(
-                                    text = "Only peers you have added as friends",
+                                    text = "Only people you have added as friends",
                                     color = FbTextSecondary,
                                     fontSize = 12.sp
                                 )

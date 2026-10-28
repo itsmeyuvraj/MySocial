@@ -179,7 +179,7 @@ class MainActivity : ComponentActivity() {
                             }
                             is com.mysocial.mesh.protocol.SyncEvent.BlobCompleted -> {
                                 val name = repository.getPeerName(event.peerId)
-                                repository.logActivity("Downloaded high-res media from $name")
+                                repository.logActivity("Received photo from $name")
                             }
                             is com.mysocial.mesh.protocol.SyncEvent.Failed -> {
                                 // Routine background connection retries (omitted from UI log)
@@ -217,7 +217,7 @@ class MainActivity : ComponentActivity() {
             if (db.profileDao().getProfile(cryptoManager.authorId) == null) {
                 repository.updateProfile(
                     displayName = initialName,
-                    bio = "Connecting on MySocial offline mesh",
+                    bio = "Connecting with friends offline on MySocial",
                     avatarSeed = cryptoManager.authorId
                 )
             }
@@ -495,13 +495,13 @@ fun PermissionWarningBanner(onRequestPermissions: () -> Unit) {
             Spacer(modifier = Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Nearby permissions required",
+                    text = "Nearby permissions needed",
                     color = FacebookBlue,
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.sp
                 )
                 Text(
-                    text = "Allow nearby connections to connect with people around you.",
+                    text = "Allow nearby permissions to connect and share with people around you.",
                     color = FbTextPrimary,
                     fontSize = 11.sp
                 )

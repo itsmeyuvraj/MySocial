@@ -175,7 +175,7 @@ class Step4UiIntegrationTest {
         job.join()
 
         assertTrue(verifySuccess)
-        assertTrue(statusMsg.contains("Verified AliceFriend in person!"))
+        assertTrue(statusMsg.contains("Added AliceFriend as verified friend!"))
 
         // Check database verified flag
         val isVerified = repository.isVerifiedInPerson(friendCrypto.authorId)

@@ -154,8 +154,8 @@ fun IdentityScreen(
                                 .background(FbSurfaceElevated)
                                 .clickable {
                                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    clipboard.setPrimaryClip(ClipData.newPlainText("BBID", authorId.toFormattedBbid()))
-                                    Toast.makeText(context, "BBID copied: ${authorId.toFormattedBbid()}", Toast.LENGTH_SHORT).show()
+                                    clipboard.setPrimaryClip(ClipData.newPlainText("ID", authorId.toFormattedBbid()))
+                                    Toast.makeText(context, "ID copied: ${authorId.toFormattedBbid()}", Toast.LENGTH_SHORT).show()
                                 }
                                 .padding(horizontal = 10.dp, vertical = 6.dp)
                         ) {
@@ -169,7 +169,7 @@ fun IdentityScreen(
                             Spacer(modifier = Modifier.width(6.dp))
                             Icon(
                                 imageVector = Icons.Filled.ContentCopy,
-                                contentDescription = "Copy BBID",
+                                contentDescription = "Copy ID",
                                 tint = FacebookBlue,
                                 modifier = Modifier.size(14.dp)
                             )
@@ -190,7 +190,7 @@ fun IdentityScreen(
                                     .padding(vertical = 4.dp)
                             ) {
                                 Text(
-                                    text = if (isRawKeyExpanded) "Hide Raw Public Key" else "Advanced / Raw Public Key",
+                                    text = if (isRawKeyExpanded) "Hide Full Account Key" else "Advanced Account Key",
                                     color = FbTextTertiary,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Medium
@@ -212,8 +212,8 @@ fun IdentityScreen(
                                         .background(FbBackground)
                                         .clickable {
                                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                            clipboard.setPrimaryClip(ClipData.newPlainText("PublicKey", authorId))
-                                            Toast.makeText(context, "Raw public key copied", Toast.LENGTH_SHORT).show()
+                                            clipboard.setPrimaryClip(ClipData.newPlainText("AccountKey", authorId))
+                                            Toast.makeText(context, "Account key copied", Toast.LENGTH_SHORT).show()
                                         }
                                         .padding(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
@@ -288,7 +288,7 @@ fun IdentityScreen(
                         horizontalArrangement = Arrangement.SpaceAround
                     ) {
                         ProfileStatItem(number = "${myPosts.size}", label = "Your Posts")
-                        ProfileStatItem(number = "${dbStats.totalAuthors}", label = "Peers & Friends")
+                        ProfileStatItem(number = "${dbStats.totalAuthors}", label = "Friends & Nearby")
                         ProfileStatItem(number = "Active", label = "Offline Mode")
                     }
                 }
@@ -309,7 +309,7 @@ fun IdentityScreen(
                             VerifiedBadge(size = 20.dp)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "In-Person Web of Trust",
+                                text = "Friend Verification",
                                 color = FbTextPrimary,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold
@@ -317,7 +317,7 @@ fun IdentityScreen(
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Verify friends in person via signed QR codes to display a verified blue tick next to their posts.",
+                            text = "Verify friends in person by scanning their QR code to give them a verified blue tick on their posts.",
                             color = FbTextSecondary,
                             fontSize = 12.sp,
                             lineHeight = 17.sp
@@ -335,7 +335,7 @@ fun IdentityScreen(
                             ) {
                                 Icon(Icons.Filled.QrCode2, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("My Trust QR", fontSize = 12.sp)
+                                Text("My QR Code", fontSize = 12.sp)
                             }
                             Button(
                                 onClick = { showScannerDialog = true },
@@ -345,7 +345,7 @@ fun IdentityScreen(
                             ) {
                                 Icon(Icons.Filled.QrCodeScanner, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Scan Friend", fontSize = 12.sp)
+                                Text("Scan Friend's QR", fontSize = 12.sp)
                             }
                         }
                     }
@@ -557,7 +557,7 @@ fun IdentityScreen(
                             VerifiedBadge(size = 20.dp)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "My Trust QR Code",
+                                text = "My Verification QR Code",
                                 color = FbTextPrimary,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp
@@ -574,7 +574,7 @@ fun IdentityScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            text = "Ask a friend to scan this with their phone to verify your identity with zero internet.",
+                            text = "Ask a friend to scan this QR code with their camera to verify each other directly without internet.",
                             color = FbTextSecondary,
                             fontSize = 13.sp,
                             textAlign = TextAlign.Center
@@ -591,7 +591,7 @@ fun IdentityScreen(
                             ) {
                                 Image(
                                     bitmap = bmp,
-                                    contentDescription = "Trust QR Code",
+                                    contentDescription = "Verification QR Code",
                                     modifier = Modifier.fillMaxSize()
                                 )
                             }

@@ -35,10 +35,10 @@ object PeerNotificationHelper {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Nearby Peer Discovery",
+                "Nearby Friends & People",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Notifications when a peer is discovered nearby"
+                description = "Notifications when someone is nearby"
                 enableVibration(true)
             }
             manager.createNotificationChannel(channel)
@@ -64,14 +64,14 @@ object PeerNotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val message = if (!peerName.isNullOrBlank() && peerName != "Nearby Device") {
+        val message = if (!peerName.isNullOrBlank() && peerName != "Nearby Device" && peerName != "Nearby Friend") {
             "$peerName is nearby"
         } else {
-            "A peer is nearby"
+            "Someone is nearby"
         }
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setContentTitle("Peer Nearby")
+            .setContentTitle("Someone Nearby")
             .setContentText(message)
             .setSmallIcon(android.R.drawable.stat_notify_chat)
             .setAutoCancel(true)

@@ -191,7 +191,7 @@ fun PostCard(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "🚨 SOS / URGENT LOCAL BROADCAST",
+                        text = "🚨 URGENT LOCAL ALERT",
                         color = Color(0xFFD32F2F),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.ExtraBold
@@ -892,7 +892,7 @@ fun PostMediaAttachmentView(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Tap to prioritize download",
+                            text = "Tap to download photo faster",
                             color = Color.White,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium

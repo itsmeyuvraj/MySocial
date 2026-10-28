@@ -76,7 +76,7 @@ class MeshRepository(
     private val timeFormat = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault())
 
     private val _activityLogs = MutableStateFlow<List<String>>(
-        listOf("${timeFormat.format(java.util.Date())} • Mesh active • Scanning for nearby devices")
+        listOf("${timeFormat.format(java.util.Date())} • Looking for people nearby")
     )
     val activityLogs: StateFlow<List<String>> = _activityLogs.asStateFlow()
 
@@ -108,7 +108,7 @@ class MeshRepository(
         val deduplicated = filtered.distinctBy { it.peerId }
         _discoveredPeers.value = deduplicated
         if (deduplicated.size > oldSize && deduplicated.isNotEmpty()) {
-            val peerName = deduplicated.lastOrNull()?.peerName ?: "Peer"
+            val peerName = deduplicated.lastOrNull()?.peerName ?: "Friend"
             if (peerName != "Nearby Device" && !peerName.startsWith("Direct IP") && !peerName.startsWith("peer_") && !peerName.startsWith("Host ADB")) {
                 logActivity("Discovered $peerName nearby")
             }
@@ -202,7 +202,7 @@ class MeshRepository(
         return syncEngine.createAndPublishLocalEntry(ContentType.POST, payload).also {
             if (it.isSuccess) {
                 val suffix = when {
-                    isSos -> " [SOS Beacon]"
+                    isSos -> " [Urgent Alert]"
                     pollOptions != null -> " with poll"
                     media != null -> " with photo"
                     else -> ""
@@ -404,7 +404,7 @@ class MeshRepository(
         ).toJson()
         return syncEngine.createAndPublishLocalEntry(ContentType.FOLLOW, payload).also {
             if (it.isSuccess) {
-                logActivity(if (following) "Followed peer ${targetAuthorId.take(12)}" else "Unfollowed peer")
+                logActivity(if (following) "Added friend" else "Removed friend")
                 onContentPublished?.invoke()
             }
         }

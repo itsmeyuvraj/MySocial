@@ -114,10 +114,10 @@ class IdentityViewModel(
             if (trustData != null && trustData.isValidSignature) {
                 repository.toggleFollow(trustData.authorId, true)
                 repository.setVerifiedInPerson(trustData.authorId, true)
-                onResult(true, "Verified ${trustData.displayName} in person!")
+                onResult(true, "Added ${trustData.displayName} as verified friend!")
             } else if (trustData != null) {
                 repository.toggleFollow(trustData.authorId, true)
-                onResult(true, "Followed ${trustData.displayName}")
+                onResult(true, "Added ${trustData.displayName} as friend")
             } else {
                 val raw = scannedText.trim()
                 val id = if (raw.contains("authorId=")) {
@@ -129,9 +129,9 @@ class IdentityViewModel(
                 if (!id.isNullOrBlank()) {
                     val cleanId = if (!id.startsWith("@")) "@$id" else id
                     repository.toggleFollow(cleanId, true)
-                    onResult(true, "Followed $cleanId")
+                    onResult(true, "Added $cleanId as friend")
                 } else {
-                    onResult(false, "Invalid QR code format")
+                    onResult(false, "Unrecognized QR code")
                 }
             }
         }
