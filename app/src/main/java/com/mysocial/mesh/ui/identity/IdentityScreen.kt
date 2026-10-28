@@ -87,7 +87,6 @@ fun IdentityScreen(
 ) {
     val context = LocalContext.current
     val myProfile by viewModel.myProfile.collectAsState()
-    val dbStats by viewModel.dbStats.collectAsState()
     val myPosts by viewModel.myPosts.collectAsState()
     val followedAuthorIds by viewModel.followedAuthorIds.collectAsState()
     val qrBitmap by viewModel.qrBitmap.collectAsState()
@@ -136,12 +135,42 @@ fun IdentityScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        Text(
-                            text = displayName,
-                            color = FbTextPrimary,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        // Name with Small Edit Pencil Button
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = displayName,
+                                color = FbTextPrimary,
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            IconButton(
+                                onClick = {
+                                    editName = displayName
+                                    editBio = bio
+                                    showEditDialog = true
+                                },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(26.dp)
+                                        .clip(CircleShape)
+                                        .background(FbSurfaceElevated),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Edit,
+                                        contentDescription = "Edit Name",
+                                        tint = FacebookBlue,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
+                        }
 
                         Spacer(modifier = Modifier.height(6.dp))
 
@@ -239,57 +268,45 @@ fun IdentityScreen(
 
                         Spacer(modifier = Modifier.height(6.dp))
 
-                        Text(
-                            text = bio,
-                            color = FbTextSecondary,
-                            fontSize = 14.sp,
-                            textAlign = TextAlign.Center,
-                            lineHeight = 20.sp
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Edit Profile Button (Full Width Facebook Style)
-                        Button(
-                            onClick = {
-                                editName = displayName
-                                editBio = bio
-                                showEditDialog = true
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = FbSurfaceElevated,
-                                contentColor = FbTextPrimary
-                            )
+                        // Bio with Small Edit Pencil Button
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(horizontal = 16.dp)
                         ) {
-                            Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Edit Profile", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(
+                                text = bio,
+                                color = FbTextSecondary,
+                                fontSize = 14.sp,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 20.sp,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            IconButton(
+                                onClick = {
+                                    editName = displayName
+                                    editBio = bio
+                                    showEditDialog = true
+                                },
+                                modifier = Modifier.size(26.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(CircleShape)
+                                        .background(FbSurfaceElevated),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Edit,
+                                        contentDescription = "Edit Bio",
+                                        tint = FacebookBlue,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                }
+                            }
                         }
-                    }
-                }
-            }
-
-            // 2. Overview Stats Card
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp),
-                    colors = CardDefaults.cardColors(containerColor = FbSurface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 14.dp),
-                        horizontalArrangement = Arrangement.SpaceAround
-                    ) {
-                        ProfileStatItem(number = "${myPosts.size}", label = "Your Posts")
-                        ProfileStatItem(number = "${dbStats.totalAuthors}", label = "Friends & Nearby")
-                        ProfileStatItem(number = "Active", label = "Offline Mode")
                     }
                 }
             }
@@ -632,14 +649,5 @@ fun IdentityScreen(
                 }
             )
         }
-    }
-}
-
-@Composable
-fun ProfileStatItem(number: String, label: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = number, color = FacebookBlue, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(text = label, color = FbTextSecondary, fontSize = 12.sp)
     }
 }
