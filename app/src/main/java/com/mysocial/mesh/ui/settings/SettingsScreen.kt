@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
@@ -57,15 +58,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import com.mysocial.mesh.ui.components.ShareApkBottomSheet
-import com.mysocial.mesh.ui.components.UpdateDialog
-import com.mysocial.mesh.utils.AppUpdateInfo
-import com.mysocial.mesh.utils.UpdateManager
-import kotlinx.coroutines.launch
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mysocial.mesh.ui.components.ShareApkBottomSheet
+import com.mysocial.mesh.ui.components.UpdateDialog
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FacebookBlueLight
 import com.mysocial.mesh.ui.theme.FbBackground
@@ -76,68 +74,17 @@ import com.mysocial.mesh.ui.theme.FbSurfaceElevated
 import com.mysocial.mesh.ui.theme.FbTextPrimary
 import com.mysocial.mesh.ui.theme.FbTextSecondary
 import com.mysocial.mesh.ui.theme.FbTextTertiary
+import com.mysocial.mesh.utils.AppUpdateInfo
+import com.mysocial.mesh.utils.UpdateManager
+import kotlinx.coroutines.launch
 
 @Composable
-fun SettingsScreen(
+fun AppearanceScreen(
     viewModel: SettingsViewModel,
-    onNavigateBack: (() -> Unit)? = null,
+    onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-    val dbStats by viewModel.dbStats.collectAsState()
-    val syncIntervalSeconds by viewModel.syncIntervalSeconds.collectAsState()
     val isDarkMode by viewModel.isDarkMode.collectAsState()
-    val maxStrangerMediaCacheMb by viewModel.maxStrangerMediaCacheMb.collectAsState()
-    val storageUsageBytes by viewModel.storageUsageBytes.collectAsState()
-
-    LaunchedEffect(Unit) {
-        viewModel.refreshStorageUsage(context)
-    }
-
-    var showShareApkSheet by remember { mutableStateOf(false) }
-
-    val scope = rememberCoroutineScope()
-    val updateManager = remember { UpdateManager(context) }
-    var updateInfo by remember { mutableStateOf<AppUpdateInfo?>(null) }
-    var isCheckingUpdate by remember { mutableStateOf(false) }
-    var isDownloadingUpdate by remember { mutableStateOf(false) }
-    var downloadProgress by remember { mutableStateOf<Float?>(null) }
-    var showUpdateDialog by remember { mutableStateOf(false) }
-
-    if (showUpdateDialog && updateInfo != null) {
-        UpdateDialog(
-            updateInfo = updateInfo!!,
-            downloadProgress = downloadProgress,
-            isDownloading = isDownloadingUpdate,
-            onConfirmUpdate = {
-                val url = updateInfo?.downloadUrl
-                if (!url.isNullOrBlank()) {
-                    scope.launch {
-                        isDownloadingUpdate = true
-                        val file = updateManager.downloadApk(url) { progress ->
-                            downloadProgress = progress
-                        }
-                        isDownloadingUpdate = false
-                        if (file != null) {
-                            showUpdateDialog = false
-                            updateManager.promptInstall(file)
-                        } else {
-                            Toast.makeText(context, "Download failed. Please check internet connection.", Toast.LENGTH_LONG).show()
-                        }
-                    }
-                }
-            },
-            onDismiss = {
-                if (!isDownloadingUpdate) {
-                    showUpdateDialog = false
-                }
-            }
-        )
-    }
-
-    if (showShareApkSheet) {
-        ShareApkBottomSheet(onDismiss = { showShareApkSheet = false })
-    }
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -148,50 +95,9 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            // Header
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = FbSurface,
-                shadowElevation = 1.dp
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (onNavigateBack != null) {
-                        IconButton(onClick = onNavigateBack) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = FbTextPrimary
-                            )
-                        }
-                    } else {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Icon(
-                            imageVector = Icons.Filled.Settings,
-                            contentDescription = null,
-                            tint = FacebookBlue,
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                    }
-                    Text(
-                        text = "Settings",
-                        color = FbTextPrimary,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
+            SettingsTopBar(title = "Appearance", onNavigateBack = onNavigateBack)
 
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // 1. Appearance Section
-            SettingsCategoryHeader("Appearance")
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             Card(
                 modifier = Modifier
@@ -254,12 +160,31 @@ fun SettingsScreen(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun MeshSyncScreen(
+    viewModel: SettingsViewModel,
+    onNavigateBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val dbStats by viewModel.dbStats.collectAsState()
+    val syncIntervalSeconds by viewModel.syncIntervalSeconds.collectAsState()
+
+    Surface(
+        modifier = modifier.fillMaxSize(),
+        color = FbBackground
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
+            SettingsTopBar(title = "Mesh & Sync", onNavigateBack = onNavigateBack)
 
             Spacer(modifier = Modifier.height(16.dp))
-
-            // 2. Mesh & Storage Section
-            SettingsCategoryHeader("Mesh Network & Storage")
-            Spacer(modifier = Modifier.height(4.dp))
 
             // Sync Frequency Card
             Card(
@@ -283,9 +208,9 @@ fun SettingsScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(FacebookBlueLight),
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(FacebookBlueLight),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
@@ -352,9 +277,110 @@ fun SettingsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // 3. Mesh Data Mule Storage Card
+            // Network Diagnostics Card
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp),
+                colors = CardDefaults.cardColors(containerColor = FbSurface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = "Network Diagnostics",
+                        color = FbTextPrimary,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 15.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Filled.Wifi, contentDescription = null, tint = FacebookBlue, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Wi-Fi mDNS Discovery", color = FbTextSecondary, fontSize = 13.sp)
+                        }
+                        Text("Active", color = FbGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    HorizontalDivider(color = FbBorder)
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Filled.Bluetooth, contentDescription = null, tint = FacebookBlue, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Bluetooth 5.0 (2M PHY)", color = FbTextSecondary, fontSize = 13.sp)
+                        }
+                        Text("Active", color = FbGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    HorizontalDivider(color = FbBorder)
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Filled.Storage, contentDescription = null, tint = FacebookBlue, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Local Log Entries", color = FbTextSecondary, fontSize = 13.sp)
+                        }
+                        Text("${dbStats.totalEntries}", color = FbTextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MuleStorageScreen(
+    viewModel: SettingsViewModel,
+    onNavigateBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val maxStrangerMediaCacheMb by viewModel.maxStrangerMediaCacheMb.collectAsState()
+    val storageUsageBytes by viewModel.storageUsageBytes.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.refreshStorageUsage(context)
+    }
+
+    Surface(
+        modifier = modifier.fillMaxSize(),
+        color = FbBackground
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
+            SettingsTopBar(title = "Data Mule Storage", onNavigateBack = onNavigateBack)
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -419,15 +445,15 @@ fun SettingsScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = "Auto-evicts oldest strangers' media when limit is reached. Media from followed friends is never deleted.",
+                        text = "Auto-evicts oldest strangers' media when the limit is reached. Media from followed friends is never deleted.",
                         color = FbTextSecondary,
                         fontSize = 12.sp,
-                        lineHeight = 16.sp
+                        lineHeight = 17.sp
                     )
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     val storageOptions = listOf(50, 100, 250)
                     Row(
@@ -446,164 +472,69 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(16.dp))
+@Composable
+fun AboutScreen(
+    viewModel: SettingsViewModel,
+    onNavigateBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val updateManager = remember { UpdateManager(context) }
+    var updateInfo by remember { mutableStateOf<AppUpdateInfo?>(null) }
+    var isCheckingUpdate by remember { mutableStateOf(false) }
+    var isDownloadingUpdate by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableStateOf<Float?>(null) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
 
-            // 3. Offline Sharing Section
-            SettingsCategoryHeader("Offline Tools & Distribution")
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Offline APK Dispenser Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp),
-                colors = CardDefaults.cardColors(containerColor = FbSurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(FacebookBlueLight),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.WifiTethering,
-                                contentDescription = null,
-                                tint = FacebookBlue,
-                                modifier = Modifier.size(20.dp)
-                            )
+    if (showUpdateDialog && updateInfo != null) {
+        UpdateDialog(
+            updateInfo = updateInfo!!,
+            downloadProgress = downloadProgress,
+            isDownloading = isDownloadingUpdate,
+            onConfirmUpdate = {
+                val url = updateInfo?.downloadUrl
+                if (!url.isNullOrBlank()) {
+                    scope.launch {
+                        isDownloadingUpdate = true
+                        val file = updateManager.downloadApk(url) { progress ->
+                            downloadProgress = progress
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = "Share APK Offline",
-                                color = FbTextPrimary,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 15.sp
-                            )
-                            Text(
-                                text = "Zero-data local hotspot APK download",
-                                color = FbTextSecondary,
-                                fontSize = 12.sp
-                            )
+                        isDownloadingUpdate = false
+                        if (file != null) {
+                            showUpdateDialog = false
+                            updateManager.promptInstall(file)
+                        } else {
+                            Toast.makeText(context, "Download failed. Please check internet connection.", Toast.LENGTH_LONG).show()
                         }
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    Button(
-                        onClick = { showShareApkSheet = true },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = FacebookBlue,
-                            contentColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-                    ) {
-                        Text("Share", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 4. Diagnostics Section
-            SettingsCategoryHeader("Network Diagnostics & Status")
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Decentralized Mesh Network Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp),
-                colors = CardDefaults.cardColors(containerColor = FbSurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    Text(
-                        text = "Network Status",
-                        color = FbTextPrimary,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 15.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Filled.Wifi, contentDescription = null, tint = FacebookBlue, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Wi-Fi mDNS Discovery", color = FbTextSecondary, fontSize = 13.sp)
-                        }
-                        Text("Active", color = FbGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-                    HorizontalDivider(color = FbBorder)
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Filled.Bluetooth, contentDescription = null, tint = FacebookBlue, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Bluetooth 5.0 Extended Mesh", color = FbTextSecondary, fontSize = 13.sp)
-                        }
-                        Text("Active (2M PHY)", color = FbGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-                    HorizontalDivider(color = FbBorder)
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Filled.Storage, contentDescription = null, tint = FacebookBlue, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Local Log Entries", color = FbTextSecondary, fontSize = 13.sp)
-                        }
-                        Text("${dbStats.totalEntries}", color = FbTextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    }
+            },
+            onDismiss = {
+                if (!isDownloadingUpdate) {
+                    showUpdateDialog = false
                 }
             }
+        )
+    }
+
+    Surface(
+        modifier = modifier.fillMaxSize(),
+        color = FbBackground
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
+            SettingsTopBar(title = "About", onNavigateBack = onNavigateBack)
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 5. About & Updates Section
-            SettingsCategoryHeader("About & Updates")
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // App Version & Updates Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -631,32 +562,29 @@ fun SettingsScreen(
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = "App Updates & Version",
+                                text = "App Version & Updates",
                                 color = FbTextPrimary,
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 15.sp
                             )
                         }
-
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(FacebookBlueLight)
-                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                        Surface(
+                            color = FacebookBlueLight,
+                            shape = RoundedCornerShape(12.dp)
                         ) {
                             Text(
                                 text = "v${updateManager.currentVersionName}",
                                 color = FacebookBlue,
+                                fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
-
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "MySocial connects directly to GitHub Releases for seamless in-place APK updates and categorized changelogs.",
+                        text = "Build ${updateManager.currentVersionCode} • Offline peer-to-peer mesh social network with Ed25519 identity.",
                         color = FbTextSecondary,
                         fontSize = 12.sp,
                         lineHeight = 16.sp
@@ -718,7 +646,7 @@ fun SettingsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
             // Footer Privacy Note
             Row(
@@ -736,14 +664,68 @@ fun SettingsScreen(
                     fontSize = 12.sp
                 )
             }
-
-            Spacer(modifier = Modifier.height(28.dp))
         }
     }
 }
 
 @Composable
-private fun IntervalChip(
+fun SettingsScreen(
+    viewModel: SettingsViewModel,
+    onNavigateBack: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxSize(),
+        color = FbBackground
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
+            SettingsTopBar(title = "Settings", onNavigateBack = onNavigateBack ?: {})
+            // Placeholder / Unified Screen
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun SettingsTopBar(
+    title: String,
+    onNavigateBack: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = FbSurface,
+        shadowElevation = 1.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onNavigateBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = FbTextPrimary
+                )
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = title,
+                color = FbTextPrimary,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+fun IntervalChip(
     label: String,
     isSelected: Boolean,
     onClick: () -> Unit,
@@ -772,19 +754,7 @@ private fun IntervalChip(
     }
 }
 
-@Composable
-private fun SettingsCategoryHeader(title: String) {
-    Text(
-        text = title.uppercase(),
-        color = FacebookBlue,
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Bold,
-        letterSpacing = 0.8.sp,
-        modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp)
-    )
-}
-
-private fun formatIntervalShort(seconds: Int): String {
+fun formatIntervalShort(seconds: Int): String {
     return when {
         seconds < 60 -> "${seconds}s"
         seconds % 60 == 0 -> "${seconds / 60}m"

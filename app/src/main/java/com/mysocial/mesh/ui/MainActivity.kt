@@ -71,7 +71,12 @@ import com.mysocial.mesh.ui.identity.IdentityScreen
 import com.mysocial.mesh.ui.identity.IdentityViewModel
 import com.mysocial.mesh.ui.radar.RadarScreen
 import com.mysocial.mesh.ui.radar.RadarViewModel
-import com.mysocial.mesh.ui.settings.SettingsScreen
+import com.mysocial.mesh.ui.components.ShareApkBottomSheet
+import com.mysocial.mesh.ui.components.UpdateDialog
+import com.mysocial.mesh.ui.settings.AboutScreen
+import com.mysocial.mesh.ui.settings.AppearanceScreen
+import com.mysocial.mesh.ui.settings.MeshSyncScreen
+import com.mysocial.mesh.ui.settings.MuleStorageScreen
 import com.mysocial.mesh.ui.settings.SettingsViewModel
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FacebookBlueLight
@@ -82,7 +87,6 @@ import com.mysocial.mesh.ui.theme.FbTextPrimary
 import com.mysocial.mesh.ui.theme.FbTextSecondary
 import com.mysocial.mesh.ui.theme.FbTextTertiary
 import com.mysocial.mesh.ui.theme.MySocialTheme
-import com.mysocial.mesh.ui.components.UpdateDialog
 import com.mysocial.mesh.utils.AppUpdateInfo
 import com.mysocial.mesh.utils.UpdateManager
 import androidx.lifecycle.lifecycleScope
@@ -98,6 +102,13 @@ enum class NavigationTab(val title: String, val icon: ImageVector) {
     FEED("Feed", Icons.Filled.Home),
     RADAR("People Nearby", Icons.Filled.People),
     IDENTITY("Profile", Icons.Filled.Person)
+}
+
+enum class SettingsSubScreen {
+    APPEARANCE,
+    MESH_SYNC,
+    MULE_STORAGE,
+    ABOUT
 }
 
 class MainActivity : ComponentActivity() {
@@ -283,6 +294,8 @@ class MainActivity : ComponentActivity() {
     fun MainAppScaffold() {
         var selectedTab by remember { mutableIntStateOf(0) }
         var showComposer by remember { mutableStateOf(false) }
+        var currentSettingsSubScreen by remember { mutableStateOf<SettingsSubScreen?>(null) }
+        var showShareApkSheet by remember { mutableStateOf(false) }
 
         val feedViewModel = remember { FeedViewModel(repository) }
         val composerViewModel = remember { ComposerViewModel(repository) }
@@ -326,38 +339,40 @@ class MainActivity : ComponentActivity() {
 
         Scaffold(
             bottomBar = {
-                NavigationBar(
-                    containerColor = FbSurface,
-                    contentColor = FbTextPrimary,
-                    tonalElevation = 6.dp
-                ) {
-                    NavigationTab.values().forEachIndexed { index, tab ->
-                        val isSelected = selectedTab == index
-                        NavigationBarItem(
-                            selected = isSelected,
-                            onClick = { selectedTab = index },
-                            icon = {
-                                Icon(
-                                    imageVector = tab.icon,
-                                    contentDescription = tab.title,
-                                    modifier = Modifier.size(24.dp)
+                if (currentSettingsSubScreen == null) {
+                    NavigationBar(
+                        containerColor = FbSurface,
+                        contentColor = FbTextPrimary,
+                        tonalElevation = 6.dp
+                    ) {
+                        NavigationTab.values().forEachIndexed { index, tab ->
+                            val isSelected = selectedTab == index
+                            NavigationBarItem(
+                                selected = isSelected,
+                                onClick = { selectedTab = index },
+                                icon = {
+                                    Icon(
+                                        imageVector = tab.icon,
+                                        contentDescription = tab.title,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                },
+                                label = {
+                                    Text(
+                                        text = tab.title,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = FacebookBlue,
+                                    selectedTextColor = FacebookBlue,
+                                    indicatorColor = FacebookBlueLight,
+                                    unselectedIconColor = FbTextSecondary,
+                                    unselectedTextColor = FbTextSecondary
                                 )
-                            },
-                            label = {
-                                Text(
-                                    text = tab.title,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                )
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = FacebookBlue,
-                                selectedTextColor = FacebookBlue,
-                                indicatorColor = FacebookBlueLight,
-                                unselectedIconColor = FbTextSecondary,
-                                unselectedTextColor = FbTextSecondary
                             )
-                        )
+                        }
                     }
                 }
             }
@@ -367,43 +382,74 @@ class MainActivity : ComponentActivity() {
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    // Top Permission Warning Banner if permissions are missing
-                    AnimatedVisibility(visible = !hasPermissions) {
-                        PermissionWarningBanner(onRequestPermissions = { requestMeshPermissions() })
+                if (currentSettingsSubScreen != null) {
+                    BackHandler { currentSettingsSubScreen = null }
+                    when (currentSettingsSubScreen) {
+                        SettingsSubScreen.APPEARANCE -> AppearanceScreen(
+                            viewModel = settingsViewModel,
+                            onNavigateBack = { currentSettingsSubScreen = null }
+                        )
+                        SettingsSubScreen.MESH_SYNC -> MeshSyncScreen(
+                            viewModel = settingsViewModel,
+                            onNavigateBack = { currentSettingsSubScreen = null }
+                        )
+                        SettingsSubScreen.MULE_STORAGE -> MuleStorageScreen(
+                            viewModel = settingsViewModel,
+                            onNavigateBack = { currentSettingsSubScreen = null }
+                        )
+                        SettingsSubScreen.ABOUT -> AboutScreen(
+                            viewModel = settingsViewModel,
+                            onNavigateBack = { currentSettingsSubScreen = null }
+                        )
+                        null -> {}
                     }
-
-                    // Screen Body
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        when (selectedTab) {
-                            0 -> FeedScreen(
-                                viewModel = feedViewModel,
-                                settingsViewModel = settingsViewModel,
-                                onNavigateToCompose = { showComposer = true },
-                                onRefresh = {
-                                    feedViewModel.refresh {
-                                        syncService?.forceSyncAll()
-                                    }
-                                }
-                            )
-                            1 -> RadarScreen(viewModel = radarViewModel)
-                            2 -> IdentityScreen(viewModel = identityViewModel)
+                } else {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        // Top Permission Warning Banner if permissions are missing
+                        AnimatedVisibility(visible = !hasPermissions) {
+                            PermissionWarningBanner(onRequestPermissions = { requestMeshPermissions() })
                         }
 
-                        // Fullscreen Facebook-style Composer Dialog
-                        if (showComposer) {
-                            Dialog(
-                                onDismissRequest = { showComposer = false },
-                                properties = DialogProperties(usePlatformDefaultWidth = false)
-                            ) {
-                                ComposerScreen(
-                                    viewModel = composerViewModel,
-                                    onPostPublished = { showComposer = false },
-                                    onDismiss = { showComposer = false }
+                        // Screen Body
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            when (selectedTab) {
+                                0 -> FeedScreen(
+                                    viewModel = feedViewModel,
+                                    onNavigateToCompose = { showComposer = true },
+                                    onNavigateToAppearance = { currentSettingsSubScreen = SettingsSubScreen.APPEARANCE },
+                                    onNavigateToMeshSync = { currentSettingsSubScreen = SettingsSubScreen.MESH_SYNC },
+                                    onNavigateToMuleStorage = { currentSettingsSubScreen = SettingsSubScreen.MULE_STORAGE },
+                                    onNavigateToShareApk = { showShareApkSheet = true },
+                                    onNavigateToAbout = { currentSettingsSubScreen = SettingsSubScreen.ABOUT },
+                                    onRefresh = {
+                                        feedViewModel.refresh {
+                                            syncService?.forceSyncAll()
+                                        }
+                                    }
                                 )
+                                1 -> RadarScreen(viewModel = radarViewModel)
+                                2 -> IdentityScreen(viewModel = identityViewModel)
+                            }
+
+                            // Fullscreen Facebook-style Composer Dialog
+                            if (showComposer) {
+                                Dialog(
+                                    onDismissRequest = { showComposer = false },
+                                    properties = DialogProperties(usePlatformDefaultWidth = false)
+                                ) {
+                                    ComposerScreen(
+                                        viewModel = composerViewModel,
+                                        onPostPublished = { showComposer = false },
+                                        onDismiss = { showComposer = false }
+                                    )
+                                }
                             }
                         }
                     }
+                }
+
+                if (showShareApkSheet) {
+                    ShareApkBottomSheet(onDismiss = { showShareApkSheet = false })
                 }
             }
         }
