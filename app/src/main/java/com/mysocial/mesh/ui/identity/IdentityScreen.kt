@@ -24,8 +24,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Article
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
@@ -56,10 +59,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -91,9 +97,25 @@ fun IdentityScreen(
     val followedAuthorIds by viewModel.followedAuthorIds.collectAsState()
     val qrBitmap by viewModel.qrBitmap.collectAsState()
 
-    var showEditDialog by remember { mutableStateOf(false) }
-    var editName by remember { mutableStateOf("") }
-    var editBio by remember { mutableStateOf("") }
+    var isEditingName by remember { mutableStateOf(false) }
+    var tempName by remember { mutableStateOf("") }
+    var isEditingBio by remember { mutableStateOf(false) }
+    var tempBio by remember { mutableStateOf("") }
+    val nameFocusRequester = remember { FocusRequester() }
+    val bioFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(isEditingName) {
+        if (isEditingName) {
+            nameFocusRequester.requestFocus()
+        }
+    }
+
+    LaunchedEffect(isEditingBio) {
+        if (isEditingBio) {
+            bioFocusRequester.requestFocus()
+        }
+    }
+
     var showTrustQrDialog by remember { mutableStateOf(false) }
     var showScannerDialog by remember { mutableStateOf(false) }
     var selectedPostForComments by remember { mutableStateOf<com.mysocial.mesh.model.PostWithAuthor?>(null) }
@@ -135,39 +157,128 @@ fun IdentityScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Name with Small Edit Pencil Button
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                text = displayName,
-                                color = FbTextPrimary,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            IconButton(
-                                onClick = {
-                                    editName = displayName
-                                    editBio = bio
-                                    showEditDialog = true
-                                },
-                                modifier = Modifier.size(28.dp)
+                        // Name Section (Normal vs Inline Editing)
+                        if (isEditingName) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
                             ) {
-                                Box(
+                                OutlinedTextField(
+                                    value = tempName,
+                                    onValueChange = { tempName = it },
+                                    singleLine = true,
                                     modifier = Modifier
-                                        .size(26.dp)
-                                        .clip(CircleShape)
-                                        .background(FbSurfaceElevated),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Edit,
-                                        contentDescription = "Edit Name",
-                                        tint = FacebookBlue,
-                                        modifier = Modifier.size(14.dp)
+                                        .weight(1f)
+                                        .focusRequester(nameFocusRequester),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = FbTextPrimary,
+                                        unfocusedTextColor = FbTextPrimary,
+                                        focusedBorderColor = FacebookBlue,
+                                        unfocusedBorderColor = FbBorder,
+                                        cursorColor = FacebookBlue
+                                    ),
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                                    keyboardActions = KeyboardActions(
+                                        onDone = {
+                                            val clean = tempName.trim()
+                                            if (clean.isNotBlank()) {
+                                                viewModel.saveProfile(clean, bio)
+                                            }
+                                            isEditingName = false
+                                        }
                                     )
+                                )
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                // Save Name Button (Checkmark)
+                                IconButton(
+                                    onClick = {
+                                        val clean = tempName.trim()
+                                        if (clean.isNotBlank()) {
+                                            viewModel.saveProfile(clean, bio)
+                                        }
+                                        isEditingName = false
+                                    },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(34.dp)
+                                            .clip(CircleShape)
+                                            .background(FacebookBlue),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Check,
+                                            contentDescription = "Save Name",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(4.dp))
+
+                                // Cancel Name Button (Close)
+                                IconButton(
+                                    onClick = { isEditingName = false },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(34.dp)
+                                            .clip(CircleShape)
+                                            .background(FbSurfaceElevated),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Close,
+                                            contentDescription = "Cancel",
+                                            tint = FbTextSecondary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = displayName,
+                                    color = FbTextPrimary,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                IconButton(
+                                    onClick = {
+                                        tempName = displayName
+                                        isEditingName = true
+                                        isEditingBio = false
+                                    },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(26.dp)
+                                            .clip(CircleShape)
+                                            .background(FbSurfaceElevated),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Edit,
+                                            contentDescription = "Edit Name",
+                                            tint = FacebookBlue,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -268,42 +379,97 @@ fun IdentityScreen(
 
                         Spacer(modifier = Modifier.height(6.dp))
 
-                        // Bio with Small Edit Pencil Button
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center,
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        ) {
-                            Text(
-                                text = bio,
-                                color = FbTextSecondary,
-                                fontSize = 14.sp,
-                                textAlign = TextAlign.Center,
-                                lineHeight = 20.sp,
-                                modifier = Modifier.weight(1f, fill = false)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            IconButton(
-                                onClick = {
-                                    editName = displayName
-                                    editBio = bio
-                                    showEditDialog = true
-                                },
-                                modifier = Modifier.size(26.dp)
+                        // Bio Section (Normal vs Inline Editing)
+                        if (isEditingBio) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
                             ) {
-                                Box(
+                                OutlinedTextField(
+                                    value = tempBio,
+                                    onValueChange = { tempBio = it },
+                                    maxLines = 3,
+                                    placeholder = { Text("Write a short bio...", color = FbTextTertiary, fontSize = 13.sp) },
                                     modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(CircleShape)
-                                        .background(FbSurfaceElevated),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Edit,
-                                        contentDescription = "Edit Bio",
-                                        tint = FacebookBlue,
-                                        modifier = Modifier.size(13.dp)
+                                        .fillMaxWidth()
+                                        .focusRequester(bioFocusRequester),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = FbTextPrimary,
+                                        unfocusedTextColor = FbTextPrimary,
+                                        focusedBorderColor = FacebookBlue,
+                                        unfocusedBorderColor = FbBorder,
+                                        cursorColor = FacebookBlue
                                     )
+                                )
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    TextButton(
+                                        onClick = { isEditingBio = false },
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Text("Cancel", color = FbTextSecondary, fontSize = 13.sp)
+                                    }
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Button(
+                                        onClick = {
+                                            viewModel.saveProfile(displayName, tempBio.trim())
+                                            isEditingBio = false
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = FacebookBlue),
+                                        shape = RoundedCornerShape(6.dp),
+                                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                                    ) {
+                                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Save", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        } else {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center,
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            ) {
+                                Text(
+                                    text = bio,
+                                    color = FbTextSecondary,
+                                    fontSize = 14.sp,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 20.sp,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                IconButton(
+                                    onClick = {
+                                        tempBio = bio
+                                        isEditingBio = true
+                                        isEditingName = false
+                                    },
+                                    modifier = Modifier.size(26.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(CircleShape)
+                                            .background(FbSurfaceElevated),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Edit,
+                                            contentDescription = "Edit Bio",
+                                            tint = FacebookBlue,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -501,60 +667,6 @@ fun IdentityScreen(
                 },
                 onLikeComment = { commentHash ->
                     viewModel.reactToPost(commentHash)
-                }
-            )
-        }
-
-        // Edit Profile Dialog
-        if (showEditDialog) {
-            AlertDialog(
-                onDismissRequest = { showEditDialog = false },
-                containerColor = FbSurface,
-                title = { Text("Edit Profile", color = FbTextPrimary, fontWeight = FontWeight.Bold) },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        OutlinedTextField(
-                            value = editName,
-                            onValueChange = { editName = it },
-                            label = { Text("Name", color = FbTextSecondary) },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = FbTextPrimary,
-                                unfocusedTextColor = FbTextPrimary,
-                                focusedBorderColor = FacebookBlue,
-                                unfocusedBorderColor = FbBorder
-                            )
-                        )
-                        OutlinedTextField(
-                            value = editBio,
-                            onValueChange = { editBio = it },
-                            label = { Text("Bio", color = FbTextSecondary) },
-                            maxLines = 3,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = FbTextPrimary,
-                                unfocusedTextColor = FbTextPrimary,
-                                focusedBorderColor = FacebookBlue,
-                                unfocusedBorderColor = FbBorder
-                            )
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            viewModel.saveProfile(editName, editBio)
-                            showEditDialog = false
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = FacebookBlue, contentColor = Color.White),
-                        shape = RoundedCornerShape(6.dp)
-                    ) {
-                        Text("Save Changes")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showEditDialog = false }) {
-                        Text("Cancel", color = FbTextSecondary)
-                    }
                 }
             )
         }
