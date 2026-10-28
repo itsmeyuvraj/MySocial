@@ -230,9 +230,7 @@ fun PostCard(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
                         )
-                        if (postWithAuthor.isAuthorVerifiedInPerson) {
-                            VerifiedShieldBadge(size = 15.dp)
-                        } else if (isFriend) {
+                        if (isFriend || postWithAuthor.isAuthorVerifiedInPerson) {
                             VerifiedBadge(size = 15.dp)
                         }
                         Text(

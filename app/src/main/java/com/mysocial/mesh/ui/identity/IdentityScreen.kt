@@ -66,7 +66,7 @@ import androidx.compose.ui.unit.sp
 import com.mysocial.mesh.model.PostWithAuthor
 import com.mysocial.mesh.ui.components.AvatarView
 import com.mysocial.mesh.ui.components.PostCard
-import com.mysocial.mesh.ui.components.VerifiedShieldBadge
+import com.mysocial.mesh.ui.components.VerifiedBadge
 import com.mysocial.mesh.ui.qr.QrScannerDialog
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FacebookBlueLight
@@ -306,7 +306,7 @@ fun IdentityScreen(
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            VerifiedShieldBadge(size = 20.dp)
+                            VerifiedBadge(size = 20.dp)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "In-Person Web of Trust",
@@ -317,7 +317,7 @@ fun IdentityScreen(
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Verify friends in person via signed QR codes to display a green Verified Shield next to their posts.",
+                            text = "Verify friends in person via signed QR codes to display a verified blue tick next to their posts.",
                             color = FbTextSecondary,
                             fontSize = 12.sp,
                             lineHeight = 17.sp
@@ -554,7 +554,7 @@ fun IdentityScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            VerifiedShieldBadge(size = 20.dp)
+                            VerifiedBadge(size = 20.dp)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "My Trust QR Code",

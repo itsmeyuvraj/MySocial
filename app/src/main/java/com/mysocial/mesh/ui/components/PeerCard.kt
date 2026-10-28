@@ -40,7 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mysocial.mesh.protocol.TransportType
 import com.mysocial.mesh.transport.DiscoveredPeer
-import com.mysocial.mesh.ui.components.VerifiedShieldBadge
+import com.mysocial.mesh.ui.components.VerifiedBadge
 import com.mysocial.mesh.utils.toFormattedBbid
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FacebookBlueLight
@@ -103,9 +103,7 @@ fun PeerCard(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
                         )
-                        if (isVerifiedInPerson) {
-                            VerifiedShieldBadge(size = 15.dp)
-                        } else if (isFriend) {
+                        if (isFriend || isVerifiedInPerson) {
                             VerifiedBadge(size = 15.dp)
                         }
                         Text(
