@@ -83,6 +83,20 @@ class CryptoManager private constructor(
         return sign(payload)
     }
 
+    /**
+     * Encrypts a 1-on-1 direct message using ephemeral X25519 ECDH + AES-256-GCM.
+     */
+    fun encryptDirectMessage(recipientAuthorId: String, text: String): DirectMessagePayload {
+        return E2eeManager.encrypt(recipientAuthorId, text)
+    }
+
+    /**
+     * Decrypts an incoming 1-on-1 direct message using the local Ed25519 private key seed.
+     */
+    fun decryptDirectMessage(payload: DirectMessagePayload): String? {
+        return E2eeManager.decrypt(privateKeyBytes, payload)
+    }
+
     companion object {
         private const val ANDROID_KEYSTORE_PROVIDER = "AndroidKeyStore"
         private const val MASTER_KEY_ALIAS = "MySocialMeshMasterKey_v1"

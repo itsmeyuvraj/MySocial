@@ -86,6 +86,7 @@ import kotlin.math.sin
 @Composable
 fun RadarScreen(
     viewModel: RadarViewModel,
+    onNavigateToChat: (peerAuthorId: String, peerDisplayName: String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val peers by viewModel.discoveredPeers.collectAsState()
@@ -113,7 +114,10 @@ fun RadarScreen(
                         myProfile = myProfile,
                         myAuthorId = viewModel.myAuthorId,
                         peers = peers,
-                        verifiedAuthorIds = verifiedAuthorIds
+                        verifiedAuthorIds = verifiedAuthorIds,
+                        onPeerClick = { peer ->
+                            onNavigateToChat(peer.peerId, peer.peerName)
+                        }
                     )
                 }
 
@@ -168,7 +172,10 @@ fun RadarScreen(
                             isVerifiedInPerson = isVerified,
                             onToggleFriend = if (isFriend) {
                                 { viewModel.toggleFollow(peer.peerId, false) }
-                            } else null
+                            } else null,
+                            onMessageClick = {
+                                onNavigateToChat(peer.peerId, peer.peerName)
+                            }
                         )
                     }
                 }

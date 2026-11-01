@@ -29,7 +29,8 @@ enum class ContentType {
     PROFILE,
     FOLLOW,
     POST_EDIT,
-    POST_DELETE
+    POST_DELETE,
+    DIRECT_MESSAGE
 }
 
 // -----------------------------------------------------------------------------------------
@@ -339,4 +340,42 @@ data class PostWithAuthor(
 data class AuthorSequenceTuple(
     val authorId: String,
     val highestSequence: Long
+)
+
+/**
+ * Local Room Entity for decrypted 1-on-1 direct messages.
+ */
+@Entity(
+    tableName = "direct_messages",
+    indices = [
+        Index(value = ["conversationPeerId"]),
+        Index(value = ["timestamp"]),
+        Index(value = ["isRead"])
+    ]
+)
+data class DirectMessageEntity(
+    @PrimaryKey
+    val messageId: String,
+    val conversationPeerId: String,
+    val senderId: String,
+    val recipientId: String,
+    val text: String,
+    val timestamp: Long,
+    val isOutgoing: Boolean,
+    val isRead: Boolean = false,
+    val status: Int = 1 // 0 = SENDING, 1 = SENT/DELIVERED, 2 = FAILED
+)
+
+/**
+ * Summary representation of a 1-on-1 conversation thread with a peer.
+ */
+data class ConversationSummary(
+    val peerId: String,
+    val peerDisplayName: String?,
+    val peerAvatarSeed: String?,
+    val lastMessageText: String,
+    val lastMessageTimestamp: Long,
+    val unreadCount: Int,
+    val isPeerOnline: Boolean = false,
+    val isVerified: Boolean = false
 )

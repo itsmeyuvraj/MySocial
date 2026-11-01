@@ -85,6 +85,9 @@ class FeedViewModel(
     val mutedHashtags: StateFlow<Set<String>> = (repository.appSettings?.mutedHashtags ?: flowOf(emptySet()))
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
+    val unreadMessagesCount: StateFlow<Int> = repository.observeTotalUnreadMessagesCount()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
     fun pinHashtag(tag: String) {
         viewModelScope.launch {
             repository.appSettings?.pinHashtag(tag)

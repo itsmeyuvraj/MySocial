@@ -1,6 +1,7 @@
 package com.mysocial.mesh.data
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Insert
@@ -17,6 +18,7 @@ import com.mysocial.mesh.crypto.CryptoManager
 import com.mysocial.mesh.model.AuthorSequenceTuple
 import com.mysocial.mesh.model.CanonicalJson
 import com.mysocial.mesh.model.ContentType
+import com.mysocial.mesh.model.DirectMessageEntity
 import com.mysocial.mesh.model.FollowPayload
 import com.mysocial.mesh.model.FollowViewEntity
 import com.mysocial.mesh.model.LogEntry
@@ -283,6 +285,41 @@ interface PeerSyncStateDao {
     suspend fun getVectorClockTuples(): List<AuthorSequenceTuple>
 }
 
+@Dao
+interface DirectMessageDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMessage(message: DirectMessageEntity): Long
+
+    @Query("SELECT * FROM direct_messages WHERE conversationPeerId = :peerId ORDER BY timestamp ASC")
+    fun observeMessagesForPeer(peerId: String): Flow<List<DirectMessageEntity>>
+
+    @Query("""
+        SELECT * FROM direct_messages 
+        WHERE messageId IN (
+            SELECT messageId FROM direct_messages 
+            GROUP BY conversationPeerId 
+            HAVING timestamp = MAX(timestamp)
+        )
+        ORDER BY timestamp DESC
+    """)
+    fun observeRecentConversations(): Flow<List<DirectMessageEntity>>
+
+    @Query("UPDATE direct_messages SET isRead = 1 WHERE conversationPeerId = :peerId AND isOutgoing = 0")
+    suspend fun markConversationAsRead(peerId: String)
+
+    @Query("SELECT COUNT(*) FROM direct_messages WHERE isRead = 0 AND isOutgoing = 0")
+    fun observeTotalUnreadCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM direct_messages WHERE conversationPeerId = :peerId AND isRead = 0 AND isOutgoing = 0")
+    fun observeUnreadCountForPeer(peerId: String): Flow<Int>
+
+    @Query("DELETE FROM direct_messages WHERE conversationPeerId = :peerId")
+    suspend fun deleteConversation(peerId: String)
+
+    @Query("UPDATE direct_messages SET status = :newStatus WHERE messageId = :messageId")
+    suspend fun updateMessageStatus(messageId: String, newStatus: Int)
+}
+
 // -----------------------------------------------------------------------------------------
 // VALIDATION & PROJECTION ENGINE
 // -----------------------------------------------------------------------------------------
@@ -408,6 +445,10 @@ object LogValidator {
                 ContentType.POST_DELETE -> {
                     val pd = PostDeletePayload.fromJson(json)
                     pd.targetHash.isNotBlank()
+                }
+                ContentType.DIRECT_MESSAGE -> {
+                    val dm = com.mysocial.mesh.crypto.DirectMessagePayload.fromJson(json)
+                    dm.recipientId.isNotBlank() && dm.ciphertextBase64.isNotBlank() && dm.ephemeralPublicKeyBase64.isNotBlank()
                 }
             }
         } catch (e: Exception) {
@@ -611,6 +652,48 @@ object LogProjector {
                     db.postViewDao().deletePost(payload.targetHash)
                 }
             }
+
+            ContentType.DIRECT_MESSAGE -> {
+                try {
+                    val payload = com.mysocial.mesh.crypto.DirectMessagePayload.fromJson(entry.contentJson)
+                    val crypto = db.cryptoManager
+                    val myAuthorId = crypto?.authorId
+                    if (myAuthorId != null) {
+                        if (payload.recipientId == myAuthorId) {
+                            // Inbound direct message for me: attempt E2EE decryption
+                            val decryptedText = crypto.decryptDirectMessage(payload)
+                            if (decryptedText != null) {
+                                db.directMessageDao().insertMessage(
+                                    DirectMessageEntity(
+                                        messageId = payload.messageId,
+                                        conversationPeerId = entry.authorId,
+                                        senderId = entry.authorId,
+                                        recipientId = myAuthorId,
+                                        text = decryptedText,
+                                        timestamp = payload.timestamp,
+                                        isOutgoing = false,
+                                        isRead = false,
+                                        status = 1
+                                    )
+                                )
+                                // Fire high-priority direct message notification
+                                val senderProfile = db.profileDao().getProfile(entry.authorId)
+                                val senderName = senderProfile?.displayName ?: "Someone Nearby"
+                                db.appContext?.let { ctx ->
+                                    com.mysocial.mesh.utils.PeerNotificationHelper.notifyDirectMessage(
+                                        ctx, senderName, decryptedText, entry.authorId
+                                    )
+                                }
+                            }
+                        } else if (entry.authorId == myAuthorId) {
+                            // Outgoing message confirmation
+                            db.directMessageDao().updateMessageStatus(payload.messageId, 1)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w("MeshDatabase", "Failed to project direct message: ${e.message}")
+                }
+            }
         }
     }
 }
@@ -630,13 +713,20 @@ data class BatchResult(val acceptedCount: Int, val errors: List<String>)
         FollowViewEntity::class,
         PeerSyncStateEntity::class,
         BlobManifestEntity::class,
-        BlobChunkEntity::class
+        BlobChunkEntity::class,
+        DirectMessageEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
 abstract class MeshDatabase : RoomDatabase() {
+
+    @Volatile
+    var cryptoManager: com.mysocial.mesh.crypto.CryptoManager? = null
+
+    @Volatile
+    var appContext: Context? = null
 
     abstract fun logEntryDao(): LogEntryDao
     abstract fun profileDao(): ProfileDao
@@ -645,6 +735,7 @@ abstract class MeshDatabase : RoomDatabase() {
     abstract fun followDao(): FollowDao
     abstract fun peerSyncStateDao(): PeerSyncStateDao
     abstract fun blobDao(): BlobDao
+    abstract fun directMessageDao(): DirectMessageDao
 
     /**
      * Atomically validates a LogEntry and projects it into the materialized views.
@@ -767,6 +858,7 @@ abstract class MeshDatabase : RoomDatabase() {
                 .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
                 .fallbackToDestructiveMigration()
                 .build()
+                .also { it.appContext = context.applicationContext }
         }
 
         fun buildInMemory(context: Context): MeshDatabase {

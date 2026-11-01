@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,6 +29,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Group
@@ -96,6 +98,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 fun FeedScreen(
     viewModel: FeedViewModel,
     onNavigateToCompose: () -> Unit = {},
+    onNavigateToMessages: () -> Unit = {},
     onNavigateToAppearance: () -> Unit = {},
     onNavigateToMeshSync: () -> Unit = {},
     onNavigateToMuleStorage: () -> Unit = {},
@@ -114,6 +117,7 @@ fun FeedScreen(
     val isSearchActive by viewModel.isSearchActive.collectAsState()
     val pinnedHashtags by viewModel.pinnedHashtags.collectAsState()
     val mutedHashtags by viewModel.mutedHashtags.collectAsState()
+    val unreadMessagesCount by viewModel.unreadMessagesCount.collectAsState()
 
     val context = LocalContext.current
     var selectedPostForComments by remember { mutableStateOf<PostWithAuthor?>(null) }
@@ -139,7 +143,9 @@ fun FeedScreen(
             ) {
                 FacebookTopBar(
                     activePeersCount = activeNearbyPeers.size,
+                    unreadMessagesCount = unreadMessagesCount,
                     onSearchClick = { viewModel.openSearch() },
+                    onNavigateToMessages = onNavigateToMessages,
                     onNavigateToAppearance = onNavigateToAppearance,
                     onNavigateToMeshSync = onNavigateToMeshSync,
                     onNavigateToMuleStorage = onNavigateToMuleStorage,
@@ -486,7 +492,9 @@ fun FeedScreen(
 @Composable
 fun FacebookTopBar(
     activePeersCount: Int = 0,
+    unreadMessagesCount: Int = 0,
     onSearchClick: () -> Unit = {},
+    onNavigateToMessages: () -> Unit = {},
     onNavigateToAppearance: () -> Unit = {},
     onNavigateToMeshSync: () -> Unit = {},
     onNavigateToMuleStorage: () -> Unit = {},
@@ -557,6 +565,40 @@ fun FacebookTopBar(
                         tint = FbTextPrimary,
                         modifier = Modifier.size(20.dp)
                     )
+                }
+
+                // Messenger Button with live unread badge
+                Box {
+                    IconButton(
+                        onClick = onNavigateToMessages,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(FbSurfaceElevated)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Chat,
+                            contentDescription = "Messages",
+                            tint = FbTextPrimary,
+                            modifier = Modifier.size(19.dp)
+                        )
+                    }
+                    if (unreadMessagesCount > 0) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 3.dp, y = (-3).dp)
+                                .background(Color(0xFFE41E3F), CircleShape)
+                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = if (unreadMessagesCount > 99) "99+" else "$unreadMessagesCount",
+                                color = Color.White,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
 
                 SettingsMenuButton(

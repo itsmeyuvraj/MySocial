@@ -17,9 +17,64 @@ object PeerNotificationHelper {
     private const val TAG = "PeerNotificationHelper"
     private const val CHANNEL_ID = "peer_nearby_channel"
     private const val NOTIFICATION_ID = 2002
+    private const val DM_CHANNEL_ID = "direct_messages_channel"
+    private const val DM_NOTIFICATION_ID_BASE = 3000
 
     @Volatile
     private var lastNotifiedTimestamp = 0L
+
+    fun notifyDirectMessage(context: Context, senderName: String, messageSnippet: String, peerId: String) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            ?: return
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                DM_CHANNEL_ID,
+                "Private Messages",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Notifications for private end-to-end encrypted direct messages"
+                enableVibration(true)
+            }
+            manager.createNotificationChannel(channel)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                return
+            }
+        }
+
+        val launchIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("open_chat_peer_id", peerId)
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            peerId.hashCode(),
+            launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(context, DM_CHANNEL_ID)
+            .setContentTitle(senderName)
+            .setContentText(messageSnippet)
+            .setSmallIcon(android.R.drawable.stat_notify_chat)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .build()
+
+        try {
+            val notifId = DM_NOTIFICATION_ID_BASE + (peerId.hashCode() and 0x7FFF)
+            manager.notify(notifId, notification)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to post direct message notification", e)
+        }
+    }
 
     fun notifyPeerNearby(context: Context, peerName: String? = null) {
         val now = System.currentTimeMillis()

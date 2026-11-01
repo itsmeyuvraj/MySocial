@@ -69,6 +69,10 @@ import com.mysocial.mesh.ui.feed.FeedScreen
 import com.mysocial.mesh.ui.feed.FeedViewModel
 import com.mysocial.mesh.ui.identity.IdentityScreen
 import com.mysocial.mesh.ui.identity.IdentityViewModel
+import com.mysocial.mesh.ui.messages.ChatScreen
+import com.mysocial.mesh.ui.messages.ChatViewModel
+import com.mysocial.mesh.ui.messages.MessagesListScreen
+import com.mysocial.mesh.ui.messages.MessagesViewModel
 import com.mysocial.mesh.ui.radar.RadarScreen
 import com.mysocial.mesh.ui.radar.RadarViewModel
 import com.mysocial.mesh.ui.components.ShareApkBottomSheet
@@ -120,6 +124,7 @@ class MainActivity : ComponentActivity() {
     private var hasPermissions by mutableStateOf(false)
     private var pendingUpdateInfo by mutableStateOf<AppUpdateInfo?>(null)
     private var targetTab by mutableIntStateOf(0)
+    private var pendingChatPeerId by mutableStateOf<String?>(null)
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -127,6 +132,10 @@ class MainActivity : ComponentActivity() {
         val tab = intent.getIntExtra("open_tab", -1)
         if (tab != -1) {
             targetTab = tab
+        }
+        val chatPeerId = intent.getStringExtra("open_chat_peer_id")
+        if (!chatPeerId.isNullOrBlank()) {
+            pendingChatPeerId = chatPeerId
         }
     }
 
@@ -246,6 +255,10 @@ class MainActivity : ComponentActivity() {
         if (initialTab != -1) {
             targetTab = initialTab
         }
+        val initialChatPeerId = intent?.getStringExtra("open_chat_peer_id")
+        if (!initialChatPeerId.isNullOrBlank()) {
+            pendingChatPeerId = initialChatPeerId
+        }
 
         setContent {
             val isDarkMode by appSettings.isDarkMode.collectAsState()
@@ -315,6 +328,18 @@ class MainActivity : ComponentActivity() {
         var currentSettingsSubScreen by remember { mutableStateOf<SettingsSubScreen?>(null) }
         var showShareApkSheet by remember { mutableStateOf(false) }
 
+        var showMessagesList by remember { mutableStateOf(false) }
+        var activeChatPeer by remember { mutableStateOf<Pair<String, String>?>(null) }
+
+        LaunchedEffect(pendingChatPeerId) {
+            val peerId = pendingChatPeerId
+            if (peerId != null) {
+                val peerName = repository.getPeerDisplayName(peerId)
+                activeChatPeer = Pair(peerId, peerName)
+                pendingChatPeerId = null
+            }
+        }
+
         val feedViewModel = remember { FeedViewModel(repository) }
         val composerViewModel = remember { ComposerViewModel(repository) }
         val radarViewModel = remember { RadarViewModel(repository, getService = { syncService }) }
@@ -357,7 +382,7 @@ class MainActivity : ComponentActivity() {
 
         Scaffold(
             bottomBar = {
-                if (currentSettingsSubScreen == null) {
+                if (currentSettingsSubScreen == null && !showMessagesList && activeChatPeer == null) {
                     NavigationBar(
                         containerColor = FbSurface,
                         contentColor = FbTextPrimary,
@@ -400,7 +425,28 @@ class MainActivity : ComponentActivity() {
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
-                if (currentSettingsSubScreen != null) {
+                if (activeChatPeer != null) {
+                    val peer = activeChatPeer!!
+                    val chatViewModel = remember(peer.first) {
+                        ChatViewModel(peer.first, repository)
+                    }
+                    ChatScreen(
+                        viewModel = chatViewModel,
+                        peerDisplayName = peer.second,
+                        onNavigateBack = { activeChatPeer = null }
+                    )
+                } else if (showMessagesList) {
+                    val messagesViewModel = remember {
+                        MessagesViewModel(repository)
+                    }
+                    MessagesListScreen(
+                        viewModel = messagesViewModel,
+                        onNavigateBack = { showMessagesList = false },
+                        onOpenChat = { peerId, peerName ->
+                            activeChatPeer = Pair(peerId, peerName)
+                        }
+                    )
+                } else if (currentSettingsSubScreen != null) {
                     BackHandler { currentSettingsSubScreen = null }
                     when (currentSettingsSubScreen) {
                         SettingsSubScreen.APPEARANCE -> AppearanceScreen(
@@ -434,6 +480,7 @@ class MainActivity : ComponentActivity() {
                                 0 -> FeedScreen(
                                     viewModel = feedViewModel,
                                     onNavigateToCompose = { showComposer = true },
+                                    onNavigateToMessages = { showMessagesList = true },
                                     onNavigateToAppearance = { currentSettingsSubScreen = SettingsSubScreen.APPEARANCE },
                                     onNavigateToMeshSync = { currentSettingsSubScreen = SettingsSubScreen.MESH_SYNC },
                                     onNavigateToMuleStorage = { currentSettingsSubScreen = SettingsSubScreen.MULE_STORAGE },
@@ -445,7 +492,12 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                 )
-                                1 -> RadarScreen(viewModel = radarViewModel)
+                                1 -> RadarScreen(
+                                    viewModel = radarViewModel,
+                                    onNavigateToChat = { peerId, peerName ->
+                                        activeChatPeer = Pair(peerId, peerName)
+                                    }
+                                )
                                 2 -> IdentityScreen(viewModel = identityViewModel)
                             }
 

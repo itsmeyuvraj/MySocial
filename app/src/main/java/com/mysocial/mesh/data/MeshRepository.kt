@@ -1,8 +1,11 @@
 package com.mysocial.mesh.data
 
 import android.content.Context
+import android.util.Log
 import com.mysocial.mesh.crypto.CryptoManager
 import com.mysocial.mesh.model.ContentType
+import com.mysocial.mesh.model.ConversationSummary
+import com.mysocial.mesh.model.DirectMessageEntity
 import com.mysocial.mesh.model.FollowPayload
 import com.mysocial.mesh.model.LogEntry
 import com.mysocial.mesh.model.PostPayload
@@ -53,6 +56,7 @@ class MeshRepository(
     val discoveredPeers: StateFlow<List<DiscoveredPeer>> = _discoveredPeers.asStateFlow()
 
     init {
+        db.cryptoManager = cryptoManager
         startStalePeerPruner()
     }
 
@@ -96,6 +100,17 @@ class MeshRepository(
             "Nearby Device (${peerId.removePrefix("direct_").replace('_', '.')})"
         } else {
             "Nearby Device"
+        }
+    }
+
+    suspend fun getPeerDisplayName(peerId: String): String {
+        return withContext(Dispatchers.IO) {
+            val profile = db.profileDao().getProfile(peerId)
+            if (!profile?.displayName.isNullOrBlank()) {
+                profile.displayName
+            } else {
+                getPeerName(peerId)
+            }
         }
     }
 
@@ -430,18 +445,25 @@ class MeshRepository(
         return db.followDao().observeFollowedAuthorIds(cryptoManager.authorId)
     }
 
+    fun observeAllProfiles(): Flow<List<ProfileViewEntity>> {
+        return db.profileDao().observeAllProfiles()
+    }
+
+    fun observeFollowedProfiles(): Flow<List<ProfileViewEntity>> {
+        return combine(
+            observeFollowedAuthorIds(),
+            db.profileDao().observeAllProfiles()
+        ) { followedIds, profiles ->
+            val set = followedIds.toSet()
+            profiles.filter { set.contains(it.authorId) }
+        }
+    }
+
     /**
      * Observes a profile by authorId.
      */
     fun observeProfile(authorId: String): Flow<ProfileViewEntity?> {
         return db.profileDao().observeProfile(authorId)
-    }
-
-    /**
-     * Observes all profiles currently stored in the database.
-     */
-    fun observeAllProfiles(): Flow<List<ProfileViewEntity>> {
-        return db.profileDao().observeAllProfiles()
     }
 
     suspend fun getProfile(authorId: String): ProfileViewEntity? {
@@ -473,5 +495,108 @@ class MeshRepository(
 
     suspend fun getTotalPostsCount(): Int = withContext(Dispatchers.IO) {
         db.postViewDao().getTotalPostsCount()
+    }
+
+    /**
+     * Sends an End-to-End Encrypted (E2EE) 1-on-1 private message to a recipient.
+     * The plaintext is encrypted using ephemeral X25519 ECDH + AES-256-GCM, saved locally,
+     * and gossiped as a ContentType.DIRECT_MESSAGE LogEntry.
+     */
+    suspend fun sendDirectMessage(recipientAuthorId: String, text: String): Result<DirectMessageEntity> {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return Result.failure(IllegalArgumentException("Message cannot be blank"))
+
+        return withContext(Dispatchers.IO) {
+            try {
+                // 1. Encrypt via E2eeManager
+                val payload = cryptoManager.encryptDirectMessage(recipientAuthorId, trimmed)
+                val now = System.currentTimeMillis()
+
+                // 2. Insert into local direct_messages table as outgoing message (status: 0 = SENDING)
+                val entity = DirectMessageEntity(
+                    messageId = payload.messageId,
+                    conversationPeerId = recipientAuthorId,
+                    senderId = cryptoManager.authorId,
+                    recipientId = recipientAuthorId,
+                    text = trimmed,
+                    timestamp = now,
+                    isOutgoing = true,
+                    isRead = true,
+                    status = 0
+                )
+                db.directMessageDao().insertMessage(entity)
+
+                // 3. Publish to local append-only log so it gossips across the mesh
+                val result = syncEngine.createAndPublishLocalEntry(
+                    ContentType.DIRECT_MESSAGE,
+                    payload.toJson()
+                )
+
+                if (result.isSuccess) {
+                    db.directMessageDao().updateMessageStatus(payload.messageId, 1) // 1 = SENT
+                    logActivity("Sent encrypted direct message to ${recipientAuthorId.take(12)}...")
+                    onContentPublished?.invoke()
+                    Result.success(entity.copy(status = 1))
+                } else {
+                    db.directMessageDao().updateMessageStatus(payload.messageId, 2) // 2 = FAILED
+                    Result.failure(result.exceptionOrNull() ?: IllegalStateException("Failed to publish direct message"))
+                }
+            } catch (e: Exception) {
+                Log.e("MeshRepository", "Failed to send direct message: ${e.message}", e)
+                Result.failure(e)
+            }
+        }
+    }
+
+    /**
+     * Observes the ordered message history for a 1-on-1 conversation thread.
+     */
+    fun observeMessagesForPeer(peerId: String): Flow<List<DirectMessageEntity>> {
+        return db.directMessageDao().observeMessagesForPeer(peerId)
+    }
+
+    /**
+     * Observes conversation threads with peers, enriched with profile, verification, and online status.
+     */
+    fun observeConversations(): Flow<List<ConversationSummary>> {
+        return combine(
+            db.directMessageDao().observeRecentConversations(),
+            db.profileDao().observeAllProfiles(),
+            discoveredPeers
+        ) { recentMsgs, profiles, peers ->
+            val profilesMap = profiles.associateBy { it.authorId }
+            val onlinePeerIds = peers.map { it.peerId }.toSet()
+
+            recentMsgs.map { msg ->
+                val peerId = msg.conversationPeerId
+                val profile = profilesMap[peerId]
+                ConversationSummary(
+                    peerId = peerId,
+                    peerDisplayName = profile?.displayName,
+                    peerAvatarSeed = profile?.avatarSeed ?: peerId,
+                    lastMessageText = msg.text,
+                    lastMessageTimestamp = msg.timestamp,
+                    unreadCount = if (!msg.isOutgoing && !msg.isRead) 1 else 0,
+                    isPeerOnline = onlinePeerIds.contains(peerId),
+                    isVerified = profile?.isVerifiedInPerson == true
+                )
+            }
+        }
+    }
+
+    /**
+     * Marks all unread incoming messages in a conversation as read.
+     */
+    suspend fun markConversationAsRead(peerId: String) {
+        withContext(Dispatchers.IO) {
+            db.directMessageDao().markConversationAsRead(peerId)
+        }
+    }
+
+    /**
+     * Observes total unread incoming direct messages for badges and top bar indicators.
+     */
+    fun observeTotalUnreadMessagesCount(): Flow<Int> {
+        return db.directMessageDao().observeTotalUnreadCount()
     }
 }
