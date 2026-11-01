@@ -363,8 +363,14 @@ class MeshRepository(
 
     /**
      * Adds an emoji reaction to a post, incrementing likeCount.
+     * Checks if the user has already reacted to prevent duplicate log entries.
      */
     suspend fun reactToPost(targetHash: String, emoji: String = "❤️"): Result<LogEntry> {
+        // Guard: prevent duplicate reactions from creating wasteful log entries
+        val alreadyReacted = db.reactionDao().hasUserReacted(targetHash, cryptoManager.authorId, emoji)
+        if (alreadyReacted > 0) {
+            return Result.failure(IllegalStateException("Already liked"))
+        }
         val payload = ReactionPayload(
             targetHash = targetHash,
             emoji = emoji

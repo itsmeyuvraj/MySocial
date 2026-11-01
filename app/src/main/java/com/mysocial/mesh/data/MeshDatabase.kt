@@ -208,6 +208,9 @@ interface ReactionDao {
     @Query("SELECT COUNT(*) FROM reactions_view WHERE targetHash = :targetHash AND authorId = :authorId AND emoji = :emoji")
     suspend fun hasUserReacted(targetHash: String, authorId: String, emoji: String): Int
 
+    @Query("SELECT COUNT(*) FROM reactions_view WHERE targetHash = :targetHash AND authorId = :authorId AND pollOptionIndex IS NULL")
+    fun observeHasUserLiked(targetHash: String, authorId: String): Flow<Int>
+
     @Query("SELECT * FROM reactions_view WHERE targetHash = :targetHash")
     fun observeReactionsForPost(targetHash: String): Flow<List<ReactionEntity>>
 

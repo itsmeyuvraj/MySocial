@@ -121,8 +121,10 @@ fun PostCard(
     val authorId = post.authorId
     val isMyPost = currentAuthorId != null && authorId == currentAuthorId
 
-    var isLiked by remember { mutableStateOf(false) }
-    val likeCount = if (isLiked) maxOf(post.likeCount, 1) else post.likeCount
+    // Use database-backed like state so the button reflects whether the user already liked
+    val dbLikedCount by db.reactionDao().observeHasUserLiked(post.entryHash, currentAuthorId ?: "").collectAsState(initial = 0)
+    val isLiked = dbLikedCount > 0
+    val likeCount = post.likeCount
 
     var showMenu by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
@@ -585,8 +587,9 @@ fun PostCard(
                         .weight(1f)
                         .clip(RoundedCornerShape(6.dp))
                         .clickable {
-                            isLiked = !isLiked
-                            onLikeClick()
+                            if (!isLiked) {
+                                onLikeClick()
+                            }
                         }
                         .padding(vertical = 8.dp),
                     horizontalArrangement = Arrangement.Center,
