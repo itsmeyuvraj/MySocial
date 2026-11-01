@@ -94,9 +94,21 @@ class CryptoManager private constructor(
 
         private val secureRandom = SecureRandom()
 
-        // High-performance caches to prevent redundant BouncyCastle & Base64 allocations
-        private val publicKeyBytesCache = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
-        private val publicKeyParamsCache = java.util.concurrent.ConcurrentHashMap<String, Ed25519PublicKeyParameters>()
+        // High-performance bounded LRU caches (max 1024 entries) to avoid unbounded heap growth in dense crowds
+        private val publicKeyBytesCache = java.util.Collections.synchronizedMap(
+            object : java.util.LinkedHashMap<String, ByteArray>(128, 0.75f, true) {
+                override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ByteArray>?): Boolean {
+                    return size > 1024
+                }
+            }
+        )
+        private val publicKeyParamsCache = java.util.Collections.synchronizedMap(
+            object : java.util.LinkedHashMap<String, Ed25519PublicKeyParameters>(128, 0.75f, true) {
+                override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Ed25519PublicKeyParameters>?): Boolean {
+                    return size > 1024
+                }
+            }
+        )
         
         // Bounded LRU cache for already verified signatures (max 4096 entries)
         private val verifiedSignatureCache = java.util.Collections.synchronizedMap(
@@ -153,8 +165,9 @@ class CryptoManager private constructor(
             canonicalPayload: String,
             signatureBase64: String
         ): Boolean {
-            // Check verification cache first to avoid repetitive elliptic curve operations
-            val cacheKey = "$authorId:${signatureBase64.hashCode()}:${canonicalPayload.hashCode()}"
+            // Check verification cache using SHA-256 payload binding to prevent both replay tampering and 32-bit hash collision
+            val payloadHash = sha256Hex(canonicalPayload)
+            val cacheKey = "$authorId:$signatureBase64:$payloadHash"
             if (verifiedSignatureCache[cacheKey] == true) {
                 return true
             }

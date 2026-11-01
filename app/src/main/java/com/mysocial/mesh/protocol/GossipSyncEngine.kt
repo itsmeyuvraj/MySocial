@@ -534,17 +534,27 @@ class GossipSyncEngine(
 
             if (computedHash.equals(blobHash, ignoreCase = true)) {
                 if (blobFile.exists()) blobFile.delete()
-                tempFile.renameTo(blobFile)
+                val renamed = tempFile.renameTo(blobFile) || try {
+                    tempFile.copyTo(blobFile, overwrite = true)
+                    tempFile.delete()
+                    true
+                } catch (_: Exception) {
+                    false
+                }
 
-                // Clean up chunk rows from database to save storage
-                db.blobDao().deleteChunksForBlob(blobHash)
-                db.blobDao().markComplete(blobHash, blobFile.absolutePath)
+                if (renamed) {
+                    // Clean up chunk rows from database to save storage
+                    db.blobDao().deleteChunksForBlob(blobHash)
+                    db.blobDao().markComplete(blobHash, blobFile.absolutePath)
 
-                Log.i(tag, "Successfully verified and assembled blob $blobHash (${blobFile.length()} bytes)")
-                _syncEvents.emit(SyncEvent.BlobCompleted(peerId, blobHash))
+                    Log.i(tag, "Successfully verified and assembled blob $blobHash (${blobFile.length()} bytes)")
+                    _syncEvents.emit(SyncEvent.BlobCompleted(peerId, blobHash))
 
-                // Mule Storage Ring-Buffer auto-eviction check for strangers' media
-                pruneStrangerMediaIfOverCapacity()
+                    // Mule Storage Ring-Buffer auto-eviction check for strangers' media
+                    pruneStrangerMediaIfOverCapacity()
+                } else {
+                    Log.e(tag, "Failed to move temporary blob file to $blobFile")
+                }
             } else {
                 tempFile.delete()
                 Log.e(tag, "SHA-256 verification failed for blob $blobHash: computed $computedHash")

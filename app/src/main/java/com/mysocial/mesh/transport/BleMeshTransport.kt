@@ -99,9 +99,9 @@ class BleMeshTransport(
     private val peerSequenceMap = ConcurrentHashMap<String, Long>()
 
     // Dynamic broadcast state
-    private var currentDisplayName: String = localDisplayName
-    private var currentLatestSequence: Long = 0L
-    private var currentBroadcastData: ByteArray? = null
+    @Volatile private var currentDisplayName: String = localDisplayName
+    @Volatile private var currentLatestSequence: Long = 0L
+    @Volatile private var currentBroadcastData: ByteArray? = null
 
     private val _broadcastDataFlow = MutableSharedFlow<Pair<String, ByteArray>>(extraBufferCapacity = 64)
     val broadcastDataFlow: SharedFlow<Pair<String, ByteArray>> = _broadcastDataFlow.asSharedFlow()
@@ -114,6 +114,7 @@ class BleMeshTransport(
         private const val RSSI_THROTTLE_DELTA_DBM = 6
         private const val PEER_UPDATE_THROTTLE_MS = 2_000L
         private const val GATT_CONNECT_TIMEOUT_MS = 15_000L
+        private const val MAX_CONCURRENT_BLE_SYNC = 2
     }
 
     private val bluetoothManager: BluetoothManager? by lazy {
@@ -302,13 +303,18 @@ class BleMeshTransport(
                             Log.i(tag, "Accepted incoming high-speed BLE L2CAP channel from $name ($address)")
 
                             scope.launch(Dispatchers.IO) {
-                                val connection = BluetoothSocketPeerConnection(
-                                    peerId = peerId,
-                                    peerName = name,
-                                    transportType = TransportType.BLE,
-                                    socket = socket
-                                )
-                                syncEngine.syncWithPeer(connection)
+                                var connection: BluetoothSocketPeerConnection? = null
+                                try {
+                                    connection = BluetoothSocketPeerConnection(
+                                        peerId = peerId,
+                                        peerName = name,
+                                        transportType = TransportType.BLE,
+                                        socket = socket
+                                    )
+                                    syncEngine.syncWithPeer(connection)
+                                } finally {
+                                    try { connection?.close() } catch (_: Exception) {}
+                                }
                             }
                         } catch (e: Exception) {
                             if (!isRunning.get()) break
@@ -775,11 +781,13 @@ class BleMeshTransport(
         service.addCharacteristic(psmCharacteristic)
 
         gattServer = bm.openGattServer(context, object : BluetoothGattServerCallback() {
-            private val reassembler = BleReassembler()
+            // Per-device reassemblers to prevent concurrent packet interleaving in dense crowds
+            private val deviceReassemblers = ConcurrentHashMap<String, BleReassembler>()
 
             override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
                 if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                    reassembler.reset()
+                    val addr = device.address ?: return
+                    deviceReassemblers.remove(addr)?.reset()
                 }
             }
 
@@ -810,10 +818,13 @@ class BleMeshTransport(
                     gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
                 }
 
+                val addr = device.address ?: return
+                val reassembler = deviceReassemblers.getOrPut(addr) { BleReassembler() }
                 val completePayload = reassembler.processChunk(value)
                 if (completePayload != null) {
+                    deviceReassemblers.remove(addr)
                     val json = String(completePayload, Charsets.UTF_8)
-                    Log.d(tag, "Received complete BLE message: ${json.take(40)}...")
+                    Log.d(tag, "Received complete BLE message from $addr: ${json.take(40)}...")
                 }
             }
         })
@@ -830,6 +841,13 @@ class BleMeshTransport(
     private fun connectAndSync(device: BluetoothDevice) {
         val address = device.address ?: return
         val now = System.currentTimeMillis()
+
+        // Crowd control: limit concurrent outbound BLE connections to prevent Android GATT saturation (max 2-3)
+        if (activeSyncDevices.size >= MAX_CONCURRENT_BLE_SYNC) {
+            Log.d(tag, "Crowd backoff: Active BLE sync slots full ($MAX_CONCURRENT_BLE_SYNC), deferring sync with $address")
+            return
+        }
+
         if (!activeSyncDevices.add(address)) return
         lastSyncAttempt[address] = now
 
@@ -845,11 +863,12 @@ class BleMeshTransport(
         if (knownPsm != null && knownPsm > 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             Log.i(tag, "Fast-path: Connecting directly via BLE L2CAP CoC to $address on known PSM $knownPsm (Extended Advertising)")
             scope.launch(Dispatchers.IO) {
+                var conn: BluetoothSocketPeerConnection? = null
                 try {
                     val l2capSocket = device.createInsecureL2capChannel(knownPsm)
                     l2capSocket.connect()
                     Log.i(tag, "Successfully connected direct BLE L2CAP channel to $address (bypassed GATT roundtrips)")
-                    val conn = BluetoothSocketPeerConnection(
+                    conn = BluetoothSocketPeerConnection(
                         peerId = peerId,
                         peerName = peerName,
                         transportType = TransportType.BLE,
@@ -862,6 +881,7 @@ class BleMeshTransport(
                     peerPsmMap.remove(peerId)
                     connectViaGattDiscovery(device, address, peerId, peerName)
                 } finally {
+                    try { conn?.close() } catch (_: Exception) {}
                     activeSyncDevices.remove(address)
                     activeSyncDevices.remove(peerId)
                     updatePeerSyncStatus(address, false)
@@ -1013,11 +1033,12 @@ class BleMeshTransport(
                                     activeGattClients.remove(address)
 
                                     scope.launch(Dispatchers.IO) {
+                                        var conn: BluetoothSocketPeerConnection? = null
                                         try {
                                             val l2capSocket = device.createInsecureL2capChannel(remotePsm)
                                             l2capSocket.connect()
                                             Log.i(tag, "Successfully connected BLE L2CAP channel to $address")
-                                            val conn = BluetoothSocketPeerConnection(
+                                            conn = BluetoothSocketPeerConnection(
                                                 peerId = peerId,
                                                 peerName = peerName,
                                                 transportType = TransportType.BLE,
@@ -1027,6 +1048,7 @@ class BleMeshTransport(
                                         } catch (e: Exception) {
                                             Log.w(tag, "L2CAP connection failed to $address: ${e.message}")
                                         } finally {
+                                            try { conn?.close() } catch (_: Exception) {}
                                             activeSyncDevices.remove(address)
                                             activeSyncDevices.remove(peerId)
                                             updatePeerSyncStatus(address, false)

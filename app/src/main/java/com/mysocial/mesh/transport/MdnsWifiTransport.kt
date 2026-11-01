@@ -84,6 +84,7 @@ class MdnsWifiTransport(
     companion object {
         const val DEFAULT_PORT = 42530
         const val ADB_REVERSE_PORT = 42535
+        private const val MAX_CONCURRENT_WIFI_SYNC = 4
     }
 
     val isEmulator: Boolean by lazy {
@@ -527,6 +528,12 @@ class MdnsWifiTransport(
     }
 
     private fun triggerOutboundSync(hostAddress: String, port: Int, peerId: String, peerName: String) {
+        // Crowd control: limit concurrent outbound Wi-Fi syncs to avoid flooding local AP / hotspot
+        if (activeSyncPeers.size >= MAX_CONCURRENT_WIFI_SYNC) {
+            Log.d(tag, "Crowd backoff: Active Wi-Fi sync slots full ($MAX_CONCURRENT_WIFI_SYNC), deferring sync with $peerId")
+            return
+        }
+
         if (!activeSyncPeers.add(peerId)) {
             // Already syncing with this peer
             return

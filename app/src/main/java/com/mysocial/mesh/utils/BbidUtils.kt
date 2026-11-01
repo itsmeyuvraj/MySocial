@@ -16,7 +16,14 @@ object BbidUtils {
     // Crockford Base32 alphabet (excludes I, L, O, U to avoid confusion)
     private const val CROCKFORD_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
-    private val bbidCache = ConcurrentHashMap<String, String>()
+    // Bounded LRU cache (max 1024 entries) to avoid memory leaks in large crowd settings
+    private val bbidCache = java.util.Collections.synchronizedMap(
+        object : java.util.LinkedHashMap<String, String>(128, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?): Boolean {
+                return size > 1024
+            }
+        }
+    )
 
     fun generateBbid(authorId: String): String {
         bbidCache[authorId]?.let { return it }
