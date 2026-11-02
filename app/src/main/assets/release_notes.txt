@@ -1,7 +1,11 @@
-* Added inline profile editing to update Name and Bio directly on screen with pencil buttons
-* Added ShareIt-style animated radar for discovering people nearby with real-time peer blips
-* Streamlined profile layout removing cluttered stats cards to focus on your identity and posts
-* Added verified blue checkmark for friends and trusted connections
-* Replaced technical jargon with simple, human-friendly words across all screens
-* Added offline app sharing to share MySocial with friends nearby without internet
-* Added developer credits for creator Yuvraj Poudyal
+* Feature: End-to-End Encrypted (E2EE) 1-on-1 private messaging secured with X25519 ECDH and AES-256-GCM
+* Feature: Encrypted photo and media sharing with micro-previews and resumable mesh chunk transfer
+* Feature: Voice notes and audio messages with live duration ticker, progress scrubber, and native player
+* Feature: Delivery receipts (double white ticks) and read receipts (vibrant double blue ticks)
+* Improved: Instant reactive media download and preview rendering in direct message threads
+* Improved: Prioritized background blob chunk streaming for private messages over active peer connections
+* Improved: Dual-transport mesh over Bluetooth 5.0+ LE 2M secondary PHY and Local Wi-Fi LAN / Hotspot mDNS
+* Improved: Configurable mule storage ring buffer to auto-prune expired posts and stranger media
+* Feature: Offline APK sharing to send MySocial to nearby friends without internet
+* Feature: ShareIt-style animated radar for discovering nearby people with real-time signal blips
+* Security: In-person QR code identity handshake and verified blue checkmark trust badges
