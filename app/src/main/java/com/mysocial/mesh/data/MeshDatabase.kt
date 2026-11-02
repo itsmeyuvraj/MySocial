@@ -213,6 +213,9 @@ interface ReactionDao {
     @Query("SELECT COUNT(*) FROM reactions_view WHERE targetHash = :targetHash AND authorId = :authorId AND pollOptionIndex IS NULL")
     fun observeHasUserLiked(targetHash: String, authorId: String): Flow<Int>
 
+    @Query("SELECT targetHash FROM reactions_view WHERE authorId = :authorId AND pollOptionIndex IS NULL")
+    fun observeUserLikedPostHashes(authorId: String): Flow<List<String>>
+
     @Query("SELECT * FROM reactions_view WHERE targetHash = :targetHash")
     fun observeReactionsForPost(targetHash: String): Flow<List<ReactionEntity>>
 
@@ -782,7 +785,7 @@ data class BatchResult(val acceptedCount: Int, val errors: List<String>)
         BlobChunkEntity::class,
         DirectMessageEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -912,6 +915,16 @@ abstract class MeshDatabase : RoomDatabase() {
     companion object {
         private const val DATABASE_NAME = "mysocial_mesh.db"
 
+        val MIGRATION_6_7 = object : androidx.room.migration.Migration(6, 7) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_posts_view_replyToHash_isSos_timestamp` ON `posts_view` (`replyToHash`, `isSos`, `timestamp`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_posts_view_authorId_replyToHash_timestamp` ON `posts_view` (`authorId`, `replyToHash`, `timestamp`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_direct_messages_conversationPeerId_timestamp` ON `direct_messages` (`conversationPeerId`, `timestamp`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_direct_messages_isRead_isOutgoing` ON `direct_messages` (`isRead`, `isOutgoing`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_reactions_view_authorId_pollOptionIndex` ON `reactions_view` (`authorId`, `pollOptionIndex`)")
+            }
+        }
+
         @Volatile
         private var INSTANCE: MeshDatabase? = null
 
@@ -928,6 +941,7 @@ abstract class MeshDatabase : RoomDatabase() {
                 DATABASE_NAME
             )
                 .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
+                .addMigrations(MIGRATION_6_7)
                 .fallbackToDestructiveMigration()
                 .build()
                 .also { it.appContext = context.applicationContext }

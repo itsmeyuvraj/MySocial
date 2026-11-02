@@ -110,10 +110,10 @@ fun PostCard(
     isAuthorOnline: Boolean = false,
     isFriend: Boolean = false,
     onToggleFriend: (() -> Unit)? = null,
+    isLiked: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val db = remember(context) { MeshDatabase.getInstance(context) }
     val post = postWithAuthor.post
     val profile = postWithAuthor.authorProfile
 
@@ -121,9 +121,6 @@ fun PostCard(
     val authorId = post.authorId
     val isMyPost = currentAuthorId != null && authorId == currentAuthorId
 
-    // Use database-backed like state so the button reflects whether the user already liked
-    val dbLikedCount by db.reactionDao().observeHasUserLiked(post.entryHash, currentAuthorId ?: "").collectAsState(initial = 0)
-    val isLiked = dbLikedCount > 0
     val likeCount = post.likeCount
 
     var showMenu by remember { mutableStateOf(false) }
@@ -408,7 +405,8 @@ fun PostCard(
 
                 if (pollOptions.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(10.dp))
-                    val allPollReactions by db.reactionDao().observePollVotesForPost(post.entryHash).collectAsState(initial = emptyList())
+                    val pollDb = remember(context) { MeshDatabase.getInstance(context) }
+                    val allPollReactions by pollDb.reactionDao().observePollVotesForPost(post.entryHash).collectAsState(initial = emptyList())
                     val activeVotes = remember(allPollReactions) {
                         allPollReactions.sortedBy { it.timestamp }.associate { it.authorId to it.pollOptionIndex }
                     }

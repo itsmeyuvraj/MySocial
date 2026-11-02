@@ -89,6 +89,7 @@ fun PeerProfileScreen(
     val profile by repository.observeProfile(peerAuthorId).collectAsState(initial = null)
     val posts by repository.observePostsByAuthor(peerAuthorId).collectAsState(initial = emptyList())
     val followedAuthorIds by repository.observeFollowedAuthorIds().collectAsState(initial = emptyList())
+    val likedPostHashes by repository.observeUserLikedPostHashes(repository.cryptoManager.authorId).collectAsState(initial = emptySet())
     val discoveredPeers by repository.discoveredPeers.collectAsState()
 
     val currentPeer = discoveredPeers.find { it.peerId == peerAuthorId }
@@ -431,7 +432,8 @@ fun PeerProfileScreen(
                             onReplyClick = {},
                             currentAuthorId = repository.cryptoManager.authorId,
                             isAuthorOnline = isNearby,
-                            isFriend = isFriend
+                            isFriend = isFriend,
+                            isLiked = postWithAuthor.post.entryHash in likedPostHashes
                         )
                     }
                 }

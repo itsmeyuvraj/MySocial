@@ -120,6 +120,7 @@ fun FeedScreen(
     val activeNearbyPeers by viewModel.activeNearbyPeers.collectAsState()
     val onlineAuthorIds by viewModel.onlineAuthorIds.collectAsState()
     val followedAuthorIds by viewModel.followedAuthorIds.collectAsState()
+    val likedPostHashes by viewModel.userLikedPostHashes.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isSearchActive by viewModel.isSearchActive.collectAsState()
     val pinnedHashtags by viewModel.pinnedHashtags.collectAsState()
@@ -374,6 +375,7 @@ fun FeedScreen(
                                 currentAuthorId = viewModel.currentAuthorId,
                                 isAuthorOnline = isOnline,
                                 isFriend = isFriend,
+                                isLiked = postWithAuthor.post.entryHash in likedPostHashes,
                                 onToggleFriend = if (isFriend) {
                                     { viewModel.toggleFollow(postWithAuthor.post.authorId, false) }
                                 } else null

@@ -22,6 +22,8 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.currentCoroutineContext
 
 class RadarViewModel(
     private val repository: MeshRepository,
@@ -29,7 +31,7 @@ class RadarViewModel(
 ) : ViewModel() {
 
     private val ticker = flow {
-        while (true) {
+        while (currentCoroutineContext().isActive) {
             emit(System.currentTimeMillis())
             delay(3000)
         }

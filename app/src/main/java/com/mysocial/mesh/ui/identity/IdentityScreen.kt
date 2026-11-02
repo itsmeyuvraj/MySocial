@@ -95,6 +95,7 @@ fun IdentityScreen(
     val myProfile by viewModel.myProfile.collectAsState()
     val myPosts by viewModel.myPosts.collectAsState()
     val followedAuthorIds by viewModel.followedAuthorIds.collectAsState()
+    val likedPostHashes by viewModel.userLikedPostHashes.collectAsState()
     val qrBitmap by viewModel.qrBitmap.collectAsState()
 
     var isEditingName by remember { mutableStateOf(false) }
@@ -632,6 +633,7 @@ fun IdentityScreen(
                         currentAuthorId = authorId,
                         isAuthorOnline = true,
                         isFriend = false,
+                        isLiked = postItem.post.entryHash in likedPostHashes,
                         modifier = Modifier.padding(horizontal = 14.dp)
                     )
                 }

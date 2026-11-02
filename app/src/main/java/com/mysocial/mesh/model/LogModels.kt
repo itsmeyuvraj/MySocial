@@ -253,7 +253,9 @@ data class ProfileViewEntity(
         Index(value = ["replyToHash"]),
         Index(value = ["rootHash"]),
         Index(value = ["expiresAt"]),
-        Index(value = ["isSos"])
+        Index(value = ["isSos"]),
+        Index(value = ["replyToHash", "isSos", "timestamp"]),
+        Index(value = ["authorId", "replyToHash", "timestamp"])
     ]
 )
 data class PostViewEntity(
@@ -289,7 +291,8 @@ data class PostViewEntity(
     primaryKeys = ["targetHash", "authorId", "emoji"],
     indices = [
         Index(value = ["targetHash"]),
-        Index(value = ["authorId"])
+        Index(value = ["authorId"]),
+        Index(value = ["authorId", "pollOptionIndex"])
     ]
 )
 data class ReactionEntity(
@@ -394,7 +397,9 @@ data class DirectMessageContent(
     indices = [
         Index(value = ["conversationPeerId"]),
         Index(value = ["timestamp"]),
-        Index(value = ["isRead"])
+        Index(value = ["isRead"]),
+        Index(value = ["conversationPeerId", "timestamp"]),
+        Index(value = ["isRead", "isOutgoing"])
     ]
 )
 data class DirectMessageEntity(

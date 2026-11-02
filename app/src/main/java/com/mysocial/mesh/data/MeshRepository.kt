@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
 import kotlinx.coroutines.CoroutineScope
@@ -262,6 +263,13 @@ class MeshRepository(
      */
     fun observePollVotes(targetHash: String): Flow<List<com.mysocial.mesh.model.ReactionEntity>> {
         return db.reactionDao().observePollVotesForPost(targetHash)
+    }
+
+    /**
+     * Observes the set of post entryHashes that the given user has liked.
+     */
+    fun observeUserLikedPostHashes(authorId: String): Flow<Set<String>> {
+        return db.reactionDao().observeUserLikedPostHashes(authorId).map { it.toSet() }
     }
 
     suspend fun setVerifiedInPerson(authorId: String, verified: Boolean) {

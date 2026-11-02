@@ -23,10 +23,16 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.currentCoroutineContext
 
 class FeedViewModel(
     private val repository: MeshRepository
 ) : ViewModel() {
+
+    val currentAuthorId: String = repository.cryptoManager.authorId
+
+    val userLikedPostHashes: StateFlow<Set<String>> = repository.observeUserLikedPostHashes(currentAuthorId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     private val _openMeshFilter = MutableStateFlow(true)
     val openMeshFilter: StateFlow<Boolean> = _openMeshFilter.asStateFlow()
@@ -54,7 +60,7 @@ class FeedViewModel(
     }
 
     private val ticker = flow {
-        while (true) {
+        while (currentCoroutineContext().isActive) {
             emit(System.currentTimeMillis())
             delay(3000)
         }
@@ -188,8 +194,6 @@ class FeedViewModel(
             repository.reactToPost(targetHash, emoji = "❤️")
         }
     }
-
-    val currentAuthorId: String = repository.cryptoManager.authorId
 
     fun replyToPost(text: String, rootHash: String, parentHash: String) {
         viewModelScope.launch {

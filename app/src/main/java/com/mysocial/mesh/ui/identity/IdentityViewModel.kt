@@ -27,6 +27,9 @@ class IdentityViewModel(
 
     val authorId: String = repository.cryptoManager.authorId
 
+    val userLikedPostHashes: StateFlow<Set<String>> = repository.observeUserLikedPostHashes(authorId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
     val followedAuthorIds: StateFlow<Set<String>> = repository.observeFollowedAuthorIds()
         .map { it.toSet() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
