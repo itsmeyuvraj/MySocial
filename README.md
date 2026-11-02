@@ -116,6 +116,19 @@ To enable viral offline software distribution without app stores:
 
 ---
 
+## ⚡ Performance & Reactive Concurrency
+
+- **O(1) Screen-Level Like Reactivity:** Lifted user reaction state (`userLikedPostHashes: StateFlow<Set<String>>`) to ViewModel scopes (`FeedViewModel`, `IdentityViewModel`, `PeerProfileScreen`), replacing $O(N)$ per-post Room cursor subscriptions with a single screen-level database flow and $O(1)$ in-memory lookups.
+- **Optimized Composite SQLite Indices:** Added multi-column covering indices for high-frequency queries:
+  - `posts_view(replyToHash, isSos, timestamp)` and `posts_view(authorId, replyToHash, timestamp)` for sort-free feed retrieval.
+  - `direct_messages(conversationPeerId, timestamp)` and `direct_messages(isRead, isOutgoing)` for instant chat ordering and unread counts.
+  - `reactions_view(authorId, pollOptionIndex)` for index-only reaction scans.
+- **Non-Destructive Migration (v6 → v7):** Safe, atomic database index upgrades via `MIGRATION_6_7` preserving all local user posts, messages, and cryptographic keys.
+- **Atomic Batch Log Projection:** Anti-entropy sync validates and commits entire batches in a single SQLite transaction with coalesced vector clock updates, minimizing disk `fsync` overhead and UI recomposition triggers.
+- **Hardware-Delegated Duty Cycling:** Uses Bluetooth controller-level duty cycling (`ScanSettings.SCAN_MODE_BALANCED`) and bounded LRU caches for public key parameters and signature verification to avoid heap bloat and CPU thrashing in dense crowds.
+
+---
+
 ## 📁 Repository Structure
 
 ```
