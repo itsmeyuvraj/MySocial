@@ -663,25 +663,55 @@ object LogProjector {
                             // Inbound direct message for me: attempt E2EE decryption
                             val decryptedText = crypto.decryptDirectMessage(payload)
                             if (decryptedText != null) {
+                                val content = com.mysocial.mesh.model.DirectMessageContent.fromDecryptedString(decryptedText)
+
+                                // If message contains media blob, register incomplete manifest so gossip sync downloads it
+                                if (content.mediaBlobHash != null) {
+                                    val existingManifest = db.blobDao().getManifest(content.mediaBlobHash)
+                                    if (existingManifest == null) {
+                                        db.blobDao().upsertManifest(
+                                            BlobManifestEntity(
+                                                blobHash = content.mediaBlobHash,
+                                                totalBytes = content.mediaTotalBytes ?: 0L,
+                                                chunkCount = content.mediaChunkCount ?: 1,
+                                                mimeType = content.mediaMimeType ?: (if (content.mediaType == "AUDIO") "audio/m4a" else "image/webp"),
+                                                isComplete = false,
+                                                localFilePath = null
+                                            )
+                                        )
+                                    }
+                                }
+
                                 db.directMessageDao().insertMessage(
                                     DirectMessageEntity(
                                         messageId = payload.messageId,
                                         conversationPeerId = entry.authorId,
                                         senderId = entry.authorId,
                                         recipientId = myAuthorId,
-                                        text = decryptedText,
+                                        text = content.text,
                                         timestamp = payload.timestamp,
                                         isOutgoing = false,
                                         isRead = false,
-                                        status = 1
+                                        status = 1,
+                                        mediaType = content.mediaType,
+                                        mediaBlobHash = content.mediaBlobHash,
+                                        mediaMimeType = content.mediaMimeType,
+                                        mediaChunkCount = content.mediaChunkCount,
+                                        mediaDurationMs = content.mediaDurationMs,
+                                        mediaMicroPreviewBase64 = content.mediaMicroPreviewBase64
                                     )
                                 )
                                 // Fire high-priority direct message notification
                                 val senderProfile = db.profileDao().getProfile(entry.authorId)
                                 val senderName = senderProfile?.displayName ?: "Someone Nearby"
+                                val notifSnippet = when (content.mediaType) {
+                                    "IMAGE" -> if (content.text.isNotBlank()) "📷 ${content.text}" else "📷 Photo"
+                                    "AUDIO" -> "🎤 Voice message (${((content.mediaDurationMs ?: 0L) / 1000).coerceAtLeast(1)}s)"
+                                    else -> content.text
+                                }
                                 db.appContext?.let { ctx ->
                                     com.mysocial.mesh.utils.PeerNotificationHelper.notifyDirectMessage(
-                                        ctx, senderName, decryptedText, entry.authorId
+                                        ctx, senderName, notifSnippet, entry.authorId
                                     )
                                 }
                             }
@@ -716,7 +746,7 @@ data class BatchResult(val acceptedCount: Int, val errors: List<String>)
         BlobChunkEntity::class,
         DirectMessageEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

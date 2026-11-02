@@ -204,6 +204,34 @@ object MediaProcessor {
     }
 
     /**
+     * Processes an audio file (e.g. AAC / M4A recorded voice note) for chunked mesh transfer.
+     */
+    suspend fun processAudioFile(
+        context: Context,
+        audioFile: File,
+        durationMs: Long
+    ): ProcessedMedia = withContext(Dispatchers.IO) {
+        val audioBytes = audioFile.readBytes()
+        val blobHash = CryptoManager.sha256Hex(audioBytes)
+
+        val blobsDir = getBlobsDirectory(context)
+        val blobFile = File(blobsDir, "$blobHash.blob")
+        blobFile.writeBytes(audioBytes)
+
+        val totalBytes = audioBytes.size.toLong()
+        val chunkCount = if (totalBytes == 0L) 0 else ((totalBytes + CHUNK_SIZE - 1) / CHUNK_SIZE).toInt()
+
+        ProcessedMedia(
+            blobHash = blobHash,
+            totalBytes = totalBytes,
+            chunkCount = chunkCount,
+            mimeType = "audio/m4a",
+            microPreviewBase64 = "",
+            localFile = blobFile
+        )
+    }
+
+    /**
      * Decodes a local file into a Bitmap with caching.
      */
     fun decodeBlobFile(file: File?): Bitmap? {

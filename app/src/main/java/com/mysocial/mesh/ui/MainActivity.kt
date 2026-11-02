@@ -283,6 +283,7 @@ class MainActivity : ComponentActivity() {
         val list = mutableListOf<String>()
 
         list.add(Manifest.permission.CAMERA)
+        list.add(Manifest.permission.RECORD_AUDIO)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             list.add(Manifest.permission.POST_NOTIFICATIONS)

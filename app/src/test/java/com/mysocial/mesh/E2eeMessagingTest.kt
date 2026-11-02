@@ -2,6 +2,7 @@ package com.mysocial.mesh
 
 import com.mysocial.mesh.crypto.CryptoManager
 import com.mysocial.mesh.crypto.E2eeManager
+import com.mysocial.mesh.model.DirectMessageContent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -53,6 +54,41 @@ class E2eeMessagingTest {
 
         val decrypted = bob.decryptDirectMessage(tamperedPayload)
         assertNull("Tampered GCM ciphertext must fail authentication and return null", decrypted)
+    }
+
+    @Test
+    fun testDirectMessageWithMediaContentSerializationAndDecryption() {
+        val alice = CryptoManager.createInMemory()
+        val bob = CryptoManager.createInMemory()
+
+        val content = DirectMessageContent(
+            text = "Listen to this audio note!",
+            mediaType = "AUDIO",
+            mediaBlobHash = "a1b2c3d4e5f67890abcdef1234567890abcdef1234567890abcdef1234567890",
+            mediaMimeType = "audio/m4a",
+            mediaTotalBytes = 64500L,
+            mediaChunkCount = 4,
+            mediaDurationMs = 4200L
+        )
+
+        val payload = alice.encryptDirectMessage(bob.authorId, content.toJson())
+        val decryptedByBob = bob.decryptDirectMessage(payload)
+        assertNotNull(decryptedByBob)
+
+        val parsed = DirectMessageContent.fromDecryptedString(decryptedByBob!!)
+        assertEquals("Listen to this audio note!", parsed.text)
+        assertEquals("AUDIO", parsed.mediaType)
+        assertEquals(content.mediaBlobHash, parsed.mediaBlobHash)
+        assertEquals(4200L, parsed.mediaDurationMs)
+    }
+
+    @Test
+    fun testDirectMessageContentBackwardCompatibility() {
+        val rawLegacyText = "Just an old raw text message"
+        val parsed = DirectMessageContent.fromDecryptedString(rawLegacyText)
+        assertEquals(rawLegacyText, parsed.text)
+        assertNull(parsed.mediaType)
+        assertNull(parsed.mediaBlobHash)
     }
 }
 

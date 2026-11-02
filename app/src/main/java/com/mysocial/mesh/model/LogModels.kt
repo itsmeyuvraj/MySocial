@@ -343,6 +343,34 @@ data class AuthorSequenceTuple(
 )
 
 /**
+ * Decrypted content of a 1-on-1 private message.
+ * Supports plain text, encrypted photos, and voice notes.
+ */
+@Serializable
+data class DirectMessageContent(
+    val text: String = "",
+    val mediaType: String? = null, // "IMAGE", "AUDIO"
+    val mediaBlobHash: String? = null,
+    val mediaMimeType: String? = null, // "image/webp", "audio/m4a"
+    val mediaTotalBytes: Long? = null,
+    val mediaChunkCount: Int? = null,
+    val mediaDurationMs: Long? = null,
+    val mediaMicroPreviewBase64: String? = null
+) {
+    fun toJson(): String = CanonicalJson.encodeToString(this)
+
+    companion object {
+        fun fromDecryptedString(raw: String): DirectMessageContent {
+            return try {
+                CanonicalJson.decodeFromString(raw)
+            } catch (_: Exception) {
+                DirectMessageContent(text = raw)
+            }
+        }
+    }
+}
+
+/**
  * Local Room Entity for decrypted 1-on-1 direct messages.
  */
 @Entity(
@@ -363,7 +391,13 @@ data class DirectMessageEntity(
     val timestamp: Long,
     val isOutgoing: Boolean,
     val isRead: Boolean = false,
-    val status: Int = 1 // 0 = SENDING, 1 = SENT/DELIVERED, 2 = FAILED
+    val status: Int = 1, // 0 = SENDING, 1 = SENT/DELIVERED, 2 = FAILED
+    val mediaType: String? = null, // "IMAGE", "AUDIO"
+    val mediaBlobHash: String? = null,
+    val mediaMimeType: String? = null,
+    val mediaChunkCount: Int? = null,
+    val mediaDurationMs: Long? = null,
+    val mediaMicroPreviewBase64: String? = null
 )
 
 /**

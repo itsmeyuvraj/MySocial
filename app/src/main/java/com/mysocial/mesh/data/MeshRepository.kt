@@ -5,6 +5,7 @@ import android.util.Log
 import com.mysocial.mesh.crypto.CryptoManager
 import com.mysocial.mesh.model.ContentType
 import com.mysocial.mesh.model.ConversationSummary
+import com.mysocial.mesh.model.DirectMessageContent
 import com.mysocial.mesh.model.DirectMessageEntity
 import com.mysocial.mesh.model.FollowPayload
 import com.mysocial.mesh.model.LogEntry
@@ -508,8 +509,9 @@ class MeshRepository(
 
         return withContext(Dispatchers.IO) {
             try {
-                // 1. Encrypt via E2eeManager
-                val payload = cryptoManager.encryptDirectMessage(recipientAuthorId, trimmed)
+                // 1. Structure as DirectMessageContent and encrypt via E2eeManager
+                val content = DirectMessageContent(text = trimmed)
+                val payload = cryptoManager.encryptDirectMessage(recipientAuthorId, content.toJson())
                 val now = System.currentTimeMillis()
 
                 // 2. Insert into local direct_messages table as outgoing message (status: 0 = SENDING)
@@ -549,6 +551,76 @@ class MeshRepository(
     }
 
     /**
+     * Sends an End-to-End Encrypted (E2EE) 1-on-1 private message containing media (photo or voice note).
+     */
+    suspend fun sendDirectMessageWithMedia(
+        recipientAuthorId: String,
+        text: String = "",
+        mediaType: String, // "IMAGE" or "AUDIO"
+        blobHash: String,
+        mimeType: String,
+        totalBytes: Long,
+        chunkCount: Int,
+        durationMs: Long? = null,
+        microPreviewBase64: String? = null
+    ): Result<DirectMessageEntity> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val content = DirectMessageContent(
+                    text = text.trim(),
+                    mediaType = mediaType,
+                    mediaBlobHash = blobHash,
+                    mediaMimeType = mimeType,
+                    mediaTotalBytes = totalBytes,
+                    mediaChunkCount = chunkCount,
+                    mediaDurationMs = durationMs,
+                    mediaMicroPreviewBase64 = microPreviewBase64
+                )
+                val payload = cryptoManager.encryptDirectMessage(recipientAuthorId, content.toJson())
+                val now = System.currentTimeMillis()
+
+                val entity = DirectMessageEntity(
+                    messageId = payload.messageId,
+                    conversationPeerId = recipientAuthorId,
+                    senderId = cryptoManager.authorId,
+                    recipientId = recipientAuthorId,
+                    text = content.text,
+                    timestamp = now,
+                    isOutgoing = true,
+                    isRead = true,
+                    status = 0,
+                    mediaType = mediaType,
+                    mediaBlobHash = blobHash,
+                    mediaMimeType = mimeType,
+                    mediaChunkCount = chunkCount,
+                    mediaDurationMs = durationMs,
+                    mediaMicroPreviewBase64 = microPreviewBase64
+                )
+                db.directMessageDao().insertMessage(entity)
+
+                val result = syncEngine.createAndPublishLocalEntry(
+                    ContentType.DIRECT_MESSAGE,
+                    payload.toJson()
+                )
+
+                if (result.isSuccess) {
+                    db.directMessageDao().updateMessageStatus(payload.messageId, 1) // 1 = SENT
+                    val mediaLabel = if (mediaType == "IMAGE") "photo" else "voice note"
+                    logActivity("Sent encrypted $mediaLabel to ${recipientAuthorId.take(12)}...")
+                    onContentPublished?.invoke()
+                    Result.success(entity.copy(status = 1))
+                } else {
+                    db.directMessageDao().updateMessageStatus(payload.messageId, 2) // 2 = FAILED
+                    Result.failure(result.exceptionOrNull() ?: IllegalStateException("Failed to publish direct message with media"))
+                }
+            } catch (e: Exception) {
+                Log.e("MeshRepository", "Failed to send direct message with media: ${e.message}", e)
+                Result.failure(e)
+            }
+        }
+    }
+
+    /**
      * Observes the ordered message history for a 1-on-1 conversation thread.
      */
     fun observeMessagesForPeer(peerId: String): Flow<List<DirectMessageEntity>> {
@@ -570,11 +642,16 @@ class MeshRepository(
             recentMsgs.map { msg ->
                 val peerId = msg.conversationPeerId
                 val profile = profilesMap[peerId]
+                val snippet = when (msg.mediaType) {
+                    "IMAGE" -> if (msg.text.isNotBlank()) "📷 ${msg.text}" else "📷 Photo"
+                    "AUDIO" -> "🎤 Voice message"
+                    else -> msg.text
+                }
                 ConversationSummary(
                     peerId = peerId,
                     peerDisplayName = profile?.displayName,
                     peerAvatarSeed = profile?.avatarSeed ?: peerId,
-                    lastMessageText = msg.text,
+                    lastMessageText = snippet,
                     lastMessageTimestamp = msg.timestamp,
                     unreadCount = if (!msg.isOutgoing && !msg.isRead) 1 else 0,
                     isPeerOnline = onlinePeerIds.contains(peerId),
