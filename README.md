@@ -110,7 +110,8 @@ When devices are on the same Wi-Fi network, Portable Hotspot, or ad-hoc Wi-Fi di
 ```
 app/src/main/java/com/mysocial/mesh/
 ├── crypto/
-│   └── CryptoManager.kt           # Ed25519 key generation, digital signing, and verification
+│   ├── CryptoManager.kt           # Ed25519 key generation, digital signing, and verification
+│   └── E2eeManager.kt             # Ephemeral X25519 ECDH + AES-256-GCM End-to-End Encryption
 ├── transport/
 │   ├── BleMeshTransport.kt        # BLE 5.0+ Extended Advertising, 2M PHY, L2CAP CoC, GATT
 │   ├── MdnsWifiTransport.kt       # Wi-Fi LAN mDNS discovery & direct TCP socket connections
@@ -123,16 +124,18 @@ app/src/main/java/com/mysocial/mesh/
 │   ├── GossipMessage.kt           # Wire protocol messages (Hello, Have, Request, Response, Blob)
 │   └── PeerConnection.kt          # Transport-agnostic peer connection abstraction
 ├── data/
-│   ├── MeshDatabase.kt            # Room DB (Posts, Comments, Reactions, Blobs, Peers)
-│   ├── MeshRepository.kt          # Unified data access, TTL pruner, reactive feeds
+│   ├── MeshDatabase.kt            # Room DB (Posts, Comments, Reactions, Blobs, Direct Messages)
+│   ├── MeshRepository.kt          # Unified data access, TTL pruner, reactive feeds, receipts
 │   ├── BlobEntities.kt & BlobDao  # Content-addressed chunked blob metadata and storage
-│   └── MediaProcessor.kt          # Image scaling, JPEG compression, and SHA-256 chunking
+│   └── MediaProcessor.kt          # Image downscaling, WebP compression, audio, and SHA-256 chunking
 ├── service/
 │   └── MeshSyncService.kt         # Android Foreground Service for persistent mesh synchronization
 ├── utils/
+│   ├── AudioRecorderPlayer.kt     # Native AAC/MPEG-4 voice recording and playback engine
 │   └── UpdateManager.kt           # GitHub Releases API, streaming APK download, FileProvider install
 └── ui/
     ├── feed/                      # Timeline feed, likes, post reactions, audience filter
+    ├── messages/                  # E2EE 1-on-1 private chat, photos, voice notes, delivery/read ticks
     ├── composer/                  # Post composer with attachment picker and media processor
     ├── radar/                     # Animated radar showing nearby BLE & Wi-Fi peers
     ├── identity/                  # User profile, cryptographic fingerprint, display name
