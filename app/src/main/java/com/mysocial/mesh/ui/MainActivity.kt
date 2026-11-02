@@ -85,7 +85,15 @@ import com.mysocial.mesh.ui.messages.MessagesViewModel
 import com.mysocial.mesh.ui.radar.RadarScreen
 import com.mysocial.mesh.ui.radar.RadarViewModel
 import com.mysocial.mesh.ui.profile.PeerProfileScreen
-import com.mysocial.mesh.ui.components.ShareApkBottomSheet
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.IconButton
 import com.mysocial.mesh.ui.components.UpdateDialog
 import com.mysocial.mesh.ui.settings.AboutScreen
 import com.mysocial.mesh.ui.settings.AppearanceScreen
@@ -227,11 +235,14 @@ class MainActivity : ComponentActivity() {
         val db = MeshDatabase.getInstance(this)
         val cryptoManager = CryptoManager.getInstance(this)
         val initialName = android.os.Build.MODEL?.takeIf { it.isNotBlank() } ?: "User"
+        val peerApkUpdateManager = com.mysocial.mesh.update.PeerApkUpdateManager.getInstance(this)
         val syncEngine = GossipSyncEngine(
             db = db,
             cryptoManager = cryptoManager,
             myDisplayName = initialName,
-            openMeshMode = true
+            openMeshMode = true,
+            context = this,
+            peerApkUpdateManager = peerApkUpdateManager
         )
         val appSettings = com.mysocial.mesh.data.AppSettings.getInstance(this)
         repository = MeshRepository(db, cryptoManager, syncEngine, appSettings)
@@ -342,7 +353,11 @@ class MainActivity : ComponentActivity() {
         }
         var showComposer by remember { mutableStateOf(false) }
         var currentSettingsSubScreen by remember { mutableStateOf<SettingsSubScreen?>(null) }
-        var showShareApkSheet by remember { mutableStateOf(false) }
+
+        val peerApkUpdateManager = remember { com.mysocial.mesh.update.PeerApkUpdateManager.getInstance(this@MainActivity) }
+        val availablePeerUpdate by peerApkUpdateManager.availableUpdate.collectAsState()
+        val isDownloadingPeerUpdate by peerApkUpdateManager.isDownloading.collectAsState()
+        val peerDownloadProgress by peerApkUpdateManager.downloadProgress.collectAsState()
 
         var showMessagesList by remember { mutableStateOf(false) }
         var activeChatPeer by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -524,6 +539,22 @@ class MainActivity : ComponentActivity() {
                             PermissionWarningBanner(onRequestPermissions = { requestMeshPermissions() })
                         }
 
+                        // P2P APK Auto-Update Notification Banner
+                        AnimatedVisibility(visible = availablePeerUpdate != null) {
+                            availablePeerUpdate?.let { update ->
+                                PeerUpdateReadyBanner(
+                                    updateInfo = update,
+                                    onInstall = { peerApkUpdateManager.installUpdate(this@MainActivity, update) },
+                                    onDismiss = { peerApkUpdateManager.dismissUpdate() }
+                                )
+                            }
+                        }
+
+                        // P2P APK Downloading in Background Banner
+                        AnimatedVisibility(visible = isDownloadingPeerUpdate) {
+                            PeerUpdateDownloadingBanner(progress = peerDownloadProgress)
+                        }
+
                         // Screen Body
                         Box(modifier = Modifier.fillMaxSize()) {
                             when (selectedTab) {
@@ -540,7 +571,6 @@ class MainActivity : ComponentActivity() {
                                     onNavigateToAppearance = { currentSettingsSubScreen = SettingsSubScreen.APPEARANCE },
                                     onNavigateToMeshSync = { currentSettingsSubScreen = SettingsSubScreen.MESH_SYNC },
                                     onNavigateToMuleStorage = { currentSettingsSubScreen = SettingsSubScreen.MULE_STORAGE },
-                                    onNavigateToShareApk = { showShareApkSheet = true },
                                     onNavigateToAbout = { currentSettingsSubScreen = SettingsSubScreen.ABOUT },
                                     onRefresh = {
                                         feedViewModel.refresh {
@@ -585,10 +615,6 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                }
-
-                if (showShareApkSheet) {
-                    ShareApkBottomSheet(onDismiss = { showShareApkSheet = false })
                 }
             }
         }
@@ -638,6 +664,103 @@ fun PermissionWarningBanner(onRequestPermissions: () -> Unit) {
             ) {
                 Text("Allow", fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
+        }
+    }
+}
+
+@Composable
+fun PeerUpdateReadyBanner(
+    updateInfo: com.mysocial.mesh.update.PeerUpdateInfo,
+    onInstall: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+        border = BorderStroke(1.dp, Color(0xFF43A047))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF2E7D32).copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.SystemUpdate,
+                    contentDescription = null,
+                    tint = Color(0xFF2E7D32),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "App Update Ready (${updateInfo.remoteVersionName})",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    color = Color(0xFF1B5E20)
+                )
+                Text(
+                    text = "Received offline from ${updateInfo.peerName}. Tap to install.",
+                    fontSize = 11.sp,
+                    color = Color(0xFF2E7D32)
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(
+                onClick = onInstall,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+                shape = RoundedCornerShape(8.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text("Update", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+            IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                Icon(Icons.Filled.Close, contentDescription = "Dismiss", tint = Color(0xFF2E7D32), modifier = Modifier.size(16.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun PeerUpdateDownloadingBanner(progress: Float?) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = FacebookBlueLight),
+        border = BorderStroke(1.dp, FacebookBlue.copy(alpha = 0.3f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CircularProgressIndicator(
+                progress = { progress ?: 0f },
+                modifier = Modifier.size(20.dp),
+                strokeWidth = 2.5.dp,
+                color = FacebookBlue
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = if (progress != null) "Downloading app update from nearby peer (${(progress * 100).toInt()}%)..." else "Downloading app update from nearby peer...",
+                fontSize = 12.sp,
+                color = FacebookBlue,
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }

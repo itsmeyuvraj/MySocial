@@ -78,13 +78,16 @@ class MeshSyncService : Service() {
         db = MeshDatabase.getInstance(this)
         cryptoManager = CryptoManager.getInstance(this)
         val initialName = android.os.Build.MODEL?.takeIf { it.isNotBlank() } ?: "User"
+        val peerApkUpdateManager = com.mysocial.mesh.update.PeerApkUpdateManager.getInstance(this)
+        peerApkUpdateManager.startServer()
         syncEngine = GossipSyncEngine(
             db = db,
             cryptoManager = cryptoManager,
             myDisplayName = initialName,
             openMeshMode = true,
             context = this,
-            appSettings = appSettings
+            appSettings = appSettings,
+            peerApkUpdateManager = peerApkUpdateManager
         )
     }
 
@@ -281,6 +284,7 @@ class MeshSyncService : Service() {
         wifiTransport = null
         bleTransport?.stop()
         bleTransport = null
+        com.mysocial.mesh.update.PeerApkUpdateManager.getInstance(this).stopServer()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }

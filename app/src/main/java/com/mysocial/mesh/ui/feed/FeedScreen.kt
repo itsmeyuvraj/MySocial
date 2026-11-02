@@ -110,7 +110,6 @@ fun FeedScreen(
     onNavigateToAppearance: () -> Unit = {},
     onNavigateToMeshSync: () -> Unit = {},
     onNavigateToMuleStorage: () -> Unit = {},
-    onNavigateToShareApk: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
     onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -155,7 +154,6 @@ fun FeedScreen(
                     onNavigateToAppearance = onNavigateToAppearance,
                     onNavigateToMeshSync = onNavigateToMeshSync,
                     onNavigateToMuleStorage = onNavigateToMuleStorage,
-                    onNavigateToShareApk = onNavigateToShareApk,
                     onNavigateToAbout = onNavigateToAbout
                 )
             }
@@ -509,7 +507,6 @@ fun FacebookTopBar(
     onNavigateToAppearance: () -> Unit = {},
     onNavigateToMeshSync: () -> Unit = {},
     onNavigateToMuleStorage: () -> Unit = {},
-    onNavigateToShareApk: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {}
 ) {
     Surface(
@@ -602,7 +599,6 @@ fun FacebookTopBar(
                     onNavigateToAppearance = onNavigateToAppearance,
                     onNavigateToMeshSync = onNavigateToMeshSync,
                     onNavigateToMuleStorage = onNavigateToMuleStorage,
-                    onNavigateToShareApk = onNavigateToShareApk,
                     onNavigateToAbout = onNavigateToAbout
                 )
             }

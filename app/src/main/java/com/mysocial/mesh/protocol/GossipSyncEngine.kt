@@ -56,7 +56,8 @@ class GossipSyncEngine(
     private val batchSize: Int = 50,
     private val handshakeTimeoutMs: Long = 10_000L,
     private val context: Context? = null,
-    val appSettings: com.mysocial.mesh.data.AppSettings? = null
+    val appSettings: com.mysocial.mesh.data.AppSettings? = null,
+    var peerApkUpdateManager: com.mysocial.mesh.update.PeerApkUpdateManager? = null
 ) {
     private val tag = "GossipSyncEngine"
 
@@ -111,12 +112,16 @@ class GossipSyncEngine(
             // Step 1: Exchange Vector Clocks (HELLO_VECTOR)
             val localClock = getLocalVectorClock()
 
+            val updateMgr = peerApkUpdateManager
             connection.send(
                 GossipMessage.HelloVector(
                     peerId = cryptoManager.authorId,
                     peerName = myDisplayName,
                     vectorClock = localClock,
-                    openMeshMode = openMeshMode
+                    openMeshMode = openMeshMode,
+                    appVersionCode = updateMgr?.currentVersionCode ?: 0L,
+                    appVersionName = updateMgr?.currentVersionName ?: "",
+                    apkServerPort = updateMgr?.serverPort ?: 0
                 )
             )
 
@@ -129,6 +134,21 @@ class GossipSyncEngine(
 
             if (remoteHello.peerName.isNotBlank() && remoteHello.peerName != "MeshPeer") {
                 notifyPeerIdentified(connection.peerId, remoteHello.peerId, remoteHello.peerName)
+            }
+
+            // Automatic P2P APK Update Detection: check if peer has a newer build
+            if (remoteHello.appVersionCode > 0 && remoteHello.apkServerPort > 0) {
+                val remoteHost = connection.remoteAddress
+                if (!remoteHost.isNullOrBlank()) {
+                    updateMgr?.onPeerVersionDiscovered(
+                        peerId = remoteHello.peerId,
+                        peerName = remoteHello.peerName.ifBlank { "Nearby Peer" },
+                        remoteHost = remoteHost,
+                        remotePort = remoteHello.apkServerPort,
+                        remoteVersionCode = remoteHello.appVersionCode,
+                        remoteVersionName = remoteHello.appVersionName
+                    )
+                }
             }
 
             // Step 2: Compute Deltas & Exchange DELTA_REQUEST

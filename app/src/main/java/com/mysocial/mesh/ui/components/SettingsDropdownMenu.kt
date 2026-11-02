@@ -42,7 +42,6 @@ fun SettingsMenuButton(
     onNavigateToAppearance: () -> Unit,
     onNavigateToMeshSync: () -> Unit,
     onNavigateToMuleStorage: () -> Unit,
-    onNavigateToShareApk: () -> Unit,
     onNavigateToAbout: () -> Unit,
     modifier: Modifier = Modifier,
     iconModifier: Modifier = Modifier,
@@ -140,29 +139,6 @@ fun SettingsMenuButton(
                 onClick = {
                     expanded = false
                     onNavigateToMuleStorage()
-                }
-            )
-
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        text = "Share App Offline",
-                        color = FbTextPrimary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.WifiTethering,
-                        contentDescription = "Share App Offline",
-                        tint = FacebookBlue,
-                        modifier = Modifier.size(20.dp)
-                    )
-                },
-                onClick = {
-                    expanded = false
-                    onNavigateToShareApk()
                 }
             )
 

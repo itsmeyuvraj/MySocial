@@ -22,7 +22,10 @@ sealed interface GossipMessage {
         val peerId: String,
         val peerName: String = "",
         val vectorClock: Map<String, Long>,
-        val openMeshMode: Boolean = true
+        val openMeshMode: Boolean = true,
+        val appVersionCode: Long = 0L,
+        val appVersionName: String = "",
+        val apkServerPort: Int = 0
     ) : GossipMessage
 
     /**

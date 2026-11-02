@@ -23,6 +23,7 @@ interface PeerConnection {
     val peerName: String
     val transportType: TransportType
     val isConnected: Boolean
+    val remoteAddress: String? get() = null
 
     suspend fun send(message: GossipMessage)
     suspend fun receiveMessage(): GossipMessage
@@ -52,6 +53,9 @@ class StreamPeerConnection(
 
     override val isConnected: Boolean
         get() = !closed.get() && socket.isConnected && !socket.isClosed
+
+    override val remoteAddress: String?
+        get() = try { socket.inetAddress?.hostAddress } catch (_: Exception) { null }
 
     init {
         // Start background reader thread

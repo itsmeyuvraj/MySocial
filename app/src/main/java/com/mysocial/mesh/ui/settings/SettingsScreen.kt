@@ -71,7 +71,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mysocial.mesh.ui.components.ChangelogView
-import com.mysocial.mesh.ui.components.ShareApkBottomSheet
 import com.mysocial.mesh.ui.components.UpdateDialog
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FacebookBlueLight
