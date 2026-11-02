@@ -20,7 +20,10 @@ A decentralized, serverless **peer-to-peer (P2P) mesh social network** for Andro
 - **Cryptographic Zero-Trust Identity:** Every user identity is anchored to an **Ed25519** keypair generated on-device with Android Keystore. Every post, comment, and reaction is cryptographically signed and content-addressed via SHA-256.
 - **Anti-Entropy Epidemic Gossip Sync:** Vector-clock log synchronization and Bloom-filter-inspired log exchange (`GossipSyncEngine`). Messages hop across nodes to bridge network gaps.
 - **Chunked Blob Transfer Engine:** Content-addressed streaming distribution for large images and attachments. Slices payloads into verified chunks with direct-to-disk streaming assembly and chunk-by-chunk SHA-256 validation.
-- **Modern Jetpack Compose UI:** Premium social feed with Facebook-style slide-up comment sheets, interactive animated radar with transport & RSSI indicators, bidirectional mutual friend trust graph, and verified blue checkmark badges.
+- **Direct End-to-End Encrypted (E2EE) Private Messaging:** 1-on-1 private channels between verified friends using birational Ed25519-to-Curve25519 (X25519) coordinate mapping, ephemeral Diffie-Hellman key exchange, authenticated AES-256-GCM encryption, store-and-forward mesh mule routing, native AAC voice notes, and photo attachments.
+- **Zero-Internet P2P APK Auto-Update System:** Autonomous background update propagation across nearby devices. Devices automatically discover newer build numbers during the gossip handshake, silently stream the signed APK over local TCP socket connections without internet, verify cryptographic keystore signatures, and prompt for a seamless 1-tap in-place update.
+- **Dedicated Single-Purpose Composer Modes:** Clean separation of concerns with distinct single-purpose composers: distraction-free text-only posts ("What's on your mind?"), dedicated photo posts with gallery picker & captions, interactive local polls with real-time tallying, and high-priority emergency broadcast alerts.
+- **Modern Jetpack Compose UI & People Radar:** Premium social feed, slide-up comment sheets, animated sonar radar with proximity indicators, dedicated `PeerProfileScreen` displaying live radio range & recent posts, and zero-trust in-person QR friend verification.
 - **QR Proximity Verification:** In-app QR code identity generator and real-time CameraX QR scanner for zero-trust out-of-band friend verification.
 - **In-App Auto-Update & CI/CD Engine:** Automated GitHub Actions release pipeline (`auto_release.yml`) that builds and publishes signed release APKs on push. In-app `UpdateManager` with background checks, categorized changelog viewer (`ChangelogView`), live download progress tracking, and Android `FileProvider` package installer prompt.
 
@@ -85,6 +88,14 @@ When devices are on the same Wi-Fi network, Portable Hotspot, or ad-hoc Wi-Fi di
 - Establishes direct TCP connections over length-prefixed stream framing (`FrameCodec`: `[4-byte Length][JSON Payload]`).
 - Achieves full LAN throughput for bulk log synchronization and high-resolution photo blob transfers.
 
+### 3. Zero-Internet P2P APK Auto-Update Cascading
+To enable viral offline software distribution without app stores:
+1. **Embedded Micro-Server:** Every running node hosts its installed base APK (`context.applicationInfo.sourceDir`) on port `42531` using an embedded non-blocking `ServerSocket` HTTP server (`OfflineApkServer`).
+2. **Handshake Build Negotiation:** Nodes exchange their `appVersionCode`, `appVersionName`, and local APK server port during the initial `HelloVector` handshake.
+3. **Background Socket Streaming:** If a connected peer runs a higher build number (`remoteVersionCode > localVersionCode`), the receiver automatically initiates an asynchronous background streaming download over the local TCP socket into the application cache directory (`updates/`).
+4. **Cryptographic Keystore Signature Verification:** Before presenting the update to the user, the app parses the downloaded archive via `PackageManager.getPackageArchiveInfo` and verifies that the developer signing certificates match the installed application's certificates. Any modified, corrupted, or malicious APK is immediately discarded.
+5. **1-Tap In-Place Update:** The UI surfaces a `PeerUpdateReadyBanner` and a high-priority Android notification. Tapping "Update" passes a secure `FileProvider` URI to Android's native `PackageInstaller` (`ACTION_VIEW`), updating the app in-place while completely preserving Room DB posts, identity keys, and chat history.
+
 ---
 
 ## 🔐 Cryptography & Identity
@@ -130,15 +141,20 @@ app/src/main/java/com/mysocial/mesh/
 │   └── MediaProcessor.kt          # Image downscaling, WebP compression, audio, and SHA-256 chunking
 ├── service/
 │   └── MeshSyncService.kt         # Android Foreground Service for persistent mesh synchronization
+├── update/
+│   └── PeerApkUpdateManager.kt    # Zero-internet P2P APK auto-update engine & signature verification
 ├── utils/
 │   ├── AudioRecorderPlayer.kt     # Native AAC/MPEG-4 voice recording and playback engine
+│   ├── OfflineApkServer.kt        # Embedded ServerSocket HTTP server serving base APK on port 42531
+│   ├── PeerNotificationHelper.kt  # Android notification channels (Nearby radar & Direct messages)
 │   └── UpdateManager.kt           # GitHub Releases API, streaming APK download, FileProvider install
 └── ui/
     ├── feed/                      # Timeline feed, likes, post reactions, audience filter
     ├── messages/                  # E2EE 1-on-1 private chat, photos, voice notes, delivery/read ticks
-    ├── composer/                  # Post composer with attachment picker and media processor
+    ├── composer/                  # Dedicated single-purpose composers (Text, Photo, Poll, Alert)
     ├── radar/                     # Animated radar showing nearby BLE & Wi-Fi peers
-    ├── identity/                  # User profile, cryptographic fingerprint, display name
+    ├── profile/                   # PeerProfileScreen (peer bio, BBID copy, radio range, recent posts)
+    ├── identity/                  # User self-profile, cryptographic fingerprint, display name
     ├── settings/                  # SettingsScreen, sync intervals, dark mode, update checker
     ├── qr/                        # QR code identity generator & CameraX real-time QR scanner
     └── components/                # PostCard, PostCommentsSheet, PeerCard, UpdateDialog, ChangelogView

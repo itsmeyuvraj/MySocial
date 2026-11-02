@@ -175,7 +175,8 @@ class PeerApkUpdateManager(
             _downloadProgress.value = 0f
 
             try {
-                val downloadUrlStr = "http://$remoteHost:$remotePort/mysocial.apk"
+                val effectiveHost = if (remoteHost == "10.0.2.2" && !Build.FINGERPRINT.startsWith("generic")) "127.0.0.1" else remoteHost
+                val downloadUrlStr = "http://$effectiveHost:$remotePort/mysocial.apk"
                 Log.i(tag, "Starting P2P download of build #$remoteVersionCode from $peerName at $downloadUrlStr")
 
                 val tempFile = File(updatesDir, "download_${remoteVersionCode}.tmp")
