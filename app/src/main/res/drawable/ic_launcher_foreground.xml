@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Ambient Center Halo Glow -->
+    <path
+        android:pathData="M54,54m-28,0a28,28 0,1,1 56,0a28,28 0,1,1 -56,0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:centerX="54"
+                android:centerY="54"
+                android:gradientRadius="30"
+                android:type="radial">
+                <item android:offset="0.0" android:color="#4D38BDF8" />
+                <item android:offset="0.7" android:color="#206366F1" />
+                <item android:offset="1.0" android:color="#00000000" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Interconnected Social Mesh Wave / Infinity Flow -->
+    <!-- Primary Flow Loop -->
+    <path
+        android:pathData="M37,42 C37,32 50,30 56,36 L68,48 C74,54 77,61 74,68 C71,75 62,77 56,72 L44,60 C38,54 35,47 38,40"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="32"
+                android:startY="32"
+                android:endX="76"
+                android:endY="76"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#38BDF8" />
+                <item android:offset="0.5" android:color="#60A5FA" />
+                <item android:offset="1.0" android:color="#C084FC" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Secondary Complementary Flow Arc -->
+    <path
+        android:pathData="M71,42 C71,32 58,30 52,36 L40,48 C34,54 31,61 34,68 C37,75 46,77 52,72"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="76"
+                android:startY="32"
+                android:endX="32"
+                android:endY="76"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#38BDF8" />
+                <item android:offset="0.5" android:color="#818CF8" />
+                <item android:offset="1.0" android:color="#E879F9" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Central Nexus Peer Node (Solid Core + Glow) -->
+    <path
+        android:pathData="M54,54m-5,0a5,5 0,1,1 10,0a5,5 0,1,1 -10,0"
+        android:fillColor="#FFFFFF" />
+
+    <!-- Top-Left Peer Node -->
+    <path
+        android:pathData="M37,38m-4,0a4,4 0,1,1 8,0a4,4 0,1,1 -8,0"
+        android:fillColor="#38BDF8" />
+
+    <!-- Bottom-Right Peer Node -->
+    <path
+        android:pathData="M71,70m-4,0a4,4 0,1,1 8,0a4,4 0,1,1 -8,0"
+        android:fillColor="#C084FC" />
+
+    <!-- Top-Right Satellite Peer Node -->
+    <path
+        android:pathData="M71,38m-3.5,0a3.5,3.5 0,1,1 7,0a3.5,3.5 0,1,1 -7,0"
+        android:fillColor="#FFFFFF" />
+
+    <!-- Bottom-Left Satellite Peer Node -->
+    <path
+        android:pathData="M37,70m-3.5,0a3.5,3.5 0,1,1 7,0a3.5,3.5 0,1,1 -7,0"
+        android:fillColor="#60A5FA" />
+</vector>
+

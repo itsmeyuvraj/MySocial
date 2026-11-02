@@ -161,10 +161,12 @@ fun PostCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp))
             .then(
                 if (post.isSos) {
-                    Modifier.border(2.dp, Color(0xFFD32F2F), RoundedCornerShape(8.dp))
+                    Modifier.border(2.dp, Color(0xFFD32F2F), RoundedCornerShape(16.dp))
                 } else Modifier
             )
             .then(
@@ -173,7 +175,8 @@ fun PostCard(
                 } else Modifier
             ),
         colors = CardDefaults.cardColors(containerColor = FbSurface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp),
+        shape = RoundedCornerShape(16.dp)
     ) {
         Column(modifier = Modifier.padding(top = if (post.isSos) 0.dp else 12.dp, bottom = 6.dp)) {
             // SOS High-Priority Alert Banner

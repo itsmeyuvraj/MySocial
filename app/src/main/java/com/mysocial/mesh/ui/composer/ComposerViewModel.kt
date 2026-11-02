@@ -12,6 +12,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+enum class ComposerMode {
+    POST,
+    PHOTO,
+    POLL,
+    ALERT
+}
+
 enum class ExpiryOption(val label: String, val durationMs: Long?) {
     FOREVER("Never", null),
     ONE_HOUR("1h", 3600_000L),
@@ -22,6 +29,9 @@ enum class ExpiryOption(val label: String, val durationMs: Long?) {
 class ComposerViewModel(
     private val repository: MeshRepository
 ) : ViewModel() {
+
+    private val _composerMode = MutableStateFlow(ComposerMode.POST)
+    val composerMode: StateFlow<ComposerMode> = _composerMode.asStateFlow()
 
     private val _postText = MutableStateFlow("")
     val postText: StateFlow<String> = _postText.asStateFlow()
@@ -56,6 +66,70 @@ class ComposerViewModel(
 
     private val _statusMessage = MutableStateFlow<String?>(null)
     val statusMessage: StateFlow<String?> = _statusMessage.asStateFlow()
+
+    fun setMode(mode: ComposerMode) {
+        _composerMode.value = mode
+        when (mode) {
+            ComposerMode.POST -> {
+                _isSos.value = false
+                _isPollEnabled.value = false
+            }
+            ComposerMode.PHOTO -> {
+                _isSos.value = false
+                _isPollEnabled.value = false
+            }
+            ComposerMode.POLL -> {
+                _isSos.value = false
+                _isPollEnabled.value = true
+                if (_pollOptions.value.size < 2) {
+                    _pollOptions.value = listOf("", "")
+                }
+            }
+            ComposerMode.ALERT -> {
+                _isSos.value = true
+                _isPollEnabled.value = false
+                _isPublic.value = true
+            }
+        }
+    }
+
+    fun resetForMode(mode: ComposerMode) {
+        _composerMode.value = mode
+        _postText.value = ""
+        _selectedImageUri.value = null
+        _statusMessage.value = null
+        _tags.value = emptyList()
+        _isPublishing.value = false
+        _isPublic.value = true
+
+        when (mode) {
+            ComposerMode.POST -> {
+                _isSos.value = false
+                _isPollEnabled.value = false
+                _expiryOption.value = ExpiryOption.FOREVER
+                _pollOptions.value = listOf("", "")
+            }
+            ComposerMode.PHOTO -> {
+                _isSos.value = false
+                _isPollEnabled.value = false
+                _expiryOption.value = ExpiryOption.FOREVER
+                _pollOptions.value = listOf("", "")
+            }
+            ComposerMode.POLL -> {
+                _isSos.value = false
+                _isPollEnabled.value = true
+                _expiryOption.value = ExpiryOption.TWENTY_FOUR_HOURS
+                _pollOptions.value = listOf("", "")
+            }
+            ComposerMode.ALERT -> {
+                _isSos.value = true
+                _isPollEnabled.value = false
+                _expiryOption.value = ExpiryOption.TWENTY_FOUR_HOURS
+                _pollOptions.value = listOf("", "")
+                _tags.value = listOf("ALERT", "SOS")
+            }
+        }
+    }
 
     fun setExpiryOption(option: ExpiryOption) {
         _expiryOption.value = option

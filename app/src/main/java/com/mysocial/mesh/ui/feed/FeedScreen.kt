@@ -31,13 +31,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Poll
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.WifiTethering
 import com.mysocial.mesh.ui.components.SettingsMenuButton
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.AlertDialog
@@ -92,13 +98,15 @@ import com.mysocial.mesh.utils.PeerNotificationHelper
 
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import com.mysocial.mesh.ui.composer.ComposerMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FeedScreen(
     viewModel: FeedViewModel,
-    onNavigateToCompose: () -> Unit = {},
+    onNavigateToCompose: (ComposerMode) -> Unit = {},
     onNavigateToMessages: () -> Unit = {},
+    onNavigateToChat: (peerId: String, peerName: String) -> Unit = { _, _ -> },
     onNavigateToAppearance: () -> Unit = {},
     onNavigateToMeshSync: () -> Unit = {},
     onNavigateToMuleStorage: () -> Unit = {},
@@ -143,9 +151,7 @@ fun FeedScreen(
             ) {
                 FacebookTopBar(
                     activePeersCount = activeNearbyPeers.size,
-                    unreadMessagesCount = unreadMessagesCount,
                     onSearchClick = { viewModel.openSearch() },
-                    onNavigateToMessages = onNavigateToMessages,
                     onNavigateToAppearance = onNavigateToAppearance,
                     onNavigateToMeshSync = onNavigateToMeshSync,
                     onNavigateToMuleStorage = onNavigateToMuleStorage,
@@ -178,14 +184,21 @@ fun FeedScreen(
                     if (!isSearchActive) {
                         // "What's on your mind?" Post Creator Box
                         item {
-                            WhatsOnYourMindCard(onClick = onNavigateToCompose)
+                            WhatsOnYourMindCard(
+                                myAuthorId = viewModel.currentAuthorId,
+                                onPostClick = { onNavigateToCompose(ComposerMode.POST) },
+                                onPhotoClick = { onNavigateToCompose(ComposerMode.PHOTO) },
+                                onPollClick = { onNavigateToCompose(ComposerMode.POLL) },
+                                onAlertClick = { onNavigateToCompose(ComposerMode.ALERT) }
+                            )
                         }
 
                         // Friendly Feed Filter Tabs (Nearby vs Friends)
                         item {
                             FeedFilterPills(
                                 isNearbyFilter = isOpenMeshFilter,
-                                onSelectFilter = { viewModel.setFilter(it) }
+                                onSelectFilter = { viewModel.setFilter(it) },
+                                activePeersCount = activeNearbyPeers.size
                             )
                         }
 
@@ -492,9 +505,7 @@ fun FeedScreen(
 @Composable
 fun FacebookTopBar(
     activePeersCount: Int = 0,
-    unreadMessagesCount: Int = 0,
     onSearchClick: () -> Unit = {},
-    onNavigateToMessages: () -> Unit = {},
     onNavigateToAppearance: () -> Unit = {},
     onNavigateToMeshSync: () -> Unit = {},
     onNavigateToMuleStorage: () -> Unit = {},
@@ -513,33 +524,53 @@ fun FacebookTopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Facebook-style Brand Title
+            // Modern Brand Title with Mesh Nexus Emblem
             Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(FacebookBlue),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.WifiTethering,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "mysocial",
                     color = FacebookBlue,
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = (-1.2).sp
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = (-0.8).sp
                 )
-                Spacer(modifier = Modifier.width(10.dp))
-                // Online / Offline Badge
+                Spacer(modifier = Modifier.width(8.dp))
+                // Online / Offline Status Badge
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
                         .background(if (activePeersCount > 0) FbGreen.copy(alpha = 0.12f) else FbSurfaceElevated)
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                        .border(
+                            0.6.dp,
+                            if (activePeersCount > 0) FbGreen.copy(alpha = 0.35f) else FbBorder,
+                            RoundedCornerShape(12.dp)
+                        )
+                        .padding(horizontal = 7.dp, vertical = 2.5.dp)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(7.dp)
+                            .size(6.dp)
                             .clip(CircleShape)
-                            .background(if (activePeersCount > 0) FbGreen else FbTextSecondary)
+                            .background(if (activePeersCount > 0) FbGreen else FbTextTertiary)
                     )
                     Spacer(modifier = Modifier.width(5.dp))
                     Text(
-                        text = if (activePeersCount > 0) "Online" else "Offline",
+                        text = if (activePeersCount > 0) "$activePeersCount Online" else "Mesh Ready",
                         color = if (activePeersCount > 0) FbGreen else FbTextSecondary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold
@@ -565,40 +596,6 @@ fun FacebookTopBar(
                         tint = FbTextPrimary,
                         modifier = Modifier.size(20.dp)
                     )
-                }
-
-                // Messenger Button with live unread badge
-                Box {
-                    IconButton(
-                        onClick = onNavigateToMessages,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(FbSurfaceElevated)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Chat,
-                            contentDescription = "Messages",
-                            tint = FbTextPrimary,
-                            modifier = Modifier.size(19.dp)
-                        )
-                    }
-                    if (unreadMessagesCount > 0) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .offset(x = 3.dp, y = (-3).dp)
-                                .background(Color(0xFFE41E3F), CircleShape)
-                                .padding(horizontal = 4.dp, vertical = 1.dp)
-                        ) {
-                            Text(
-                                text = if (unreadMessagesCount > 99) "99+" else "$unreadMessagesCount",
-                                color = Color.White,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
                 }
 
                 SettingsMenuButton(
@@ -725,44 +722,133 @@ fun FeedSearchTopBar(
 }
 
 @Composable
-fun WhatsOnYourMindCard(onClick: () -> Unit) {
+fun WhatsOnYourMindCard(
+    myAuthorId: String?,
+    onPostClick: () -> Unit,
+    onPhotoClick: () -> Unit,
+    onPollClick: () -> Unit,
+    onAlertClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .clickable { onClick() },
+            .padding(horizontal = 12.dp, vertical = 4.dp),
         colors = CardDefaults.cardColors(containerColor = FbSurface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        shape = RoundedCornerShape(0.dp)
+        shape = RoundedCornerShape(16.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AvatarView(
-                seed = "local_user",
-                displayName = "You",
-                size = 40.dp
-            )
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Box(
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
                 modifier = Modifier
-                    .weight(1f)
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(FbBackground)
-                    .border(1.dp, FbBorder, RoundedCornerShape(20.dp))
-                    .padding(horizontal = 16.dp),
-                contentAlignment = Alignment.CenterStart
+                    .fillMaxWidth()
+                    .clickable { onPostClick() },
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "What's on your mind?",
-                    color = FbTextSecondary,
-                    fontSize = 14.sp
+                AvatarView(
+                    seed = myAuthorId ?: "local_user",
+                    displayName = "You",
+                    size = 40.dp
                 )
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(FbSurfaceElevated)
+                        .border(0.8.dp, FbBorder, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Text(
+                        text = "What's on your mind?",
+                        color = FbTextSecondary,
+                        fontSize = 14.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            HorizontalDivider(color = FbBorder, thickness = 0.6.dp)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Quick Actions Strip (Photo, Poll, Alert)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Photo Quick Action
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onPhotoClick() }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.AddPhotoAlternate,
+                        contentDescription = "Photo",
+                        tint = Color(0xFF45BD62),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Photo",
+                        color = FbTextSecondary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                // Poll Quick Action
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onPollClick() }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Poll,
+                        contentDescription = "Poll",
+                        tint = FacebookBlue,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Poll",
+                        color = FbTextSecondary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                // Alert Quick Action
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onAlertClick() }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Warning,
+                        contentDescription = "Alert",
+                        tint = Color(0xFFE41E3F),
+                        modifier = Modifier.size(17.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Alert",
+                        color = FbTextSecondary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
     }
@@ -771,38 +857,49 @@ fun WhatsOnYourMindCard(onClick: () -> Unit) {
 @Composable
 fun FeedFilterPills(
     isNearbyFilter: Boolean,
-    onSelectFilter: (Boolean) -> Unit
+    onSelectFilter: (Boolean) -> Unit,
+    activePeersCount: Int = 0,
+    modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 2.dp),
         colors = CardDefaults.cardColors(containerColor = FbSurface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        shape = RoundedCornerShape(0.dp)
+        shape = RoundedCornerShape(14.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             // Nearby Feed Pill
             Box(
                 modifier = Modifier
+                    .weight(1f)
                     .clip(RoundedCornerShape(20.dp))
-                    .background(if (isNearbyFilter) FacebookBlueLight else FbBackground)
+                    .background(if (isNearbyFilter) FacebookBlueLight else FbSurfaceElevated)
+                    .border(
+                        0.8.dp,
+                        if (isNearbyFilter) FacebookBlue else FbBorder,
+                        RoundedCornerShape(20.dp)
+                    )
                     .clickable { onSelectFilter(true) }
-                    .padding(horizontal = 14.dp, vertical = 7.dp)
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.Filled.Public,
                         contentDescription = null,
                         tint = if (isNearbyFilter) FacebookBlue else FbTextSecondary,
-                        modifier = Modifier.size(15.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Nearby Feed",
+                        text = if (activePeersCount > 0) "Nearby ($activePeersCount)" else "Nearby Feed",
                         color = if (isNearbyFilter) FacebookBlue else FbTextSecondary,
                         fontSize = 13.sp,
                         fontWeight = if (isNearbyFilter) FontWeight.Bold else FontWeight.Medium
@@ -813,17 +910,24 @@ fun FeedFilterPills(
             // Friends Only Pill
             Box(
                 modifier = Modifier
+                    .weight(1f)
                     .clip(RoundedCornerShape(20.dp))
-                    .background(if (!isNearbyFilter) FacebookBlueLight else FbBackground)
+                    .background(if (!isNearbyFilter) FacebookBlueLight else FbSurfaceElevated)
+                    .border(
+                        0.8.dp,
+                        if (!isNearbyFilter) FacebookBlue else FbBorder,
+                        RoundedCornerShape(20.dp)
+                    )
                     .clickable { onSelectFilter(false) }
-                    .padding(horizontal = 14.dp, vertical = 7.dp)
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.Filled.Group,
                         contentDescription = null,
                         tint = if (!isNearbyFilter) FacebookBlue else FbTextSecondary,
-                        modifier = Modifier.size(15.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(

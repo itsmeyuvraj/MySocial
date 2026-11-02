@@ -27,19 +27,28 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.People
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -75,6 +84,7 @@ import com.mysocial.mesh.ui.messages.MessagesListScreen
 import com.mysocial.mesh.ui.messages.MessagesViewModel
 import com.mysocial.mesh.ui.radar.RadarScreen
 import com.mysocial.mesh.ui.radar.RadarViewModel
+import com.mysocial.mesh.ui.profile.PeerProfileScreen
 import com.mysocial.mesh.ui.components.ShareApkBottomSheet
 import com.mysocial.mesh.ui.components.UpdateDialog
 import com.mysocial.mesh.ui.settings.AboutScreen
@@ -102,10 +112,15 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.Dispatchers
 
-enum class NavigationTab(val title: String, val icon: ImageVector) {
-    FEED("Feed", Icons.Filled.Home),
-    RADAR("People Nearby", Icons.Filled.People),
-    IDENTITY("Profile", Icons.Filled.Person)
+enum class NavigationTab(
+    val title: String,
+    val selectedIcon: ImageVector,
+    val unselectedIcon: ImageVector
+) {
+    FEED("Feed", Icons.Filled.Home, Icons.Outlined.Home),
+    RADAR("People", Icons.Filled.People, Icons.Outlined.People),
+    CHATS("Chats", Icons.AutoMirrored.Filled.Chat, Icons.AutoMirrored.Outlined.Chat),
+    IDENTITY("Profile", Icons.Filled.Person, Icons.Outlined.Person)
 }
 
 enum class SettingsSubScreen {
@@ -331,6 +346,7 @@ class MainActivity : ComponentActivity() {
 
         var showMessagesList by remember { mutableStateOf(false) }
         var activeChatPeer by remember { mutableStateOf<Pair<String, String>?>(null) }
+        var activeProfilePeer by remember { mutableStateOf<Pair<String, String>?>(null) }
 
         LaunchedEffect(pendingChatPeerId) {
             val peerId = pendingChatPeerId
@@ -351,6 +367,7 @@ class MainActivity : ComponentActivity() {
         val updateManager = remember { UpdateManager(this@MainActivity) }
         var isDownloadingUpdate by remember { mutableStateOf(false) }
         var downloadProgress by remember { mutableStateOf<Float?>(null) }
+        val totalUnreadCount by repository.observeTotalUnreadMessagesCount().collectAsState(initial = 0)
 
         if (pendingUpdateInfo != null) {
             UpdateDialog(
@@ -383,39 +400,70 @@ class MainActivity : ComponentActivity() {
 
         Scaffold(
             bottomBar = {
-                if (currentSettingsSubScreen == null && !showMessagesList && activeChatPeer == null) {
-                    NavigationBar(
-                        containerColor = FbSurface,
-                        contentColor = FbTextPrimary,
-                        tonalElevation = 6.dp
+                if (currentSettingsSubScreen == null && activeChatPeer == null && activeProfilePeer == null) {
+                    Surface(
+                        color = FbSurface,
+                        shadowElevation = 6.dp
                     ) {
-                        NavigationTab.values().forEachIndexed { index, tab ->
-                            val isSelected = selectedTab == index
-                            NavigationBarItem(
-                                selected = isSelected,
-                                onClick = { selectedTab = index },
-                                icon = {
-                                    Icon(
-                                        imageVector = tab.icon,
-                                        contentDescription = tab.title,
-                                        modifier = Modifier.size(24.dp)
+                        Column {
+                            HorizontalDivider(color = FbBorder, thickness = 0.5.dp)
+                            NavigationBar(
+                                containerColor = FbSurface,
+                                contentColor = FbTextPrimary,
+                                tonalElevation = 0.dp
+                            ) {
+                                NavigationTab.values().forEachIndexed { index, tab ->
+                                    val isSelected = selectedTab == index
+                                    NavigationBarItem(
+                                        selected = isSelected,
+                                        onClick = { selectedTab = index },
+                                        icon = {
+                                            if (tab == NavigationTab.CHATS && totalUnreadCount > 0) {
+                                                BadgedBox(
+                                                    badge = {
+                                                        Badge(
+                                                            containerColor = Color(0xFFE41E3F),
+                                                            contentColor = Color.White
+                                                        ) {
+                                                            Text(
+                                                                text = if (totalUnreadCount > 99) "99+" else "$totalUnreadCount",
+                                                                fontSize = 10.sp,
+                                                                fontWeight = FontWeight.Bold
+                                                            )
+                                                        }
+                                                    }
+                                                ) {
+                                                    Icon(
+                                                        imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
+                                                        contentDescription = tab.title,
+                                                        modifier = Modifier.size(24.dp)
+                                                    )
+                                                }
+                                            } else {
+                                                Icon(
+                                                    imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
+                                                    contentDescription = tab.title,
+                                                    modifier = Modifier.size(24.dp)
+                                                )
+                                            }
+                                        },
+                                        label = {
+                                            Text(
+                                                text = tab.title,
+                                                fontSize = 11.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                            )
+                                        },
+                                        colors = NavigationBarItemDefaults.colors(
+                                            selectedIconColor = FacebookBlue,
+                                            selectedTextColor = FacebookBlue,
+                                            indicatorColor = FacebookBlueLight,
+                                            unselectedIconColor = FbTextSecondary,
+                                            unselectedTextColor = FbTextSecondary
+                                        )
                                     )
-                                },
-                                label = {
-                                    Text(
-                                        text = tab.title,
-                                        fontSize = 11.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                    )
-                                },
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = FacebookBlue,
-                                    selectedTextColor = FacebookBlue,
-                                    indicatorColor = FacebookBlueLight,
-                                    unselectedIconColor = FbTextSecondary,
-                                    unselectedTextColor = FbTextSecondary
-                                )
-                            )
+                                }
+                            }
                         }
                     }
                 }
@@ -436,13 +484,14 @@ class MainActivity : ComponentActivity() {
                         peerDisplayName = peer.second,
                         onNavigateBack = { activeChatPeer = null }
                     )
-                } else if (showMessagesList) {
-                    val messagesViewModel = remember {
-                        MessagesViewModel(repository)
-                    }
-                    MessagesListScreen(
-                        viewModel = messagesViewModel,
-                        onNavigateBack = { showMessagesList = false },
+                } else if (activeProfilePeer != null) {
+                    val peer = activeProfilePeer!!
+                    BackHandler { activeProfilePeer = null }
+                    PeerProfileScreen(
+                        peerAuthorId = peer.first,
+                        peerDisplayName = peer.second,
+                        repository = repository,
+                        onNavigateBack = { activeProfilePeer = null },
                         onOpenChat = { peerId, peerName ->
                             activeChatPeer = Pair(peerId, peerName)
                         }
@@ -480,8 +529,14 @@ class MainActivity : ComponentActivity() {
                             when (selectedTab) {
                                 0 -> FeedScreen(
                                     viewModel = feedViewModel,
-                                    onNavigateToCompose = { showComposer = true },
-                                    onNavigateToMessages = { showMessagesList = true },
+                                    onNavigateToCompose = { mode ->
+                                        composerViewModel.resetForMode(mode)
+                                        showComposer = true
+                                    },
+                                    onNavigateToMessages = { selectedTab = 2 },
+                                    onNavigateToChat = { peerId, peerName ->
+                                        activeChatPeer = Pair(peerId, peerName)
+                                    },
                                     onNavigateToAppearance = { currentSettingsSubScreen = SettingsSubScreen.APPEARANCE },
                                     onNavigateToMeshSync = { currentSettingsSubScreen = SettingsSubScreen.MESH_SYNC },
                                     onNavigateToMuleStorage = { currentSettingsSubScreen = SettingsSubScreen.MULE_STORAGE },
@@ -495,11 +550,24 @@ class MainActivity : ComponentActivity() {
                                 )
                                 1 -> RadarScreen(
                                     viewModel = radarViewModel,
+                                    onNavigateToPeerProfile = { peerId, peerName ->
+                                        activeProfilePeer = Pair(peerId, peerName)
+                                    },
                                     onNavigateToChat = { peerId, peerName ->
                                         activeChatPeer = Pair(peerId, peerName)
                                     }
                                 )
-                                2 -> IdentityScreen(viewModel = identityViewModel)
+                                2 -> {
+                                    val messagesViewModel = remember { MessagesViewModel(repository) }
+                                    MessagesListScreen(
+                                        viewModel = messagesViewModel,
+                                        onNavigateBack = { selectedTab = 0 },
+                                        onOpenChat = { peerId, peerName ->
+                                            activeChatPeer = Pair(peerId, peerName)
+                                        }
+                                    )
+                                }
+                                3 -> IdentityScreen(viewModel = identityViewModel)
                             }
 
                             // Fullscreen Facebook-style Composer Dialog

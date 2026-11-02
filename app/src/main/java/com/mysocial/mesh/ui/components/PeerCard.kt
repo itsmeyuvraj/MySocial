@@ -2,6 +2,7 @@ package com.mysocial.mesh.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,12 +63,17 @@ fun PeerCard(
     isVerifiedInPerson: Boolean = false,
     onToggleFriend: (() -> Unit)? = null,
     onMessageClick: (() -> Unit)? = null,
+    onProfileClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp)),
+            .clip(RoundedCornerShape(10.dp))
+            .then(
+                if (onProfileClick != null) Modifier.clickable { onProfileClick() }
+                else Modifier
+            ),
         colors = CardDefaults.cardColors(containerColor = FbSurface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
@@ -180,23 +186,6 @@ fun PeerCard(
                             color = FacebookBlue,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
-                if (onMessageClick != null) {
-                    IconButton(
-                        onClick = onMessageClick,
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(CircleShape)
-                            .background(FacebookBlueLight)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Chat,
-                            contentDescription = "Message",
-                            tint = FacebookBlue,
-                            modifier = Modifier.size(17.dp)
                         )
                     }
                 }

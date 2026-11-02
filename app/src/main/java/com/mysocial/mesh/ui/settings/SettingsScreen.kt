@@ -781,12 +781,12 @@ fun AboutScreen(
                     val embeddedNotes = remember {
                         updateManager.getEmbeddedReleaseNotes().ifBlank {
                             """
-                            * Feature: Full-screen interactive photo lightbox with pinch-to-zoom and pan for direct messages and feed posts
-                            * Feature: Dynamic 22-bar voice note audio waveform visualization that fills as audio plays
-                            * Feature: Message bubble long-press actions with haptic feedback to copy text or delete messages
-                            * Feature: Date stamp pill dividers ("Today", "Yesterday", calendar date) grouping chat history
-                            * Feature: Delivery receipts (grey double ticks) and read receipts (vibrant cyan-blue double ticks)
-                            * Fix: Immediate photo receiving in direct messages via reactive blob manifest observation
+                            * Feature: Gorgeous modern adaptive app icon with glowing mesh nexus emblem
+                            * UI Refinement: Clean, modern feed layout removing redundant trays and headers
+                            * Feature: Dedicated bottom navigation tab for Chats with live unread badge
+                            * Feature: Modern elevated post cards with smooth 16dp rounded corners and quick composer actions
+                            * Feature: Interactive full-screen photo lightbox with pinch-to-zoom and pan
+                            * Feature: Dynamic voice note waveform visualization with tactile haptic controls
                             """.trimIndent()
                         }
                     }
