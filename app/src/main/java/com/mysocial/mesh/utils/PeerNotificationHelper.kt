@@ -11,6 +11,7 @@ import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import com.mysocial.mesh.R
 import com.mysocial.mesh.ui.MainActivity
 
 object PeerNotificationHelper {
@@ -128,7 +129,7 @@ object PeerNotificationHelper {
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle("Someone Nearby")
             .setContentText(message)
-            .setSmallIcon(android.R.drawable.stat_notify_chat)
+            .setSmallIcon(R.drawable.ic_stat_nearby_peer)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
