@@ -23,9 +23,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.BufferedInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
+import java.net.InetSocketAddress
+import java.net.Socket
 import java.net.URL
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -182,37 +185,44 @@ class PeerApkUpdateManager(
                 val tempFile = File(updatesDir, "download_${remoteVersionCode}.tmp")
                 if (tempFile.exists()) tempFile.delete()
 
-                val url = URL(downloadUrlStr)
-                val conn = (url.openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 10_000
-                    readTimeout = 60_000
-                    requestMethod = "GET"
-                    setRequestProperty("User-Agent", "MySocial-P2P-Update")
-                }
-
-                val responseCode = conn.responseCode
-                if (responseCode != HttpURLConnection.HTTP_OK) {
-                    throw IllegalStateException("Server returned HTTP $responseCode")
-                }
-
-                val totalLength = conn.contentLength.toLong().takeIf { it > 0 } ?: 10_000_000L
                 var bytesReadTotal = 0L
+                try {
+                    val url = URL(downloadUrlStr)
+                    val conn = (url.openConnection() as HttpURLConnection).apply {
+                        connectTimeout = 10_000
+                        readTimeout = 60_000
+                        requestMethod = "GET"
+                        setRequestProperty("User-Agent", "MySocial-P2P-Update")
+                    }
 
-                BufferedInputStream(conn.inputStream).use { input ->
-                    FileOutputStream(tempFile).use { output ->
-                        val buffer = ByteArray(32768)
-                        var read: Int
-                        while (input.read(buffer).also { read = it } != -1) {
-                            output.write(buffer, 0, read)
-                            bytesReadTotal += read
-                            _downloadProgress.value = (bytesReadTotal.toFloat() / totalLength.toFloat()).coerceIn(0f, 1f)
+                    val responseCode = conn.responseCode
+                    if (responseCode != HttpURLConnection.HTTP_OK) {
+                        throw IllegalStateException("Server returned HTTP $responseCode")
+                    }
+
+                    val totalLength = conn.contentLength.toLong().takeIf { it > 0 } ?: 10_000_000L
+
+                    BufferedInputStream(conn.inputStream).use { input ->
+                        FileOutputStream(tempFile).use { output ->
+                            val buffer = ByteArray(32768)
+                            var read: Int
+                            while (input.read(buffer).also { read = it } != -1) {
+                                output.write(buffer, 0, read)
+                                bytesReadTotal += read
+                                _downloadProgress.value = (bytesReadTotal.toFloat() / totalLength.toFloat()).coerceIn(0f, 1f)
+                            }
+                            output.flush()
                         }
-                        output.flush()
+                    }
+                    conn.disconnect()
+                } catch (e: Exception) {
+                    Log.w(tag, "HttpURLConnection download failed (${e.message}), attempting direct TCP socket stream fallback...")
+                    downloadViaDirectSocket(effectiveHost, remotePort, tempFile) { progress ->
+                        _downloadProgress.value = progress
                     }
                 }
-                conn.disconnect()
 
-                Log.i(tag, "Downloaded $bytesReadTotal bytes for build #$remoteVersionCode. Verifying signature...")
+                Log.i(tag, "Downloaded APK (${tempFile.length()} bytes) for build #$remoteVersionCode. Verifying signature...")
 
                 if (verifyApk(tempFile, remoteVersionCode)) {
                     if (targetApk.exists()) targetApk.delete()
@@ -242,6 +252,64 @@ class PeerApkUpdateManager(
                 isDownloadingFlag.set(false)
             }
         }
+    }
+
+    /**
+     * Resilient raw TCP streaming fallback that bypasses Android OS cleartext HTTP URL filter policies.
+     */
+    private fun downloadViaDirectSocket(
+        host: String,
+        port: Int,
+        targetFile: File,
+        onProgress: (Float) -> Unit
+    ) {
+        val socket = Socket()
+        socket.tcpNoDelay = true
+        socket.connect(InetSocketAddress(host, port), 10_000)
+        socket.soTimeout = 60_000
+
+        val out = socket.getOutputStream()
+        val request = "GET /mysocial.apk HTTP/1.1\r\nHost: $host:$port\r\nConnection: close\r\n\r\n"
+        out.write(request.toByteArray(Charsets.US_ASCII))
+        out.flush()
+
+        val rawIn = socket.getInputStream()
+        val inStream = BufferedInputStream(rawIn)
+
+        var contentLength: Long = 10_000_000L
+        val headerBytes = ByteArrayOutputStream()
+        var matchState = 0
+        while (true) {
+            val b = inStream.read()
+            if (b == -1) break
+            headerBytes.write(b)
+            if (matchState == 0 && b == '\r'.code) matchState = 1
+            else if (matchState == 1 && b == '\n'.code) matchState = 2
+            else if (matchState == 2 && b == '\r'.code) matchState = 3
+            else if (matchState == 3 && b == '\n'.code) break
+            else matchState = if (b == '\r'.code) 1 else 0
+        }
+
+        val headerStr = headerBytes.toString("US-ASCII")
+        for (line in headerStr.lines()) {
+            if (line.startsWith("Content-Length:", ignoreCase = true)) {
+                contentLength = line.substringAfter(":").trim().toLongOrNull() ?: contentLength
+            }
+        }
+
+        var bytesReadTotal = 0L
+        FileOutputStream(targetFile).use { fileOut ->
+            val buffer = ByteArray(32768)
+            var read: Int
+            while (inStream.read(buffer).also { read = it } != -1) {
+                fileOut.write(buffer, 0, read)
+                bytesReadTotal += read
+                onProgress((bytesReadTotal.toFloat() / contentLength.toFloat()).coerceIn(0f, 1f))
+            }
+            fileOut.flush()
+        }
+        socket.close()
+        Log.i(tag, "Direct TCP socket stream successfully downloaded $bytesReadTotal bytes")
     }
 
     /**

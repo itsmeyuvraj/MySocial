@@ -114,3 +114,4 @@ class DatabaseOptimizationTest {
         assertTrue(indexNames.contains("index_reactions_view_authorId_pollOptionIndex"))
     }
 }
+
