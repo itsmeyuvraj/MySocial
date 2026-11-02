@@ -316,6 +316,9 @@ interface DirectMessageDao {
     @Query("DELETE FROM direct_messages WHERE conversationPeerId = :peerId")
     suspend fun deleteConversation(peerId: String)
 
+    @Query("DELETE FROM direct_messages WHERE messageId = :messageId")
+    suspend fun deleteMessage(messageId: String)
+
     @Query("UPDATE direct_messages SET status = :newStatus WHERE messageId = :messageId")
     suspend fun updateMessageStatus(messageId: String, newStatus: Int)
 

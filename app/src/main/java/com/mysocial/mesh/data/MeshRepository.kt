@@ -686,6 +686,15 @@ class MeshRepository(
     }
 
     /**
+     * Deletes a specific direct message locally from the conversation thread.
+     */
+    suspend fun deleteDirectMessage(messageId: String) {
+        withContext(Dispatchers.IO) {
+            db.directMessageDao().deleteMessage(messageId)
+        }
+    }
+
+    /**
      * Sends a Direct Message Delivery or Read Receipt across the mesh.
      * status: 2 = DELIVERED, 3 = READ
      */

@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -13,10 +14,13 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,7 +37,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,6 +47,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Lock
@@ -50,6 +55,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -60,6 +66,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -73,8 +80,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -83,6 +94,7 @@ import androidx.core.content.ContextCompat
 import com.mysocial.mesh.data.MediaProcessor
 import com.mysocial.mesh.model.DirectMessageEntity
 import com.mysocial.mesh.ui.components.AvatarView
+import com.mysocial.mesh.ui.components.FullScreenImageViewerDialog
 import com.mysocial.mesh.ui.components.VerifiedBadge
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FbBorder
@@ -96,8 +108,10 @@ import com.mysocial.mesh.utils.VoicePlayer
 import com.mysocial.mesh.utils.toFormattedBbid
 import java.io.File
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import kotlin.math.absoluteValue
 
 @Composable
 fun ChatScreen(
@@ -117,6 +131,7 @@ fun ChatScreen(
 
     var inputText by remember { mutableStateOf("") }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedMessageForActions by remember { mutableStateOf<DirectMessageEntity?>(null) }
     val listState = rememberLazyListState()
 
     BackHandler {
@@ -504,15 +519,107 @@ fun ChatScreen(
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    items(messages, key = { it.messageId }) { message ->
+                    itemsIndexed(messages, key = { _, message -> message.messageId }) { index, message ->
+                        val showDateDivider = index == 0 || !isSameDay(message.timestamp, messages[index - 1].timestamp)
+                        if (showDateDivider) {
+                            ChatDateDivider(timestamp = message.timestamp)
+                        }
                         MessageBubble(
                             message = message,
                             voicePlayer = viewModel.voicePlayer,
-                            viewModel = viewModel
+                            viewModel = viewModel,
+                            onLongClick = { selectedMessageForActions = message }
                         )
                     }
                 }
             }
+        }
+
+        // Long-Press Message Actions Dialog
+        if (selectedMessageForActions != null) {
+            val msg = selectedMessageForActions!!
+            val clipboardManager = LocalClipboardManager.current
+            AlertDialog(
+                onDismissRequest = { selectedMessageForActions = null },
+                containerColor = FbSurfaceElevated,
+                shape = RoundedCornerShape(16.dp),
+                title = {
+                    Text(
+                        text = "Message Options",
+                        color = FbTextPrimary,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (msg.text.isNotBlank()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        clipboardManager.setText(AnnotatedString(msg.text))
+                                        Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                                        selectedMessageForActions = null
+                                    }
+                                    .padding(vertical = 12.dp, horizontal = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.ContentCopy,
+                                    contentDescription = null,
+                                    tint = FacebookBlue,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "Copy text",
+                                    color = FbTextPrimary,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    viewModel.deleteMessage(msg.messageId)
+                                    Toast.makeText(context, "Message deleted", Toast.LENGTH_SHORT).show()
+                                    selectedMessageForActions = null
+                                }
+                                .padding(vertical = 12.dp, horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Delete,
+                                contentDescription = null,
+                                tint = FbRed,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = "Delete for me",
+                                color = FbRed,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { selectedMessageForActions = null }) {
+                        Text("Cancel", color = FbTextSecondary)
+                    }
+                }
+            )
         }
     }
 }
@@ -609,13 +716,16 @@ fun VoiceRecordingBar(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MessageBubble(
     message: DirectMessageEntity,
     voicePlayer: VoicePlayer,
     viewModel: ChatViewModel,
+    onLongClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val haptic = LocalHapticFeedback.current
     val isOutgoing = message.isOutgoing
     val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
     val formattedTime = remember(message.timestamp) { timeFormat.format(Date(message.timestamp)) }
@@ -624,27 +734,28 @@ fun MessageBubble(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = if (isOutgoing) Arrangement.End else Arrangement.Start
     ) {
+        val bubbleShape = RoundedCornerShape(
+            topStart = 16.dp,
+            topEnd = 16.dp,
+            bottomStart = if (isOutgoing) 16.dp else 4.dp,
+            bottomEnd = if (isOutgoing) 4.dp else 16.dp
+        )
         Box(
             modifier = Modifier
                 .widthIn(max = 290.dp)
-                .clip(
-                    RoundedCornerShape(
-                        topStart = 16.dp,
-                        topEnd = 16.dp,
-                        bottomStart = if (isOutgoing) 16.dp else 4.dp,
-                        bottomEnd = if (isOutgoing) 4.dp else 16.dp
-                    )
-                )
+                .clip(bubbleShape)
                 .background(if (isOutgoing) FacebookBlue else FbSurfaceElevated)
                 .border(
                     width = if (isOutgoing) 0.dp else 0.8.dp,
                     color = if (isOutgoing) Color.Transparent else FbBorder,
-                    shape = RoundedCornerShape(
-                        topStart = 16.dp,
-                        topEnd = 16.dp,
-                        bottomStart = if (isOutgoing) 16.dp else 4.dp,
-                        bottomEnd = if (isOutgoing) 4.dp else 16.dp
-                    )
+                    shape = bubbleShape
+                )
+                .combinedClickable(
+                    onClick = { /* Bubble tap */ },
+                    onLongClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onLongClick()
+                    }
                 )
                 .padding(horizontal = 10.dp, vertical = 8.dp)
         ) {
@@ -768,13 +879,27 @@ fun DirectMessageImageView(
         MediaProcessor.decodeMicroPreview(microPreviewBase64)
     }
 
+    var showLightbox by remember { mutableStateOf(false) }
+
+    if (showLightbox && bitmap != null) {
+        FullScreenImageViewerDialog(
+            bitmap = bitmap,
+            title = "Encrypted photo",
+            onDismiss = { showLightbox = false }
+        )
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(if (isOutgoing) Color.White.copy(alpha = 0.1f) else FbSurface)
-            .clickable(enabled = !isComplete) {
-                viewModel.prioritizeBlob(blobHash)
+            .clickable {
+                if (isComplete && bitmap != null) {
+                    showLightbox = true
+                } else if (!isComplete) {
+                    viewModel.prioritizeBlob(blobHash)
+                }
             }
     ) {
         val resolvedBitmap = bitmap
@@ -827,6 +952,50 @@ fun DirectMessageImageView(
                     strokeWidth = 2.dp
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun AudioWaveformBars(
+    progress: Float,
+    isOutgoing: Boolean,
+    isPlaying: Boolean,
+    blobHash: String,
+    modifier: Modifier = Modifier
+) {
+    val barCount = 22
+    val heights = remember(blobHash) {
+        val hash = blobHash.hashCode().absoluteValue
+        val basePattern = listOf(7, 12, 18, 9, 15, 22, 16, 11, 20, 13, 24, 11, 17, 20, 14, 9, 13, 19, 10, 15, 9, 6)
+        List(barCount) { i ->
+            val variation = ((hash shr (i % 16)) and 0x7) - 3 // -3 to +4
+            (basePattern[i % basePattern.size] + variation).coerceIn(6, 24).dp
+        }
+    }
+
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        heights.forEachIndexed { index, height ->
+            val barFraction = (index + 1).toFloat() / barCount.toFloat()
+            val isFilled = barFraction <= progress
+
+            val barColor = if (isOutgoing) {
+                if (isFilled) Color.White else Color.White.copy(alpha = 0.35f)
+            } else {
+                if (isFilled) FacebookBlue else FbTextTertiary.copy(alpha = 0.4f)
+            }
+
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .height(height)
+                    .clip(RoundedCornerShape(1.5.dp))
+                    .background(barColor)
+            )
         }
     }
 }
@@ -899,19 +1068,26 @@ fun DirectMessageAudioView(
 
         Spacer(modifier = Modifier.width(10.dp))
 
-        // Progress line & Timer
+        // Dynamic Audio Waveform & Timer
         Column(modifier = Modifier.weight(1f)) {
-            LinearProgressIndicator(
-                progress = { if (isThisActive) progress else 0f },
+            AudioWaveformBars(
+                progress = if (isThisActive) progress else 0f,
+                isOutgoing = isOutgoing,
+                isPlaying = isThisPlaying,
+                blobHash = blobHash,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp)),
-                color = if (isOutgoing) Color.White else FacebookBlue,
-                trackColor = if (isOutgoing) Color.White.copy(alpha = 0.3f) else FbBorder
+                    .height(26.dp)
+                    .clickable {
+                        if (isAvailable) {
+                            voicePlayer.togglePlay(messageId, blobFile)
+                        } else {
+                            viewModel.prioritizeBlob(blobHash)
+                        }
+                    }
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(3.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -942,6 +1118,50 @@ fun DirectMessageAudioView(
                     )
                 }
             }
+        }
+    }
+}
+
+private fun isSameDay(t1: Long, t2: Long): Boolean {
+    val cal1 = Calendar.getInstance().apply { timeInMillis = t1 }
+    val cal2 = Calendar.getInstance().apply { timeInMillis = t2 }
+    return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
+           cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
+}
+
+private fun formatChatDateDivider(timestamp: Long): String {
+    val now = Calendar.getInstance()
+    val msgCal = Calendar.getInstance().apply { timeInMillis = timestamp }
+    return when {
+        now.get(Calendar.YEAR) == msgCal.get(Calendar.YEAR) &&
+        now.get(Calendar.DAY_OF_YEAR) == msgCal.get(Calendar.DAY_OF_YEAR) -> "Today"
+        now.get(Calendar.YEAR) == msgCal.get(Calendar.YEAR) &&
+        now.get(Calendar.DAY_OF_YEAR) - msgCal.get(Calendar.DAY_OF_YEAR) == 1 -> "Yesterday"
+        else -> SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date(timestamp))
+    }
+}
+
+@Composable
+fun ChatDateDivider(timestamp: Long) {
+    val label = remember(timestamp) { formatChatDateDivider(timestamp) }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            color = FbSurfaceElevated,
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(0.6.dp, FbBorder)
+        ) {
+            Text(
+                text = label,
+                color = FbTextSecondary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+            )
         }
     }
 }

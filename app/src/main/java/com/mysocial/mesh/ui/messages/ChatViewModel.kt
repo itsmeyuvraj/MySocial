@@ -158,6 +158,12 @@ class ChatViewModel(
         }
     }
 
+    fun deleteMessage(messageId: String) {
+        viewModelScope.launch {
+            repository.deleteDirectMessage(messageId)
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         voiceRecorder.cancelRecording()

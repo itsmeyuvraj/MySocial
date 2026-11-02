@@ -807,6 +807,16 @@ fun PostMediaAttachmentView(
         MediaProcessor.decodeMicroPreview(microPreviewBase64)
     }
 
+    var showLightbox by remember { mutableStateOf(false) }
+
+    if (showLightbox && fullBitmap != null) {
+        FullScreenImageViewerDialog(
+            bitmap = fullBitmap,
+            title = "Post photo",
+            onDismiss = { showLightbox = false }
+        )
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -824,6 +834,7 @@ fun PostMediaAttachmentView(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 180.dp, max = 380.dp)
+                    .clickable { showLightbox = true }
             )
         } else {
             // Incomplete: Blurred micro-preview + circular progress indicator + tap to prioritize
