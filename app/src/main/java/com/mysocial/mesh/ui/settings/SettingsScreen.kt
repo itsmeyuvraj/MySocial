@@ -781,17 +781,12 @@ fun AboutScreen(
                     val embeddedNotes = remember {
                         updateManager.getEmbeddedReleaseNotes().ifBlank {
                             """
-                            * Feature: End-to-End Encrypted (E2EE) 1-on-1 private messaging secured with X25519 ECDH and AES-256-GCM
-                            * Feature: Encrypted photo and media sharing with micro-previews and resumable mesh chunk transfer
-                            * Feature: Voice notes and audio messages with live duration ticker, progress scrubber, and native player
-                            * Feature: Delivery receipts (double white ticks) and read receipts (vibrant double blue ticks)
-                            * Improved: Instant reactive media download and preview rendering in direct message threads
-                            * Improved: Prioritized background blob chunk streaming for private messages over active peer connections
-                            * Improved: Dual-transport mesh over Bluetooth 5.0+ LE 2M secondary PHY and Local Wi-Fi LAN / Hotspot mDNS
-                            * Improved: Configurable mule storage ring buffer to auto-prune expired posts and stranger media
-                            * Feature: Offline APK sharing to send MySocial to nearby friends without internet
-                            * Feature: ShareIt-style animated radar for discovering nearby people with real-time signal blips
-                            * Security: In-person QR code identity handshake and verified blue checkmark trust badges
+                            * Feature: Added delivery receipts (double ticks) and read receipts (double blue ticks) for 1-on-1 messages
+                            * Fix: Fixed photo receiving in direct messages so incoming photos display immediately upon arrival
+                            * Feature: Added encrypted photo and media sharing in direct messages with micro-previews
+                            * Feature: Added voice notes with live recording duration timer, progress scrubber, and audio player
+                            * Feature: Added End-to-End Encrypted (E2EE) 1-on-1 private messaging secured with X25519 ECDH and AES-256-GCM
+                            * Improved: Prioritized direct message media chunk streaming over active Wi-Fi and Bluetooth mesh connections
                             """.trimIndent()
                         }
                     }
