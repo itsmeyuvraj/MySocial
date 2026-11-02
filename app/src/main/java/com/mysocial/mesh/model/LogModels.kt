@@ -30,7 +30,8 @@ enum class ContentType {
     FOLLOW,
     POST_EDIT,
     POST_DELETE,
-    DIRECT_MESSAGE
+    DIRECT_MESSAGE,
+    DIRECT_MESSAGE_RECEIPT
 }
 
 // -----------------------------------------------------------------------------------------
@@ -134,6 +135,21 @@ data class FollowPayload(
 
     companion object {
         fun fromJson(json: String): FollowPayload = CanonicalJson.decodeFromString(json)
+    }
+}
+
+@Serializable
+data class DirectMessageReceiptPayload(
+    val messageId: String,
+    val originalSenderId: String, // Original sender who should receive this receipt
+    val recipientId: String,      // Recipient delivering/reading the message
+    val status: Int,              // 2 = DELIVERED, 3 = READ
+    val timestamp: Long
+) {
+    fun toJson(): String = CanonicalJson.encodeToString(this)
+
+    companion object {
+        fun fromJson(json: String): DirectMessageReceiptPayload = CanonicalJson.decodeFromString(json)
     }
 }
 
@@ -391,7 +407,7 @@ data class DirectMessageEntity(
     val timestamp: Long,
     val isOutgoing: Boolean,
     val isRead: Boolean = false,
-    val status: Int = 1, // 0 = SENDING, 1 = SENT/DELIVERED, 2 = FAILED
+    val status: Int = 1, // 0 = SENDING, 1 = SENT, 2 = DELIVERED, 3 = READ
     val mediaType: String? = null, // "IMAGE", "AUDIO"
     val mediaBlobHash: String? = null,
     val mediaMimeType: String? = null,

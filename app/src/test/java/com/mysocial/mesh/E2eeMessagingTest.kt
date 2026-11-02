@@ -48,8 +48,10 @@ class E2eeMessagingTest {
         val plaintext = "Confidential coordinates: 40.7128, -74.0060"
         val payload = alice.encryptDirectMessage(bob.authorId, plaintext)
 
-        // Tamper with the ciphertext Base64
-        val tamperedCiphertext = payload.ciphertextBase64.replaceFirst("A", "B")
+        // Tamper with the ciphertext Base64 deterministically
+        val firstChar = payload.ciphertextBase64.first()
+        val replacementChar = if (firstChar == 'A') 'B' else 'A'
+        val tamperedCiphertext = replacementChar + payload.ciphertextBase64.substring(1)
         val tamperedPayload = payload.copy(ciphertextBase64 = tamperedCiphertext)
 
         val decrypted = bob.decryptDirectMessage(tamperedPayload)
@@ -89,6 +91,32 @@ class E2eeMessagingTest {
         assertEquals(rawLegacyText, parsed.text)
         assertNull(parsed.mediaType)
         assertNull(parsed.mediaBlobHash)
+    }
+
+    @Test
+    fun testDirectMessageReceiptPayloadSerialization() {
+        val payload = com.mysocial.mesh.model.DirectMessageReceiptPayload(
+            messageId = "msg_12345",
+            originalSenderId = "@Alice12345.ed25519",
+            recipientId = "@Bob67890.ed25519",
+            status = 2, // DELIVERED
+            timestamp = 1700000000000L
+        )
+
+        val json = payload.toJson()
+        val parsed = com.mysocial.mesh.model.DirectMessageReceiptPayload.fromJson(json)
+
+        assertEquals("msg_12345", parsed.messageId)
+        assertEquals("@Alice12345.ed25519", parsed.originalSenderId)
+        assertEquals("@Bob67890.ed25519", parsed.recipientId)
+        assertEquals(2, parsed.status)
+        assertEquals(1700000000000L, parsed.timestamp)
+
+        // Read receipt status = 3
+        val readPayload = payload.copy(status = 3)
+        val readJson = readPayload.toJson()
+        val readParsed = com.mysocial.mesh.model.DirectMessageReceiptPayload.fromJson(readJson)
+        assertEquals(3, readParsed.status)
     }
 }
 

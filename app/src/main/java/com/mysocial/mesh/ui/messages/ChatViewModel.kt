@@ -4,12 +4,14 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mysocial.mesh.data.BlobManifestEntity
 import com.mysocial.mesh.data.MediaProcessor
 import com.mysocial.mesh.data.MeshRepository
 import com.mysocial.mesh.model.DirectMessageEntity
 import com.mysocial.mesh.model.ProfileViewEntity
 import com.mysocial.mesh.utils.VoicePlayer
 import com.mysocial.mesh.utils.VoiceRecorder
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -146,6 +148,14 @@ class ChatViewModel(
 
     fun clearError() {
         _errorMessage.value = null
+    }
+
+    fun observeBlobManifest(blobHash: String): Flow<BlobManifestEntity?> = repository.observeBlobManifest(blobHash)
+
+    fun prioritizeBlob(blobHash: String) {
+        viewModelScope.launch {
+            repository.prioritizeBlob(blobHash)
+        }
     }
 
     override fun onCleared() {

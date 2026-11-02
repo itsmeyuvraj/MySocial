@@ -58,6 +58,16 @@ class MeshRepository(
 
     init {
         db.cryptoManager = cryptoManager
+        db.onBlobDiscovered = { blobHash ->
+            repoScope.launch {
+                syncEngine.prioritizeBlob(blobHash)
+            }
+        }
+        db.onDirectMessageReceived = { messageId, senderId ->
+            repoScope.launch {
+                sendDirectMessageReceipt(messageId, senderId, 2) // 2 = DELIVERED
+            }
+        }
         startStalePeerPruner()
     }
 
@@ -662,12 +672,53 @@ class MeshRepository(
     }
 
     /**
-     * Marks all unread incoming messages in a conversation as read.
+     * Marks all unread incoming messages in a conversation as read and broadcasts READ receipts.
      */
     suspend fun markConversationAsRead(peerId: String) {
         withContext(Dispatchers.IO) {
+            val unreadMessages = db.directMessageDao().getUnreadIncomingMessagesForPeer(peerId)
             db.directMessageDao().markConversationAsRead(peerId)
+
+            for (msg in unreadMessages) {
+                sendDirectMessageReceipt(msg.messageId, msg.senderId, 3) // 3 = READ
+            }
         }
+    }
+
+    /**
+     * Sends a Direct Message Delivery or Read Receipt across the mesh.
+     * status: 2 = DELIVERED, 3 = READ
+     */
+    suspend fun sendDirectMessageReceipt(messageId: String, senderAuthorId: String, status: Int): Result<LogEntry> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val payload = com.mysocial.mesh.model.DirectMessageReceiptPayload(
+                    messageId = messageId,
+                    originalSenderId = senderAuthorId,
+                    recipientId = cryptoManager.authorId,
+                    status = status,
+                    timestamp = System.currentTimeMillis()
+                )
+                val result = syncEngine.createAndPublishLocalEntry(
+                    ContentType.DIRECT_MESSAGE_RECEIPT,
+                    payload.toJson()
+                )
+                if (result.isSuccess) {
+                    onContentPublished?.invoke()
+                }
+                result
+            } catch (e: Exception) {
+                Log.e("MeshRepository", "Failed to send receipt: ${e.message}", e)
+                Result.failure(e)
+            }
+        }
+    }
+
+    /**
+     * Requests prioritized on-demand download of a specific media blob over active connections.
+     */
+    suspend fun prioritizeBlob(blobHash: String) {
+        prioritizeBlobDownload(blobHash)
     }
 
     /**

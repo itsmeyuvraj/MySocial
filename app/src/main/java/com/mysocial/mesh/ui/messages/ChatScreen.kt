@@ -507,7 +507,8 @@ fun ChatScreen(
                     items(messages, key = { it.messageId }) { message ->
                         MessageBubble(
                             message = message,
-                            voicePlayer = viewModel.voicePlayer
+                            voicePlayer = viewModel.voicePlayer,
+                            viewModel = viewModel
                         )
                     }
                 }
@@ -612,6 +613,7 @@ fun VoiceRecordingBar(
 fun MessageBubble(
     message: DirectMessageEntity,
     voicePlayer: VoicePlayer,
+    viewModel: ChatViewModel,
     modifier: Modifier = Modifier
 ) {
     val isOutgoing = message.isOutgoing
@@ -652,7 +654,8 @@ fun MessageBubble(
                     DirectMessageImageView(
                         blobHash = message.mediaBlobHash,
                         microPreviewBase64 = message.mediaMicroPreviewBase64,
-                        isOutgoing = isOutgoing
+                        isOutgoing = isOutgoing,
+                        viewModel = viewModel
                     )
                     if (message.text.isNotBlank()) {
                         Spacer(modifier = Modifier.height(6.dp))
@@ -666,7 +669,8 @@ fun MessageBubble(
                         blobHash = message.mediaBlobHash,
                         durationMs = message.mediaDurationMs ?: 0L,
                         isOutgoing = isOutgoing,
-                        voicePlayer = voicePlayer
+                        voicePlayer = voicePlayer,
+                        viewModel = viewModel
                     )
                     if (message.text.isNotBlank()) {
                         Spacer(modifier = Modifier.height(4.dp))
@@ -709,14 +713,26 @@ fun MessageBubble(
                             1 -> Icon(
                                 imageVector = Icons.Filled.Check,
                                 contentDescription = "Sent",
-                                tint = Color.White,
+                                tint = Color.White.copy(alpha = 0.85f),
                                 modifier = Modifier.size(12.dp)
+                            )
+                            2 -> Icon(
+                                imageVector = Icons.Filled.DoneAll,
+                                contentDescription = "Delivered",
+                                tint = Color.White.copy(alpha = 0.85f),
+                                modifier = Modifier.size(13.dp)
+                            )
+                            3 -> Icon(
+                                imageVector = Icons.Filled.DoneAll,
+                                contentDescription = "Read",
+                                tint = Color(0xFF60CDFF), // Vibrant cyan-blue double ticks on FacebookBlue
+                                modifier = Modifier.size(13.dp)
                             )
                             else -> Icon(
                                 imageVector = Icons.Filled.DoneAll,
                                 contentDescription = "Delivered",
-                                tint = Color.White,
-                                modifier = Modifier.size(12.dp)
+                                tint = Color.White.copy(alpha = 0.85f),
+                                modifier = Modifier.size(13.dp)
                             )
                         }
                     }
@@ -730,11 +746,13 @@ fun MessageBubble(
 fun DirectMessageImageView(
     blobHash: String,
     microPreviewBase64: String?,
-    isOutgoing: Boolean
+    isOutgoing: Boolean,
+    viewModel: ChatViewModel
 ) {
     val context = LocalContext.current
+    val manifest by viewModel.observeBlobManifest(blobHash).collectAsState(initial = null)
     val blobFile = remember(blobHash) { MediaProcessor.getBlobFile(context, blobHash) }
-    val isComplete = blobFile.exists() && blobFile.length() > 0
+    val isComplete = (manifest?.isComplete == true) || (blobFile.exists() && blobFile.length() > 0)
 
     val bitmap by androidx.compose.runtime.produceState<android.graphics.Bitmap?>(initialValue = null, blobHash, isComplete) {
         value = if (isComplete) {
@@ -755,6 +773,9 @@ fun DirectMessageImageView(
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(if (isOutgoing) Color.White.copy(alpha = 0.1f) else FbSurface)
+            .clickable(enabled = !isComplete) {
+                viewModel.prioritizeBlob(blobHash)
+            }
     ) {
         val resolvedBitmap = bitmap
         if (resolvedBitmap != null) {
@@ -779,11 +800,19 @@ fun DirectMessageImageView(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
-                CircularProgressIndicator(
-                    color = FacebookBlue,
-                    modifier = Modifier.size(28.dp),
-                    strokeWidth = 2.5.dp
-                )
+                Surface(
+                    color = Color.Black.copy(alpha = 0.45f),
+                    shape = CircleShape,
+                    modifier = Modifier.size(44.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.5.dp
+                        )
+                    }
+                }
             }
         } else {
             Box(
@@ -808,11 +837,13 @@ fun DirectMessageAudioView(
     blobHash: String,
     durationMs: Long,
     isOutgoing: Boolean,
-    voicePlayer: VoicePlayer
+    voicePlayer: VoicePlayer,
+    viewModel: ChatViewModel
 ) {
     val context = LocalContext.current
+    val manifest by viewModel.observeBlobManifest(blobHash).collectAsState(initial = null)
     val blobFile = remember(blobHash) { MediaProcessor.getBlobFile(context, blobHash) }
-    val isAvailable = blobFile.exists() && blobFile.length() > 0
+    val isAvailable = (manifest?.isComplete == true) || (blobFile.exists() && blobFile.length() > 0)
 
     val currentPlayingId by voicePlayer.currentPlayingMessageId.collectAsState()
     val isPlaying by voicePlayer.isPlaying.collectAsState()
@@ -841,8 +872,12 @@ fun DirectMessageAudioView(
                 .size(38.dp)
                 .clip(CircleShape)
                 .background(if (isOutgoing) Color.White else FacebookBlue)
-                .clickable(enabled = isAvailable) {
-                    voicePlayer.togglePlay(messageId, blobFile)
+                .clickable {
+                    if (isAvailable) {
+                        voicePlayer.togglePlay(messageId, blobFile)
+                    } else {
+                        viewModel.prioritizeBlob(blobHash)
+                    }
                 },
             contentAlignment = Alignment.Center
         ) {

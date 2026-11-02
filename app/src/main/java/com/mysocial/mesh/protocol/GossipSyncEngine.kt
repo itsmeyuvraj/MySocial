@@ -350,6 +350,18 @@ class GossipSyncEngine(
         val candidates = mutableListOf<Pair<com.mysocial.mesh.data.BlobManifestEntity, Int>>()
 
         for (manifest in manifests) {
+            // 1. Direct message media has absolute highest priority (score 100) and is never skipped by hashtags
+            val isDirectMessage = try {
+                db.directMessageDao().isDirectMessageBlob(manifest.blobHash) > 0
+            } catch (_: Exception) {
+                false
+            }
+
+            if (isDirectMessage) {
+                candidates.add(manifest to 100)
+                continue
+            }
+
             val post = db.postViewDao().getPostByBlobHash(manifest.blobHash)
             val tags = post?.tagsJson?.let {
                 try {

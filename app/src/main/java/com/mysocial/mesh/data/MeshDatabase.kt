@@ -318,6 +318,15 @@ interface DirectMessageDao {
 
     @Query("UPDATE direct_messages SET status = :newStatus WHERE messageId = :messageId")
     suspend fun updateMessageStatus(messageId: String, newStatus: Int)
+
+    @Query("UPDATE direct_messages SET status = :newStatus WHERE messageId = :messageId AND status < :newStatus")
+    suspend fun updateMessageStatusIfHigher(messageId: String, newStatus: Int)
+
+    @Query("SELECT * FROM direct_messages WHERE conversationPeerId = :peerId AND isOutgoing = 0 AND isRead = 0")
+    suspend fun getUnreadIncomingMessagesForPeer(peerId: String): List<DirectMessageEntity>
+
+    @Query("SELECT COUNT(*) FROM direct_messages WHERE mediaBlobHash = :blobHash")
+    suspend fun isDirectMessageBlob(blobHash: String): Int
 }
 
 // -----------------------------------------------------------------------------------------
@@ -449,6 +458,10 @@ object LogValidator {
                 ContentType.DIRECT_MESSAGE -> {
                     val dm = com.mysocial.mesh.crypto.DirectMessagePayload.fromJson(json)
                     dm.recipientId.isNotBlank() && dm.ciphertextBase64.isNotBlank() && dm.ephemeralPublicKeyBase64.isNotBlank()
+                }
+                ContentType.DIRECT_MESSAGE_RECEIPT -> {
+                    val r = com.mysocial.mesh.model.DirectMessageReceiptPayload.fromJson(json)
+                    r.messageId.isNotBlank() && r.originalSenderId.isNotBlank() && r.recipientId.isNotBlank() && (r.status == 2 || r.status == 3)
                 }
             }
         } catch (e: Exception) {
@@ -680,6 +693,8 @@ object LogProjector {
                                             )
                                         )
                                     }
+                                    // Trigger immediate prioritized blob download over active connections
+                                    db.onBlobDiscovered?.invoke(content.mediaBlobHash)
                                 }
 
                                 db.directMessageDao().insertMessage(
@@ -701,6 +716,10 @@ object LogProjector {
                                         mediaMicroPreviewBase64 = content.mediaMicroPreviewBase64
                                     )
                                 )
+
+                                // Automatically acknowledge delivery receipt (status = 2) back to sender
+                                db.onDirectMessageReceived?.invoke(payload.messageId, entry.authorId)
+
                                 // Fire high-priority direct message notification
                                 val senderProfile = db.profileDao().getProfile(entry.authorId)
                                 val senderName = senderProfile?.displayName ?: "Someone Nearby"
@@ -717,11 +736,25 @@ object LogProjector {
                             }
                         } else if (entry.authorId == myAuthorId) {
                             // Outgoing message confirmation
-                            db.directMessageDao().updateMessageStatus(payload.messageId, 1)
+                            db.directMessageDao().updateMessageStatusIfHigher(payload.messageId, 1)
                         }
                     }
                 } catch (e: Exception) {
                     Log.w("MeshDatabase", "Failed to project direct message: ${e.message}")
+                }
+            }
+
+            ContentType.DIRECT_MESSAGE_RECEIPT -> {
+                try {
+                    val payload = com.mysocial.mesh.model.DirectMessageReceiptPayload.fromJson(entry.contentJson)
+                    val crypto = db.cryptoManager
+                    val myAuthorId = crypto?.authorId
+                    if (myAuthorId != null && payload.originalSenderId == myAuthorId) {
+                        // Original sender receives delivery or read confirmation
+                        db.directMessageDao().updateMessageStatusIfHigher(payload.messageId, payload.status)
+                    }
+                } catch (e: Exception) {
+                    Log.w("MeshDatabase", "Failed to project direct message receipt: ${e.message}")
                 }
             }
         }
@@ -757,6 +790,12 @@ abstract class MeshDatabase : RoomDatabase() {
 
     @Volatile
     var appContext: Context? = null
+
+    @Volatile
+    var onDirectMessageReceived: ((messageId: String, senderId: String) -> Unit)? = null
+
+    @Volatile
+    var onBlobDiscovered: ((blobHash: String) -> Unit)? = null
 
     abstract fun logEntryDao(): LogEntryDao
     abstract fun profileDao(): ProfileDao
