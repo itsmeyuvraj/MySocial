@@ -100,10 +100,7 @@ class AppSettings private constructor(context: Context) {
     val maxStrangerMediaCacheMb: StateFlow<Int> = _maxStrangerMediaCacheMb.asStateFlow()
 
     fun setMaxStrangerMediaCacheMb(mb: Int) {
-        val validMb = when (mb) {
-            50, 100, 250 -> mb
-            else -> DEFAULT_MAX_STRANGER_MEDIA_CACHE_MB
-        }
+        val validMb = if (mb in 1..250) mb else DEFAULT_MAX_STRANGER_MEDIA_CACHE_MB
         prefs.edit().putInt(KEY_MAX_STRANGER_MEDIA_CACHE_MB, validMb).apply()
         _maxStrangerMediaCacheMb.value = validMb
     }

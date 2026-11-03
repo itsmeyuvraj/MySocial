@@ -14,26 +14,10 @@
                 android:endX="96"
                 android:endY="96"
                 android:type="linear">
-                <item android:offset="0.0" android:color="#0B132B" />
-                <item android:offset="0.45" android:color="#14213D" />
+                <item android:offset="0.0" android:color="#3B82F6" />
+                <item android:offset="0.6" android:color="#2563EB" />
                 <item android:offset="1.0" android:color="#1D4ED8" />
             </gradient>
         </aapt:attr>
     </path>
-    <!-- Subtle ambient glow circle in bottom right -->
-    <path
-        android:pathData="M54,54m-42,0a42,42 0,1,1 84,0a42,42 0,1,1 -84,0">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:centerX="68"
-                android:centerY="68"
-                android:gradientRadius="48"
-                android:type="radial">
-                <item android:offset="0.0" android:color="#4038BDF8" />
-                <item android:offset="0.6" android:color="#202563EB" />
-                <item android:offset="1.0" android:color="#00000000" />
-            </gradient>
-        </aapt:attr>
-    </path>
 </vector>
-

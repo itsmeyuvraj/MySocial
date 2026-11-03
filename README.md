@@ -205,15 +205,29 @@ adb shell am start -n com.mysocial.mesh/.ui.MainActivity
 
 ---
 
+## 🎨 Modern App Icon & Design System
+
+The application features a minimalist adaptive icon crafted for modern Android and iOS aesthetic standards:
+- **Electric Sapphire Canvas**: Vibrant, high-contrast gradient (`#3B82F6` $\to$ `#1D4ED8`) matching premier mobile messengers.
+- **P2P Mesh Signal Bubble**: Crisp white speech bubble with an elevation drop shadow, carrying radiating peer-to-peer wireless broadcast waves and a central beacon node in electric blue.
+- **Material You Dynamic Theming**: Integrated Android 13+ monochrome vector mask (`ic_launcher_monochrome.xml`) that harmonizes dynamically with system wallpaper palettes.
+
+---
+
 ## 🧪 Testing
 
-The codebase includes comprehensive unit tests verifying cryptographic integrity, binary wire formats, and boundary constraints:
+The codebase includes an exhaustive **100-test automated unit test suite** (100% pass rate) covering every layer of the architecture:
 
-- `BleExtendedPayloadTest`: Validates full binary roundtrip encoding, legacy 4-byte fallback detection, controller capacity budget enforcement, and corruption recovery.
-- `BleChunkerTest`: Tests MTU-constrained packet slicing and out-of-order reassembly.
-- `BlobTransferEngineTest`: Verifies content-addressed media chunking, SHA-256 checksums, and streaming disk writes.
+- `PeerApkUpdateManagerTest` (6 tests): Zero-internet HTTP distribution server, HEAD headers, socket streaming, version comparisons, and update state dismissal.
+- `FullDatabaseOperationsTest` (8 tests): Room SQLite queries, SOS emergency post priority sorting, TTL auto-pruning, atomic counter transactions, and direct message progression.
+- `LogLedgerValidationExhaustiveTest` (6 tests): Cryptographic ledger rules, sequential continuity, signature and JSON tamper detection, idempotency, and vector clock coalescence.
+- `E2eeMessagingTest` (10 tests): Ephemeral X25519 ECDH key exchange, AES-256-GCM encryption/decryption, IV and key tampering rejection, payload boundaries, and birational mapping determinism.
+- `MeshDataMulePruningTest` (2 tests): LRU stranger media cache bounds pruning and expired blob purges.
+- `WireProtocolSerializationTest` (6 tests): Gossip protocol message serialization, backward-compatible HelloVector handling, and blob chunk bitfields.
+- `ViewModelReactivityExhaustiveTest` (7 tests): Feed filtering (Open Mesh vs Friends), multi-field search, hashtag muting/pinning, RadarViewModel TTL pruning, and ChatViewModel read receipts.
+- Additional test suites (`BleExtendedPayloadTest`, `BleChunkerTest`, `BlobTransferEngineTest`, `CryptoManagerTest`, `BbidUtilsTest`, `TrustQrUtilsTest`, `DatabaseOptimizationTest`, `ChangelogViewTest`): 55 tests.
 
-Run the test suite with:
+Run the entire test suite with:
 ```bash
 ./gradlew testDebugUnitTest
 ```

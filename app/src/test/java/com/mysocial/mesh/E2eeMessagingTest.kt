@@ -118,5 +118,76 @@ class E2eeMessagingTest {
         val readParsed = com.mysocial.mesh.model.DirectMessageReceiptPayload.fromJson(readJson)
         assertEquals(3, readParsed.status)
     }
+
+    @Test
+    fun testTamperedIvFailsDecryption() {
+        val alice = CryptoManager.createInMemory()
+        val bob = CryptoManager.createInMemory()
+
+        val plaintext = "Secret data"
+        val payload = alice.encryptDirectMessage(bob.authorId, plaintext)
+
+        // Alter the IV
+        val firstChar = payload.ivBase64.first()
+        val replacementChar = if (firstChar == 'A') 'B' else 'A'
+        val tamperedIv = replacementChar + payload.ivBase64.substring(1)
+        val tamperedPayload = payload.copy(ivBase64 = tamperedIv)
+
+        val decrypted = bob.decryptDirectMessage(tamperedPayload)
+        assertNull("Tampered IV must cause GCM authentication failure", decrypted)
+    }
+
+    @Test
+    fun testTamperedEphemeralPublicKeyFailsDecryption() {
+        val alice = CryptoManager.createInMemory()
+        val bob = CryptoManager.createInMemory()
+
+        val plaintext = "Secret data"
+        val payload = alice.encryptDirectMessage(bob.authorId, plaintext)
+
+        // Alter the ephemeral public key
+        val firstChar = payload.ephemeralPublicKeyBase64.first()
+        val replacementChar = if (firstChar == 'A') 'B' else 'A'
+        val tamperedKey = replacementChar + payload.ephemeralPublicKeyBase64.substring(1)
+        val tamperedPayload = payload.copy(ephemeralPublicKeyBase64 = tamperedKey)
+
+        val decrypted = bob.decryptDirectMessage(tamperedPayload)
+        assertNull("Tampered ephemeral key must produce wrong shared secret and fail MAC", decrypted)
+    }
+
+    @Test
+    fun testLargePayloadEncryptionAndDecryption() {
+        val alice = CryptoManager.createInMemory()
+        val bob = CryptoManager.createInMemory()
+
+        // 50,000 character string
+        val largeText = "A".repeat(50_000)
+        val payload = alice.encryptDirectMessage(bob.authorId, largeText)
+        val decrypted = bob.decryptDirectMessage(payload)
+
+        assertEquals("Large payload (50KB) must encrypt and decrypt without truncation", largeText, decrypted)
+    }
+
+    @Test
+    fun testEmptyStringEncryptionAndDecryption() {
+        val alice = CryptoManager.createInMemory()
+        val bob = CryptoManager.createInMemory()
+
+        val emptyText = ""
+        val payload = alice.encryptDirectMessage(bob.authorId, emptyText)
+        val decrypted = bob.decryptDirectMessage(payload)
+
+        assertEquals("", decrypted)
+    }
+
+    @Test
+    fun testBirationalMappingDeterminism() {
+        val pubBytes = ByteArray(32) { (it * 7).toByte() }
+        val xPub1 = E2eeManager.ed25519PubToX25519(pubBytes)
+        val xPub2 = E2eeManager.ed25519PubToX25519(pubBytes)
+
+        assertEquals(32, xPub1.size)
+        org.junit.Assert.assertArrayEquals("Birational map must be strictly deterministic", xPub1, xPub2)
+    }
 }
 

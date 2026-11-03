@@ -1,91 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Ambient Center Halo Glow -->
+    <!-- Subtle Ambient Bubble Drop Shadow for elevation depth -->
     <path
-        android:pathData="M54,54m-28,0a28,28 0,1,1 56,0a28,28 0,1,1 -56,0">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:centerX="54"
-                android:centerY="54"
-                android:gradientRadius="30"
-                android:type="radial">
-                <item android:offset="0.0" android:color="#4D38BDF8" />
-                <item android:offset="0.7" android:color="#206366F1" />
-                <item android:offset="1.0" android:color="#00000000" />
-            </gradient>
-        </aapt:attr>
-    </path>
+        android:pathData="M 27.42,55.50 C 27.42,40.10 39.23,28.08 54.00,28.08 C 68.77,28.08 80.58,40.10 80.58,55.50 C 80.58,70.90 68.77,82.92 54.00,82.92 C 48.94,82.92 44.30,81.44 40.08,78.91 L 29.11,82.08 C 27.63,82.50 26.16,81.02 26.58,79.55 L 29.53,68.16 C 28.27,64.15 27.42,59.93 27.42,55.50 Z"
+        android:fillColor="#25000000" />
 
-    <!-- Interconnected Social Mesh Wave / Infinity Flow -->
-    <!-- Primary Flow Loop -->
+    <!-- Pristine White Modern Bubble Body -->
     <path
-        android:pathData="M37,42 C37,32 50,30 56,36 L68,48 C74,54 77,61 74,68 C71,75 62,77 56,72 L44,60 C38,54 35,47 38,40"
-        android:strokeWidth="6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round">
-        <aapt:attr name="android:strokeColor">
-            <gradient
-                android:startX="32"
-                android:startY="32"
-                android:endX="76"
-                android:endY="76"
-                android:type="linear">
-                <item android:offset="0.0" android:color="#38BDF8" />
-                <item android:offset="0.5" android:color="#60A5FA" />
-                <item android:offset="1.0" android:color="#C084FC" />
-            </gradient>
-        </aapt:attr>
-    </path>
-
-    <!-- Secondary Complementary Flow Arc -->
-    <path
-        android:pathData="M71,42 C71,32 58,30 52,36 L40,48 C34,54 31,61 34,68 C37,75 46,77 52,72"
-        android:strokeWidth="5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round">
-        <aapt:attr name="android:strokeColor">
-            <gradient
-                android:startX="76"
-                android:startY="32"
-                android:endX="32"
-                android:endY="76"
-                android:type="linear">
-                <item android:offset="0.0" android:color="#38BDF8" />
-                <item android:offset="0.5" android:color="#818CF8" />
-                <item android:offset="1.0" android:color="#E879F9" />
-            </gradient>
-        </aapt:attr>
-    </path>
-
-    <!-- Central Nexus Peer Node (Solid Core + Glow) -->
-    <path
-        android:pathData="M54,54m-5,0a5,5 0,1,1 10,0a5,5 0,1,1 -10,0"
+        android:pathData="M 27.42,54.18 C 27.42,38.78 39.23,26.76 54.00,26.76 C 68.77,26.76 80.58,38.78 80.58,54.18 C 80.58,69.58 68.77,81.60 54.00,81.60 C 48.94,81.60 44.30,80.12 40.08,77.59 L 29.11,80.76 C 27.63,81.18 26.16,79.70 26.58,78.23 L 29.53,66.84 C 28.27,62.83 27.42,58.61 27.42,54.18 Z"
         android:fillColor="#FFFFFF" />
 
-    <!-- Top-Left Peer Node -->
+    <!-- Outer Wireless Mesh Wave -->
     <path
-        android:pathData="M37,38m-4,0a4,4 0,1,1 8,0a4,4 0,1,1 -8,0"
-        android:fillColor="#38BDF8" />
+        android:pathData="M 43.03,46.80 C 46.20,43.63 49.78,41.73 54.00,41.73 C 58.22,41.73 61.80,43.63 64.97,46.80"
+        android:strokeWidth="3.8"
+        android:strokeColor="#2563EB"
+        android:strokeLineCap="round" />
 
-    <!-- Bottom-Right Peer Node -->
+    <!-- Inner Wireless Mesh Wave -->
     <path
-        android:pathData="M71,70m-4,0a4,4 0,1,1 8,0a4,4 0,1,1 -8,0"
-        android:fillColor="#C084FC" />
+        android:pathData="M 46.83,52.70 C 48.94,50.59 51.26,49.33 54.00,49.33 C 56.74,49.33 59.06,50.59 61.17,52.70"
+        android:strokeWidth="3.8"
+        android:strokeColor="#2563EB"
+        android:strokeLineCap="round" />
 
-    <!-- Top-Right Satellite Peer Node -->
+    <!-- Center Mesh Peer Node -->
     <path
-        android:pathData="M71,38m-3.5,0a3.5,3.5 0,1,1 7,0a3.5,3.5 0,1,1 -7,0"
-        android:fillColor="#FFFFFF" />
-
-    <!-- Bottom-Left Satellite Peer Node -->
-    <path
-        android:pathData="M37,70m-3.5,0a3.5,3.5 0,1,1 7,0a3.5,3.5 0,1,1 -7,0"
-        android:fillColor="#60A5FA" />
+        android:pathData="M 54,60.3m-3,0a3,3 0,1,1 6,0a3,3 0,1,1 -6,0"
+        android:fillColor="#2563EB" />
 </vector>
-

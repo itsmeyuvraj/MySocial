@@ -91,6 +91,7 @@ class OfflineApkServer(private val context: Context) {
 
                 val out = BufferedOutputStream(s.getOutputStream())
                 val parts = requestLine.split(" ")
+                val method = parts.getOrNull(0) ?: "GET"
                 val path = parts.getOrNull(1) ?: "/"
 
                 if (path == "/mysocial.apk" || path == "/" || path.startsWith("/mysocial.apk?")) {
@@ -103,11 +104,13 @@ class OfflineApkServer(private val context: Context) {
                         append("Connection: close\r\n\r\n")
                     }
                     out.write(header.toByteArray(Charsets.UTF_8))
-                    FileInputStream(apkFile).use { fis ->
-                        val buffer = ByteArray(65536)
-                        var read: Int
-                        while (fis.read(buffer).also { read = it } != -1) {
-                            out.write(buffer, 0, read)
+                    if (!method.equals("HEAD", ignoreCase = true)) {
+                        FileInputStream(apkFile).use { fis ->
+                            val buffer = ByteArray(65536)
+                            var read: Int
+                            while (fis.read(buffer).also { read = it } != -1) {
+                                out.write(buffer, 0, read)
+                            }
                         }
                     }
                     out.flush()

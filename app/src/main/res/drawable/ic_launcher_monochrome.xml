@@ -4,26 +4,31 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Bubble Silhouette Outline for Material You Dynamic Tinting -->
     <path
-        android:pathData="M37,42 C37,32 50,30 56,36 L68,48 C74,54 77,61 74,68 C71,75 62,77 56,72 L44,60 C38,54 35,47 38,40"
-        android:strokeWidth="6"
+        android:pathData="M 27.42,54.18 C 27.42,38.78 39.23,26.76 54.00,26.76 C 68.77,26.76 80.58,38.78 80.58,54.18 C 80.58,69.58 68.77,81.60 54.00,81.60 C 48.94,81.60 44.30,80.12 40.08,77.59 L 29.11,80.76 C 27.63,81.18 26.16,79.70 26.58,78.23 L 29.53,66.84 C 28.27,62.83 27.42,58.61 27.42,54.18 Z"
+        android:strokeWidth="4.2"
         android:strokeColor="#FFFFFF"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
+
+    <!-- Outer Wireless Mesh Wave -->
     <path
-        android:pathData="M71,42 C71,32 58,30 52,36 L40,48 C34,54 31,61 34,68 C37,75 46,77 52,72"
-        android:strokeWidth="5"
+        android:pathData="M 43.03,46.80 C 46.20,43.63 49.78,41.73 54.00,41.73 C 58.22,41.73 61.80,43.63 64.97,46.80"
+        android:strokeWidth="3.8"
         android:strokeColor="#FFFFFF"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round" />
+        android:strokeLineCap="round" />
+
+    <!-- Inner Wireless Mesh Wave -->
     <path
-        android:pathData="M54,54m-5,0a5,5 0,1,1 10,0a5,5 0,1,1 -10,0"
-        android:fillColor="#FFFFFF" />
+        android:pathData="M 46.83,52.70 C 48.94,50.59 51.26,49.33 54.00,49.33 C 56.74,49.33 59.06,50.59 61.17,52.70"
+        android:strokeWidth="3.8"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round" />
+
+    <!-- Center Mesh Peer Node -->
     <path
-        android:pathData="M37,38m-4,0a4,4 0,1,1 8,0a4,4 0,1,1 -8,0"
-        android:fillColor="#FFFFFF" />
-    <path
-        android:pathData="M71,70m-4,0a4,4 0,1,1 8,0a4,4 0,1,1 -8,0"
+        android:pathData="M 54,60.3m-3.2,0a3.2,3.2 0,1,1 6.4,0a3.2,3.2 0,1,1 -6.4,0"
         android:fillColor="#FFFFFF" />
 </vector>
-
