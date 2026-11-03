@@ -81,10 +81,13 @@ import androidx.compose.ui.unit.sp
 import com.mysocial.mesh.ui.components.AvatarView
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FacebookBlueLight
+import com.mysocial.mesh.ui.theme.FbAmber
+import com.mysocial.mesh.ui.theme.FbAmberLight
 import com.mysocial.mesh.ui.theme.FbBackground
 import com.mysocial.mesh.ui.theme.FbBorder
 import com.mysocial.mesh.ui.theme.FbGreen
 import com.mysocial.mesh.ui.theme.FbRed
+import com.mysocial.mesh.ui.theme.FbRedLight
 import com.mysocial.mesh.ui.theme.FbSurface
 import com.mysocial.mesh.ui.theme.FbSurfaceElevated
 import com.mysocial.mesh.ui.theme.FbTextPrimary
@@ -156,7 +159,7 @@ fun ComposerScreen(
             // Mode-specific Top Bar
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = if (composerMode == ComposerMode.ALERT) Color(0xFFFFF5F5) else FbSurface,
+                color = if (composerMode == ComposerMode.ALERT) FbRedLight else FbSurface,
                 shadowElevation = 1.dp
             ) {
                 Row(
@@ -187,7 +190,7 @@ fun ComposerScreen(
                                 Icon(
                                     imageVector = Icons.Filled.AddPhotoAlternate,
                                     contentDescription = null,
-                                    tint = Color(0xFF45BD62),
+                                    tint = FbGreen,
                                     modifier = Modifier.size(22.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -205,7 +208,7 @@ fun ComposerScreen(
                                 Icon(
                                     imageVector = Icons.Filled.Warning,
                                     contentDescription = null,
-                                    tint = Color(0xFFD32F2F),
+                                    tint = FbRed,
                                     modifier = Modifier.size(22.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -220,7 +223,7 @@ fun ComposerScreen(
                                 ComposerMode.ALERT -> "Emergency Alert"
                                 ComposerMode.POST -> "Create Post"
                             },
-                            color = if (composerMode == ComposerMode.ALERT) Color(0xFFB71C1C) else FbTextPrimary,
+                            color = if (composerMode == ComposerMode.ALERT) FbRed else FbTextPrimary,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -229,7 +232,7 @@ fun ComposerScreen(
                     Button(
                         onClick = { viewModel.publishPost(context, onPostPublished) },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (composerMode == ComposerMode.ALERT || isSos) Color(0xFFD32F2F) else FacebookBlue,
+                            containerColor = if (composerMode == ComposerMode.ALERT || isSos) FbRed else FacebookBlue,
                             contentColor = Color.White,
                             disabledContainerColor = FbBorder,
                             disabledContentColor = FbTextTertiary
@@ -351,13 +354,13 @@ fun ComposerScreen(
                                         modifier = Modifier
                                             .size(60.dp)
                                             .clip(CircleShape)
-                                            .background(Color(0xFF45BD62).copy(alpha = 0.12f)),
+                                            .background(FbGreen.copy(alpha = 0.12f)),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = Icons.Filled.AddPhotoAlternate,
                                             contentDescription = "Select Photo",
-                                            tint = Color(0xFF45BD62),
+                                            tint = FbGreen,
                                             modifier = Modifier.size(32.dp)
                                         )
                                     }
@@ -600,8 +603,8 @@ fun ComposerScreen(
                         // ==================== ALERT WINDOW ====================
                         // Prominent High-Priority Emergency Banner
                         Card(
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
-                            border = BorderStroke(1.2.dp, Color(0xFFD32F2F)),
+                            colors = CardDefaults.cardColors(containerColor = FbRedLight),
+                            border = BorderStroke(1.2.dp, FbRed.copy(alpha = 0.6f)),
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -612,7 +615,7 @@ fun ComposerScreen(
                                 Icon(
                                     imageVector = Icons.Filled.Warning,
                                     contentDescription = "Alert",
-                                    tint = Color(0xFFD32F2F),
+                                    tint = FbRed,
                                     modifier = Modifier.size(26.dp)
                                 )
                                 Spacer(modifier = Modifier.width(10.dp))
@@ -620,13 +623,13 @@ fun ComposerScreen(
                                     Text(
                                         text = "HIGH-PRIORITY EMERGENCY BROADCAST",
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFB71C1C),
+                                        color = FbRed,
                                         fontSize = 13.sp
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = "This alert bypasses standard queueing and is pushed instantly to every nearby phone in radio range. Use for emergencies, urgent notices, or local safety hazards.",
-                                        color = Color(0xFF8B0000),
+                                        color = FbTextSecondary,
                                         fontSize = 12.sp,
                                         lineHeight = 16.sp
                                     )
@@ -650,7 +653,7 @@ fun ComposerScreen(
                             text = "Emergency Alert Description",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
-                            color = Color(0xFFB71C1C)
+                            color = FbRed
                         )
                         Spacer(modifier = Modifier.height(6.dp))
 
@@ -671,8 +674,8 @@ fun ComposerScreen(
                             colors = TextFieldDefaults.colors(
                                 focusedContainerColor = FbSurfaceElevated,
                                 unfocusedContainerColor = FbSurfaceElevated,
-                                focusedIndicatorColor = Color(0xFFD32F2F),
-                                unfocusedIndicatorColor = Color(0xFFD32F2F).copy(alpha = 0.4f),
+                                focusedIndicatorColor = FbRed,
+                                unfocusedIndicatorColor = FbRed.copy(alpha = 0.4f),
                                 focusedTextColor = FbTextPrimary,
                                 unfocusedTextColor = FbTextPrimary
                             ),
@@ -708,13 +711,13 @@ fun ComposerScreen(
                                     },
                                     label = { Text(tagWithHash, fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                                     colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = Color(0xFFFFCDD2),
-                                        selectedLabelColor = Color(0xFFB71C1C),
+                                        selectedContainerColor = FbRedLight,
+                                        selectedLabelColor = FbRed,
                                         containerColor = FbSurfaceElevated,
-                                        labelColor = Color(0xFFD32F2F)
+                                        labelColor = FbRed
                                     ),
                                     border = FilterChipDefaults.filterChipBorder(
-                                        borderColor = Color(0xFFD32F2F).copy(alpha = 0.4f),
+                                        borderColor = FbRed.copy(alpha = 0.4f),
                                         enabled = true,
                                         selected = true
                                     )
@@ -738,21 +741,21 @@ fun ComposerScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFFFFF3E0))
-                                .border(1.dp, Color(0xFFFFB74D), RoundedCornerShape(10.dp))
+                                .background(FbAmberLight)
+                                .border(1.dp, FbAmber.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
                                 .padding(12.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
                                     imageVector = Icons.Filled.Warning,
                                     contentDescription = null,
-                                    tint = Color(0xFFE65100),
+                                    tint = FbAmber,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Text(
                                     text = "Alert broadcasts peer-to-peer over Bluetooth & Wi-Fi Direct even when completely off-grid.",
-                                    color = Color(0xFFE65100),
+                                    color = FbAmber,
                                     fontSize = 12.sp,
                                     lineHeight = 16.sp
                                 )
@@ -1009,10 +1012,10 @@ private fun UserProfileHeader(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .clip(RoundedCornerShape(6.dp))
-                    .background(if (audienceOverrideText != null) Color(0xFFFFEBEE) else if (isPublic) FbSurfaceElevated else FacebookBlueLight)
+                    .background(if (audienceOverrideText != null) FbRedLight else if (isPublic) FbSurfaceElevated else FacebookBlueLight)
                     .border(
                         1.dp,
-                        if (audienceOverrideText != null) Color(0xFFD32F2F) else if (isPublic) FbBorder else FacebookBlue.copy(alpha = 0.4f),
+                        if (audienceOverrideText != null) FbRed.copy(alpha = 0.5f) else if (isPublic) FbBorder else FacebookBlue.copy(alpha = 0.4f),
                         RoundedCornerShape(6.dp)
                     )
                     .clickable { onAudienceClick() }
@@ -1021,13 +1024,13 @@ private fun UserProfileHeader(
                 Icon(
                     imageVector = if (audienceOverrideText != null) Icons.Filled.Warning else if (isPublic) Icons.Filled.Public else Icons.Filled.Group,
                     contentDescription = null,
-                    tint = if (audienceOverrideText != null) Color(0xFFD32F2F) else if (isPublic) FbTextSecondary else FacebookBlue,
+                    tint = if (audienceOverrideText != null) FbRed else if (isPublic) FbTextSecondary else FacebookBlue,
                     modifier = Modifier.size(13.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = audienceOverrideText ?: if (isPublic) "Public" else "Friends",
-                    color = if (audienceOverrideText != null) Color(0xFFD32F2F) else if (isPublic) FbTextSecondary else FacebookBlue,
+                    color = if (audienceOverrideText != null) FbRed else if (isPublic) FbTextSecondary else FacebookBlue,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold
                 )

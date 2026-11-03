@@ -110,10 +110,11 @@ fun AppearanceScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp),
+                    .padding(horizontal = 14.dp)
+                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Row(
                     modifier = Modifier
@@ -198,10 +199,11 @@ fun MeshSyncScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp),
+                    .padding(horizontal = 14.dp)
+                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -291,10 +293,11 @@ fun MeshSyncScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp),
+                    .padding(horizontal = 14.dp)
+                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -392,10 +395,11 @@ fun MuleStorageScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp),
+                    .padding(horizontal = 14.dp)
+                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -547,10 +551,11 @@ fun AboutScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp),
+                    .padding(horizontal = 14.dp)
+                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -634,10 +639,11 @@ fun AboutScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp),
+                    .padding(horizontal = 14.dp)
+                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -747,10 +753,11 @@ fun AboutScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp),
+                    .padding(horizontal = 14.dp)
+                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -803,10 +810,11 @@ fun AboutScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp),
+                    .padding(horizontal = 14.dp)
+                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Column(
                     modifier = Modifier

@@ -59,6 +59,7 @@ import com.mysocial.mesh.ui.components.VerifiedBadge
 import com.mysocial.mesh.ui.components.formatRelativeTime
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FacebookBlueLight
+import com.mysocial.mesh.ui.theme.FbBackground
 import com.mysocial.mesh.ui.theme.FbBorder
 import com.mysocial.mesh.ui.theme.FbSurface
 import com.mysocial.mesh.ui.theme.FbSurfaceElevated
@@ -177,7 +178,7 @@ fun MessagesListScreen(
                 )
             }
         },
-        containerColor = FbSurface
+        containerColor = FbBackground
     ) { paddingValues ->
         Box(
             modifier = modifier

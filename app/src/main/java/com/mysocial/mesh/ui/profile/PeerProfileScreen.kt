@@ -161,7 +161,9 @@ fun PeerProfileScreen(
                 // Profile Header Card
                 item {
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
                         colors = CardDefaults.cardColors(containerColor = FbSurface),
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp),
                         shape = RoundedCornerShape(16.dp)

@@ -69,13 +69,14 @@ fun PeerCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(16.dp))
+            .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp))
             .then(
                 if (onProfileClick != null) Modifier.clickable { onProfileClick() }
                 else Modifier
             ),
         colors = CardDefaults.cardColors(containerColor = FbSurface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
             modifier = Modifier

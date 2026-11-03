@@ -29,7 +29,18 @@ class AppSettings private constructor(context: Context) {
     }
 
     private val _isDarkMode = MutableStateFlow(
-        prefs.getBoolean(KEY_DARK_MODE, false)
+        run {
+            val migrated = prefs.getBoolean(KEY_DARK_MODE_V2_MIGRATED, false)
+            if (!migrated) {
+                prefs.edit()
+                    .putBoolean(KEY_DARK_MODE, true)
+                    .putBoolean(KEY_DARK_MODE_V2_MIGRATED, true)
+                    .apply()
+                true
+            } else {
+                prefs.getBoolean(KEY_DARK_MODE, true)
+            }
+        }
     )
     val isDarkMode: StateFlow<Boolean> = _isDarkMode.asStateFlow()
 
@@ -110,6 +121,7 @@ class AppSettings private constructor(context: Context) {
         const val KEY_SYNC_INTERVAL_SECONDS = "sync_interval_seconds"
         const val DEFAULT_SYNC_INTERVAL_SECONDS = 10
         const val KEY_DARK_MODE = "dark_mode"
+        const val KEY_DARK_MODE_V2_MIGRATED = "dark_mode_v2_migrated"
         const val KEY_PINNED_HASHTAGS = "pinned_hashtags"
         const val KEY_MUTED_HASHTAGS = "muted_hashtags"
         const val KEY_MAX_STRANGER_MEDIA_CACHE_MB = "max_stranger_media_cache_mb"

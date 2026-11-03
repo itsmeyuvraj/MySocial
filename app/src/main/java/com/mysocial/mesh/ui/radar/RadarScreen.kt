@@ -135,10 +135,12 @@ fun RadarScreen(
                 if (peers.isEmpty()) {
                     item {
                         Card(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
                             colors = CardDefaults.cardColors(containerColor = FbSurface),
                             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(16.dp)
                         ) {
                             Column(
                                 modifier = Modifier
@@ -351,7 +353,8 @@ fun ShareItRadarView(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .height(310.dp),
+            .height(310.dp)
+            .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = FbSurface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)

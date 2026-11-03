@@ -88,6 +88,7 @@ import com.mysocial.mesh.ui.theme.FacebookBlueLight
 import com.mysocial.mesh.ui.theme.FbBackground
 import com.mysocial.mesh.ui.theme.FbBorder
 import com.mysocial.mesh.ui.theme.FbGreen
+import com.mysocial.mesh.ui.theme.FbRed
 import com.mysocial.mesh.ui.theme.FbSurface
 import com.mysocial.mesh.ui.theme.FbSurfaceElevated
 import com.mysocial.mesh.ui.theme.FbTextPrimary
@@ -481,7 +482,7 @@ fun FeedScreen(
                                 selectedTagForAction = null
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isMuted) FbSurfaceElevated else Color(0xFFD32F2F),
+                                containerColor = if (isMuted) FbSurfaceElevated else FbRed,
                                 contentColor = if (isMuted) FbTextPrimary else Color.White
                             ),
                             modifier = Modifier.fillMaxWidth()
@@ -529,7 +530,11 @@ fun FacebookTopBar(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
-                        .background(FacebookBlue),
+                        .background(
+                            androidx.compose.ui.graphics.Brush.linearGradient(
+                                colors = listOf(Color(0xFF38BDF8), Color(0xFF2563EB))
+                            )
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -731,7 +736,8 @@ fun WhatsOnYourMindCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp),
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
         colors = CardDefaults.cardColors(containerColor = FbSurface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         shape = RoundedCornerShape(16.dp)
@@ -790,7 +796,7 @@ fun WhatsOnYourMindCard(
                     Icon(
                         imageVector = Icons.Filled.AddPhotoAlternate,
                         contentDescription = "Photo",
-                        tint = Color(0xFF45BD62),
+                        tint = FbGreen,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
@@ -836,7 +842,7 @@ fun WhatsOnYourMindCard(
                     Icon(
                         imageVector = Icons.Filled.Warning,
                         contentDescription = "Alert",
-                        tint = Color(0xFFE41E3F),
+                        tint = FbRed,
                         modifier = Modifier.size(17.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))

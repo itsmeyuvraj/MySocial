@@ -86,6 +86,7 @@ import com.mysocial.mesh.model.PostWithAuthor
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FbBorder
 import com.mysocial.mesh.ui.theme.FbRed
+import com.mysocial.mesh.ui.theme.FbRedLight
 import com.mysocial.mesh.ui.theme.FbSurface
 import com.mysocial.mesh.ui.theme.FbSurfaceElevated
 import com.mysocial.mesh.ui.theme.FbTextPrimary
@@ -163,7 +164,7 @@ fun PostCard(
             .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp))
             .then(
                 if (post.isSos) {
-                    Modifier.border(2.dp, Color(0xFFD32F2F), RoundedCornerShape(16.dp))
+                    Modifier.border(1.5.dp, FbRed, RoundedCornerShape(16.dp))
                 } else Modifier
             )
             .then(
@@ -181,20 +182,20 @@ fun PostCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFFFFEBEE))
+                        .background(FbRedLight)
                         .padding(horizontal = 14.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Warning,
                         contentDescription = "SOS Alert",
-                        tint = Color(0xFFD32F2F),
+                        tint = FbRed,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "🚨 URGENT LOCAL ALERT",
-                        color = Color(0xFFD32F2F),
+                        color = FbRed,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.ExtraBold
                     )
@@ -265,7 +266,7 @@ fun PostCard(
                             Text(text = "•", color = FbTextTertiary, fontSize = 10.sp)
                             Text(
                                 text = formatTtlRemaining(post.expiresAt),
-                                color = if (post.expiresAt - System.currentTimeMillis() < 3600_000L) Color(0xFFD32F2F) else FbTextSecondary,
+                                color = if (post.expiresAt - System.currentTimeMillis() < 3600_000L) FbRed else FbTextSecondary,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold
                             )

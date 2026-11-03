@@ -33,7 +33,7 @@ private val FacebookLightColorScheme = lightColorScheme(
 
 private val FacebookDarkColorScheme = darkColorScheme(
     primary = DarkFbColorScheme.blue,
-    onPrimary = DarkFbColorScheme.textPrimary,
+    onPrimary = DarkFbColorScheme.background,
     primaryContainer = DarkFbColorScheme.blueLight,
     onPrimaryContainer = DarkFbColorScheme.blue,
     secondary = DarkFbColorScheme.textSecondary,
@@ -52,7 +52,7 @@ private val FacebookDarkColorScheme = darkColorScheme(
 
 @Composable
 fun MySocialTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val fbColors = if (darkTheme) DarkFbColorScheme else LightFbColorScheme

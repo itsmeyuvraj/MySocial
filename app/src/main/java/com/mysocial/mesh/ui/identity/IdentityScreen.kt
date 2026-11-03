@@ -138,10 +138,13 @@ fun IdentityScreen(
             // 1. Profile Header Card (Facebook Style Profile)
             item {
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                        .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
                     colors = CardDefaults.cardColors(containerColor = FbSurface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                    shape = RoundedCornerShape(0.dp)
+                    shape = RoundedCornerShape(16.dp)
                 ) {
                     Column(
                         modifier = Modifier
@@ -483,10 +486,11 @@ fun IdentityScreen(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp),
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                        .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
                     colors = CardDefaults.cardColors(containerColor = FbSurface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                    shape = RoundedCornerShape(8.dp)
+                    shape = RoundedCornerShape(16.dp)
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {

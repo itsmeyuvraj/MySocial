@@ -104,6 +104,7 @@ import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FacebookBlueLight
 import com.mysocial.mesh.ui.theme.FbBackground
 import com.mysocial.mesh.ui.theme.FbBorder
+import com.mysocial.mesh.ui.theme.FbRed
 import com.mysocial.mesh.ui.theme.FbSurface
 import com.mysocial.mesh.ui.theme.FbTextPrimary
 import com.mysocial.mesh.ui.theme.FbTextSecondary
@@ -437,7 +438,7 @@ class MainActivity : ComponentActivity() {
                                                 BadgedBox(
                                                     badge = {
                                                         Badge(
-                                                            containerColor = Color(0xFFE41E3F),
+                                                            containerColor = FbRed,
                                                             contentColor = Color.White
                                                         ) {
                                                             Text(
@@ -679,8 +680,8 @@ fun PeerUpdateReadyBanner(
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 6.dp),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
-        border = BorderStroke(1.dp, Color(0xFF43A047))
+        colors = CardDefaults.cardColors(containerColor = com.mysocial.mesh.ui.theme.FbGreenLight),
+        border = BorderStroke(1.dp, com.mysocial.mesh.ui.theme.FbGreen.copy(alpha = 0.4f))
     ) {
         Row(
             modifier = Modifier
@@ -692,13 +693,13 @@ fun PeerUpdateReadyBanner(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF2E7D32).copy(alpha = 0.15f)),
+                    .background(com.mysocial.mesh.ui.theme.FbGreen.copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Filled.SystemUpdate,
                     contentDescription = null,
-                    tint = Color(0xFF2E7D32),
+                    tint = com.mysocial.mesh.ui.theme.FbGreen,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -708,25 +709,25 @@ fun PeerUpdateReadyBanner(
                     text = "App Update Ready (${updateInfo.remoteVersionName})",
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp,
-                    color = Color(0xFF1B5E20)
+                    color = FbTextPrimary
                 )
                 Text(
                     text = "Received offline from ${updateInfo.peerName}. Tap to install.",
                     fontSize = 11.sp,
-                    color = Color(0xFF2E7D32)
+                    color = com.mysocial.mesh.ui.theme.FbGreen
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
             Button(
                 onClick = onInstall,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+                colors = ButtonDefaults.buttonColors(containerColor = com.mysocial.mesh.ui.theme.FbGreen),
                 shape = RoundedCornerShape(8.dp),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 Text("Update", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
             IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
-                Icon(Icons.Filled.Close, contentDescription = "Dismiss", tint = Color(0xFF2E7D32), modifier = Modifier.size(16.dp))
+                Icon(Icons.Filled.Close, contentDescription = "Dismiss", tint = FbTextSecondary, modifier = Modifier.size(16.dp))
             }
         }
     }
