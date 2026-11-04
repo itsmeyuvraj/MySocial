@@ -15,6 +15,7 @@ import androidx.room.TypeConverters
 import androidx.room.Upsert
 import androidx.room.withTransaction
 import com.mysocial.mesh.crypto.CryptoManager
+import com.mysocial.mesh.crypto.ProofOfWorkEngine
 import com.mysocial.mesh.model.AuthorSequenceTuple
 import com.mysocial.mesh.model.CanonicalJson
 import com.mysocial.mesh.model.ContentType
@@ -397,6 +398,13 @@ object LogValidator {
         )
         if (!isSignatureValid) {
             return ValidationResult.Invalid("Ed25519 signature verification failed for author ${entry.authorId}")
+        }
+
+        // 2b. Verify Hashcash Proof-of-Work Anti-Spam Gate
+        val isSos = entry.contentType == ContentType.POST && entry.contentJson.contains("\"isSos\":true")
+        val isPowValid = ProofOfWorkEngine.verifyEntry(entry, isSos)
+        if (!isPowValid) {
+            return ValidationResult.Invalid("Hashcash Proof-of-Work verification failed for author ${entry.authorId} (nonce=${entry.powNonce})")
         }
 
         // 3. Verify Sequence & Previous Hash Chain
@@ -785,7 +793,7 @@ data class BatchResult(val acceptedCount: Int, val errors: List<String>)
         BlobChunkEntity::class,
         DirectMessageEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -925,6 +933,12 @@ abstract class MeshDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_7_8 = object : androidx.room.migration.Migration(7, 8) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `log_entries` ADD COLUMN `powNonce` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         @Volatile
         private var INSTANCE: MeshDatabase? = null
 
@@ -941,7 +955,7 @@ abstract class MeshDatabase : RoomDatabase() {
                 DATABASE_NAME
             )
                 .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-                .addMigrations(MIGRATION_6_7)
+                .addMigrations(MIGRATION_6_7, MIGRATION_7_8)
                 .fallbackToDestructiveMigration()
                 .build()
                 .also { it.appContext = context.applicationContext }

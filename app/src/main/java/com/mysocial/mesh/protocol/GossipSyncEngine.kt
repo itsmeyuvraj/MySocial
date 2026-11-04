@@ -4,9 +4,11 @@ import android.content.Context
 import android.util.Base64
 import android.util.Log
 import com.mysocial.mesh.crypto.CryptoManager
+import com.mysocial.mesh.crypto.ProofOfWorkEngine
 import com.mysocial.mesh.data.BlobChunkEntity
 import com.mysocial.mesh.data.MediaProcessor
 import com.mysocial.mesh.data.MeshDatabase
+import com.mysocial.mesh.model.ContentType
 import com.mysocial.mesh.model.LogEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
@@ -773,6 +775,18 @@ class GossipSyncEngine(
                 signature = signature
             )
 
+            val isSos = contentType == ContentType.POST && contentJson.contains("\"isSos\":true")
+            val powNonce = ProofOfWorkEngine.mineNonce(
+                authorId = authorId,
+                sequence = nextSequence,
+                previousHash = previousHash,
+                timestamp = timestamp,
+                contentType = contentType.name,
+                contentJson = contentJson,
+                signature = signature,
+                isSos = isSos
+            )
+
             val entry = LogEntry(
                 authorId = authorId,
                 sequence = nextSequence,
@@ -781,7 +795,8 @@ class GossipSyncEngine(
                 contentType = contentType,
                 contentJson = contentJson,
                 signature = signature,
-                entryHash = entryHash
+                entryHash = entryHash,
+                powNonce = powNonce
             )
 
             val insertResult = db.insertAndProject(entry, hopDistance = 0)

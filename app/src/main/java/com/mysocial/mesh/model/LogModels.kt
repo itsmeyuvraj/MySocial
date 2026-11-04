@@ -166,7 +166,8 @@ data class LogEntry(
     val contentType: ContentType,
     val contentJson: String,
     val signature: String,
-    val entryHash: String
+    val entryHash: String,
+    val powNonce: Long = 0L
 ) {
     fun toEntity(
         hopDistance: Int = 0,
@@ -183,7 +184,8 @@ data class LogEntry(
         signature = signature,
         hopDistance = hopDistance,
         hopCount = hopCount,
-        transportSource = transportSource
+        transportSource = transportSource,
+        powNonce = powNonce
     )
 }
 
@@ -214,7 +216,8 @@ data class LogEntryEntity(
     val signature: String,
     val hopDistance: Int = 0, // 0 = self/local, 1 = 1-hop direct, >=2 = mule
     val hopCount: Int = 0,
-    val transportSource: String = "LOCAL" // LOCAL, BLE, WIFI
+    val transportSource: String = "LOCAL", // LOCAL, BLE, WIFI
+    val powNonce: Long = 0L
 ) {
     fun toDomain(): LogEntry = LogEntry(
         authorId = authorId,
@@ -224,7 +227,8 @@ data class LogEntryEntity(
         contentType = contentType,
         contentJson = contentJson,
         signature = signature,
-        entryHash = entryHash
+        entryHash = entryHash,
+        powNonce = powNonce
     )
 }
 

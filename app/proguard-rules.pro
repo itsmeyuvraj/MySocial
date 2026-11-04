@@ -49,3 +49,9 @@
 # Netty / Transport property files (ignored in packaging)
 -dontwarn io.netty.**
 
+# Native JNI Bridge (Rust / mysocial_core)
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+-keep class com.mysocial.mesh.nativebridge.** { *; }
+
