@@ -38,7 +38,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import com.mysocial.mesh.ui.theme.AppFontFamily
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -540,10 +539,8 @@ fun MessagesListScreen(
                                     Text(
                                         text = friend.authorId.toFormattedBbid(),
                                         color = FbTextSecondary,
-                                        fontFamily = AppFontFamily,
-                                        fontSize = 10.5.sp,
-                                        letterSpacing = 0.4.sp,
-                                        fontWeight = FontWeight.SemiBold
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 10.sp
                                     )
                                 }
                             }

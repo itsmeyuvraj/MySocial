@@ -126,10 +126,7 @@ fun MySocialTheme(
         }
     }
 
-    CompositionLocalProvider(
-        LocalFbColors provides fbColors,
-        androidx.compose.material3.LocalTextStyle provides androidx.compose.material3.LocalTextStyle.current.copy(fontFamily = AppFontFamily)
-    ) {
+    CompositionLocalProvider(LocalFbColors provides fbColors) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = MySocialTypography,

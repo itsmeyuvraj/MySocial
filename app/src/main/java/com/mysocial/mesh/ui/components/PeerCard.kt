@@ -44,7 +44,6 @@ import androidx.compose.ui.unit.sp
 import com.mysocial.mesh.protocol.TransportType
 import com.mysocial.mesh.transport.DiscoveredPeer
 import com.mysocial.mesh.ui.components.VerifiedBadge
-import com.mysocial.mesh.ui.theme.AppFontFamily
 import com.mysocial.mesh.utils.toFormattedBbid
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FacebookBlueLight
@@ -120,14 +119,13 @@ fun PeerCard(
                         Text(
                             text = peer.peerId.toFormattedBbid(),
                             color = FbTextSecondary,
-                            fontFamily = AppFontFamily,
-                            fontSize = 10.5.sp,
-                            letterSpacing = 0.4.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
                                 .background(FbSurfaceElevated)
-                                .padding(horizontal = 5.dp, vertical = 1.5.dp)
+                                .padding(horizontal = 4.dp, vertical = 1.dp)
                         )
                     }
 

@@ -84,7 +84,6 @@ import androidx.compose.ui.unit.sp
 import com.mysocial.mesh.model.PostWithAuthor
 import com.mysocial.mesh.ui.components.AvatarView
 import com.mysocial.mesh.ui.components.PostCard
-import com.mysocial.mesh.ui.theme.AppFontFamily
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FacebookBlueLight
 import com.mysocial.mesh.ui.theme.FbBackground
@@ -595,9 +594,8 @@ fun FacebookTopBar(
                     text = "mysocial",
                     color = FacebookBlue,
                     fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = AppFontFamily,
-                    letterSpacing = (-0.5).sp
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = (-0.8).sp
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 // Online / Offline Status Badge
@@ -625,7 +623,7 @@ fun FacebookTopBar(
                         color = if (activePeersCount > 0) FbGreen else FbTextSecondary,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
-                        fontFamily = AppFontFamily
+                        fontFamily = FontFamily.SansSerif
                     )
                 }
             }
@@ -854,7 +852,7 @@ fun WhatsOnYourMindCard(
                         color = FbTextSecondary,
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.SemiBold,
-                        fontFamily = AppFontFamily
+                        fontFamily = FontFamily.SansSerif
                     )
                 }
 
@@ -878,7 +876,7 @@ fun WhatsOnYourMindCard(
                         color = FbTextSecondary,
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.SemiBold,
-                        fontFamily = AppFontFamily
+                        fontFamily = FontFamily.SansSerif
                     )
                 }
 
@@ -902,7 +900,7 @@ fun WhatsOnYourMindCard(
                         color = FbRed,
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = AppFontFamily
+                        fontFamily = FontFamily.SansSerif
                     )
                 }
             }
@@ -958,7 +956,7 @@ fun FeedFilterPills(
                         color = if (isNearbyFilter) FacebookBlue else FbTextSecondary,
                         fontSize = 13.5.sp,
                         fontWeight = if (isNearbyFilter) FontWeight.Bold else FontWeight.Medium,
-                        fontFamily = AppFontFamily
+                        fontFamily = FontFamily.SansSerif
                     )
                 }
             }
@@ -990,7 +988,7 @@ fun FeedFilterPills(
                         color = if (!isNearbyFilter) FacebookBlue else FbTextSecondary,
                         fontSize = 13.5.sp,
                         fontWeight = if (!isNearbyFilter) FontWeight.Bold else FontWeight.Medium,
-                        fontFamily = AppFontFamily
+                        fontFamily = FontFamily.SansSerif
                     )
                 }
             }

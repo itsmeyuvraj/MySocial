@@ -104,9 +104,7 @@ import com.mysocial.mesh.ui.settings.AppearanceScreen
 import com.mysocial.mesh.ui.settings.MeshSyncScreen
 import com.mysocial.mesh.ui.settings.MuleStorageScreen
 import com.mysocial.mesh.ui.settings.SettingsViewModel
-import com.mysocial.mesh.ui.theme.AppFontFamily
 import com.mysocial.mesh.ui.theme.FacebookBlue
-import com.mysocial.mesh.ui.theme.AppFontFamily
 import com.mysocial.mesh.ui.theme.FacebookBlueLight
 import com.mysocial.mesh.ui.theme.FbBackground
 import com.mysocial.mesh.ui.theme.FbBorder
@@ -505,7 +503,7 @@ class MainActivity : ComponentActivity() {
                                             Text(
                                                 text = tab.title,
                                                 fontSize = 12.sp,
-                                                fontFamily = AppFontFamily,
+                                                fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                             )
                                         },
