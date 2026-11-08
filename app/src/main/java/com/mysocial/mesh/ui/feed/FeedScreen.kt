@@ -618,7 +618,7 @@ fun FacebookTopBar(
                     )
                     Spacer(modifier = Modifier.width(5.dp))
                     Text(
-                        text = if (activePeersCount > 0) "$activePeersCount Online" else "Mesh Ready",
+                        text = if (activePeersCount > 0) "Online" else "Offline",
                         color = if (activePeersCount > 0) FbGreen else FbTextSecondary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold
@@ -924,7 +924,7 @@ fun FeedFilterPills(
                 .padding(3.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            // Nearby Feed Pill
+            // Public Feed Pill
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -947,7 +947,7 @@ fun FeedFilterPills(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (activePeersCount > 0) "Nearby ($activePeersCount)" else "Nearby Feed",
+                        text = "Public",
                         color = if (isNearbyFilter) FacebookBlue else FbTextSecondary,
                         fontSize = 12.sp,
                         fontWeight = if (isNearbyFilter) FontWeight.Bold else FontWeight.Medium
@@ -955,7 +955,7 @@ fun FeedFilterPills(
                 }
             }
 
-            // Friends Only Pill
+            // Friends Pill
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -978,7 +978,7 @@ fun FeedFilterPills(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Friends Only",
+                        text = "Friends",
                         color = if (!isNearbyFilter) FacebookBlue else FbTextSecondary,
                         fontSize = 12.sp,
                         fontWeight = if (!isNearbyFilter) FontWeight.Bold else FontWeight.Medium
@@ -1026,7 +1026,7 @@ fun FeedEmptyState(
             Spacer(modifier = Modifier.height(14.dp))
 
             Text(
-                text = if (isNearby) "No Posts Nearby Yet" else "No Posts from Friends",
+                text = if (isNearby) "No Public Posts Yet" else "No Posts from Friends",
                 color = FbTextPrimary,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold
