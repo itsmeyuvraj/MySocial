@@ -154,9 +154,10 @@ fun WalkieTalkieScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = "RECENT TRANSMISSIONS",
-                            fontSize = 12.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace,
+                            fontFamily = FontFamily.SansSerif,
+                            letterSpacing = 0.5.sp,
                             color = FbTextSecondary
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -166,7 +167,7 @@ fun WalkieTalkieScreen(
                         ) {
                             Text(
                                 text = "${bursts.size}",
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = FacebookBlue,
                                 modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
@@ -193,13 +194,14 @@ fun WalkieTalkieScreen(
                                     imageVector = Icons.Default.DeleteSweep,
                                     contentDescription = "Clear All",
                                     tint = FbRed,
-                                    modifier = Modifier.size(14.dp)
+                                    modifier = Modifier.size(15.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "Clear All",
-                                    fontSize = 11.sp,
+                                    fontSize = 12.5.sp,
                                     fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.SansSerif,
                                     color = FbRed
                                 )
                             }
@@ -231,16 +233,19 @@ fun WalkieTalkieScreen(
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = "Ready to Transmit",
-                                fontSize = 15.sp,
+                                fontSize = 17.sp,
                                 fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.SansSerif,
                                 color = FbTextPrimary
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = "No voice transmissions recorded yet.\nHold the mic button above to broadcast instantly to nearby peers.",
-                                fontSize = 12.sp,
+                                fontSize = 13.5.sp,
+                                fontFamily = FontFamily.SansSerif,
                                 color = FbTextSecondary,
-                                textAlign = TextAlign.Center
+                                textAlign = TextAlign.Center,
+                                lineHeight = 19.sp
                             )
                         }
                     }
@@ -340,15 +345,17 @@ private fun RadioHeader(
             Column {
                 Text(
                     text = "Walkie-Talkie",
-                    fontSize = 17.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.SansSerif,
                     color = FbTextPrimary
                 )
                 Text(
                     text = "OFF-GRID PTT RADIO • 16kHz PCM",
-                    fontSize = 10.sp,
-                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.5.sp,
+                    fontFamily = FontFamily.SansSerif,
                     fontWeight = FontWeight.Medium,
+                    letterSpacing = 0.5.sp,
                     color = FbTextSecondary
                 )
             }
@@ -392,9 +399,10 @@ private fun RadioHeader(
                 Spacer(modifier = Modifier.width(5.dp))
                 Text(
                     text = statusText,
-                    fontSize = 10.sp,
-                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.5.sp,
+                    fontFamily = FontFamily.SansSerif,
                     fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp,
                     color = statusColor
                 )
             }
@@ -445,8 +453,8 @@ private fun RadioStatusSubBanner(
         ) {
             Text(
                 text = bannerText,
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
+                fontSize = 13.5.sp,
+                fontFamily = FontFamily.SansSerif,
                 fontWeight = FontWeight.SemiBold,
                 color = textColor,
                 maxLines = 1,
@@ -455,9 +463,10 @@ private fun RadioStatusSubBanner(
             )
             Text(
                 text = "HALF-DUPLEX",
-                fontSize = 9.sp,
-                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.SansSerif,
                 fontWeight = FontWeight.Bold,
+                letterSpacing = 0.5.sp,
                 color = FbTextSecondary
             )
         }
@@ -578,13 +587,13 @@ private fun CentralPttButtonStage(
                         isPlaying -> "INCOMING\nAUDIO"
                         else -> "HOLD\nTO TALK"
                     },
-                    fontSize = 13.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Black,
                     fontFamily = FontFamily.SansSerif,
                     letterSpacing = 1.sp,
                     color = if (isRecording || isPlaying) Color.White else FbTextPrimary,
                     textAlign = TextAlign.Center,
-                    lineHeight = 15.sp
+                    lineHeight = 18.sp
                 )
             }
         }
@@ -676,28 +685,36 @@ private fun VoiceBurstItem(
                 // Initial Avatar
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
+                        .size(42.dp)
                         .clip(CircleShape)
                         .background(if (isMe) FacebookBlue else FbSurfaceElevated),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = burst.senderDisplayName.take(1).uppercase(),
-                        fontSize = 15.sp,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.SansSerif,
                         color = Color.White
                     )
                 }
 
                 Spacer(modifier = Modifier.width(10.dp))
 
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Text(
                             text = if (isMe) "${burst.senderDisplayName} (You)" else burst.senderDisplayName,
-                            fontSize = 14.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            color = FbTextPrimary
+                            fontFamily = FontFamily.SansSerif,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            color = FbTextPrimary,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Surface(
@@ -706,11 +723,13 @@ private fun VoiceBurstItem(
                         ) {
                             Text(
                                 text = "${burst.durationMs / 1000}.${(burst.durationMs % 1000) / 100}s",
-                                fontSize = 10.sp,
-                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.5.sp,
+                                fontFamily = FontFamily.SansSerif,
                                 fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false,
                                 color = FbRed,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
                     }
@@ -719,7 +738,8 @@ private fun VoiceBurstItem(
 
                     Text(
                         text = "$timeAgo • Voice Burst",
-                        fontSize = 11.sp,
+                        fontSize = 12.5.sp,
+                        fontFamily = FontFamily.SansSerif,
                         color = FbTextSecondary
                     )
                 }
@@ -735,20 +755,21 @@ private fun VoiceBurstItem(
                 border = androidx.compose.foundation.BorderStroke(1.dp, FacebookBlue.copy(alpha = 0.3f))
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Filled.PlayArrow,
                         contentDescription = "Replay",
                         tint = FacebookBlue,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = "Replay",
-                        fontSize = 11.sp,
+                        fontSize = 12.5.sp,
                         fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.SansSerif,
                         color = FacebookBlue
                     )
                 }

@@ -502,7 +502,8 @@ class MainActivity : ComponentActivity() {
                                         label = {
                                             Text(
                                                 text = tab.title,
-                                                fontSize = 11.sp,
+                                                fontSize = 12.sp,
+                                                fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                             )
                                         },

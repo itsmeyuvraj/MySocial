@@ -75,6 +75,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -620,8 +621,9 @@ fun FacebookTopBar(
                     Text(
                         text = if (activePeersCount > 0) "Online" else "Offline",
                         color = if (activePeersCount > 0) FbGreen else FbTextSecondary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = FontFamily.SansSerif
                     )
                 }
             }
@@ -848,8 +850,9 @@ fun WhatsOnYourMindCard(
                     Text(
                         text = "Photo",
                         color = FbTextSecondary,
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.SemiBold
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = FontFamily.SansSerif
                     )
                 }
 
@@ -871,8 +874,9 @@ fun WhatsOnYourMindCard(
                     Text(
                         text = "Poll",
                         color = FbTextSecondary,
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.SemiBold
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = FontFamily.SansSerif
                     )
                 }
 
@@ -894,8 +898,9 @@ fun WhatsOnYourMindCard(
                     Text(
                         text = "SOS",
                         color = FbRed,
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.SansSerif
                     )
                 }
             }
@@ -949,8 +954,9 @@ fun FeedFilterPills(
                     Text(
                         text = "Public",
                         color = if (isNearbyFilter) FacebookBlue else FbTextSecondary,
-                        fontSize = 12.sp,
-                        fontWeight = if (isNearbyFilter) FontWeight.Bold else FontWeight.Medium
+                        fontSize = 13.5.sp,
+                        fontWeight = if (isNearbyFilter) FontWeight.Bold else FontWeight.Medium,
+                        fontFamily = FontFamily.SansSerif
                     )
                 }
             }
@@ -980,8 +986,9 @@ fun FeedFilterPills(
                     Text(
                         text = "Friends",
                         color = if (!isNearbyFilter) FacebookBlue else FbTextSecondary,
-                        fontSize = 12.sp,
-                        fontWeight = if (!isNearbyFilter) FontWeight.Bold else FontWeight.Medium
+                        fontSize = 13.5.sp,
+                        fontWeight = if (!isNearbyFilter) FontWeight.Bold else FontWeight.Medium,
+                        fontFamily = FontFamily.SansSerif
                     )
                 }
             }

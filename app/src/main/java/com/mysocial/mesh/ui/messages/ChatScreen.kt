@@ -234,8 +234,8 @@ fun ChatScreen(
                             Text(
                                 text = if (isOnline) "Active now • End-to-end encrypted" else "${viewModel.peerAuthorId.toFormattedBbid()} • Encrypted",
                                 color = if (isOnline) FacebookBlue else FbTextSecondary,
-                                fontSize = 11.sp,
-                                fontFamily = if (isOnline) FontFamily.Default else FontFamily.Monospace,
+                                fontSize = 12.sp,
+                                fontFamily = FontFamily.SansSerif,
                                 fontWeight = if (isOnline) FontWeight.Medium else FontWeight.Normal
                             )
                         }
