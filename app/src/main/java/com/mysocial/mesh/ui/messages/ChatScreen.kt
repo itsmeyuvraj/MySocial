@@ -96,6 +96,7 @@ import com.mysocial.mesh.model.DirectMessageEntity
 import com.mysocial.mesh.ui.components.AvatarView
 import com.mysocial.mesh.ui.components.FullScreenImageViewerDialog
 import com.mysocial.mesh.ui.components.VerifiedBadge
+import com.mysocial.mesh.ui.theme.AppFontFamily
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FbBorder
 import com.mysocial.mesh.ui.theme.FbRed
@@ -235,7 +236,7 @@ fun ChatScreen(
                                 text = if (isOnline) "Active now • End-to-end encrypted" else "${viewModel.peerAuthorId.toFormattedBbid()} • Encrypted",
                                 color = if (isOnline) FacebookBlue else FbTextSecondary,
                                 fontSize = 12.sp,
-                                fontFamily = FontFamily.SansSerif,
+                                fontFamily = AppFontFamily,
                                 fontWeight = if (isOnline) FontWeight.Medium else FontWeight.Normal
                             )
                         }
@@ -478,7 +479,7 @@ fun ChatScreen(
                     Text(
                         text = viewModel.peerAuthorId.toFormattedBbid(),
                         color = FbTextSecondary,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = AppFontFamily,
                         fontSize = 12.sp
                     )
 
@@ -672,7 +673,7 @@ fun VoiceRecordingBar(
             Text(
                 text = timeLabel,
                 color = FbTextPrimary,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = AppFontFamily,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 13.sp
             )
@@ -1097,8 +1098,8 @@ fun DirectMessageAudioView(
                 Text(
                     text = timeLabel,
                     color = if (isOutgoing) Color.White.copy(alpha = 0.85f) else FbTextSecondary,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.5.sp,
+                    fontFamily = AppFontFamily,
                     fontWeight = FontWeight.Medium
                 )
 

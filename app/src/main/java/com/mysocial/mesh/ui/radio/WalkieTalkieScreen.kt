@@ -58,6 +58,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import com.mysocial.mesh.ui.theme.AppFontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -156,7 +157,7 @@ fun WalkieTalkieScreen(
                             text = "RECENT TRANSMISSIONS",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.SansSerif,
+                            fontFamily = AppFontFamily,
                             letterSpacing = 0.5.sp,
                             color = FbTextSecondary
                         )
@@ -201,7 +202,7 @@ fun WalkieTalkieScreen(
                                     text = "Clear All",
                                     fontSize = 12.5.sp,
                                     fontWeight = FontWeight.Bold,
-                                    fontFamily = FontFamily.SansSerif,
+                                    fontFamily = AppFontFamily,
                                     color = FbRed
                                 )
                             }
@@ -235,14 +236,14 @@ fun WalkieTalkieScreen(
                                 text = "Ready to Transmit",
                                 fontSize = 17.sp,
                                 fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.SansSerif,
+                                fontFamily = AppFontFamily,
                                 color = FbTextPrimary
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = "No voice transmissions recorded yet.\nHold the mic button above to broadcast instantly to nearby peers.",
                                 fontSize = 13.5.sp,
-                                fontFamily = FontFamily.SansSerif,
+                                fontFamily = AppFontFamily,
                                 color = FbTextSecondary,
                                 textAlign = TextAlign.Center,
                                 lineHeight = 19.sp
@@ -347,13 +348,13 @@ private fun RadioHeader(
                     text = "Walkie-Talkie",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.SansSerif,
+                    fontFamily = AppFontFamily,
                     color = FbTextPrimary
                 )
                 Text(
                     text = "OFF-GRID PTT RADIO • 16kHz PCM",
                     fontSize = 11.5.sp,
-                    fontFamily = FontFamily.SansSerif,
+                    fontFamily = AppFontFamily,
                     fontWeight = FontWeight.Medium,
                     letterSpacing = 0.5.sp,
                     color = FbTextSecondary
@@ -400,7 +401,7 @@ private fun RadioHeader(
                 Text(
                     text = statusText,
                     fontSize = 11.5.sp,
-                    fontFamily = FontFamily.SansSerif,
+                    fontFamily = AppFontFamily,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.5.sp,
                     color = statusColor
@@ -454,7 +455,7 @@ private fun RadioStatusSubBanner(
             Text(
                 text = bannerText,
                 fontSize = 13.5.sp,
-                fontFamily = FontFamily.SansSerif,
+                fontFamily = AppFontFamily,
                 fontWeight = FontWeight.SemiBold,
                 color = textColor,
                 maxLines = 1,
@@ -464,7 +465,7 @@ private fun RadioStatusSubBanner(
             Text(
                 text = "HALF-DUPLEX",
                 fontSize = 11.sp,
-                fontFamily = FontFamily.SansSerif,
+                fontFamily = AppFontFamily,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.5.sp,
                 color = FbTextSecondary
@@ -589,7 +590,7 @@ private fun CentralPttButtonStage(
                     },
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Black,
-                    fontFamily = FontFamily.SansSerif,
+                    fontFamily = AppFontFamily,
                     letterSpacing = 1.sp,
                     color = if (isRecording || isPlaying) Color.White else FbTextPrimary,
                     textAlign = TextAlign.Center,
@@ -694,7 +695,7 @@ private fun VoiceBurstItem(
                         text = burst.senderDisplayName.take(1).uppercase(),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.SansSerif,
+                        fontFamily = AppFontFamily,
                         color = Color.White
                     )
                 }
@@ -710,7 +711,7 @@ private fun VoiceBurstItem(
                             text = if (isMe) "${burst.senderDisplayName} (You)" else burst.senderDisplayName,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.SansSerif,
+                            fontFamily = AppFontFamily,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             color = FbTextPrimary,
@@ -724,7 +725,7 @@ private fun VoiceBurstItem(
                             Text(
                                 text = "${burst.durationMs / 1000}.${(burst.durationMs % 1000) / 100}s",
                                 fontSize = 11.5.sp,
-                                fontFamily = FontFamily.SansSerif,
+                                fontFamily = AppFontFamily,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
                                 softWrap = false,
@@ -739,7 +740,7 @@ private fun VoiceBurstItem(
                     Text(
                         text = "$timeAgo • Voice Burst",
                         fontSize = 12.5.sp,
-                        fontFamily = FontFamily.SansSerif,
+                        fontFamily = AppFontFamily,
                         color = FbTextSecondary
                     )
                 }
@@ -769,7 +770,7 @@ private fun VoiceBurstItem(
                         text = "Replay",
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.SansSerif,
+                        fontFamily = AppFontFamily,
                         color = FacebookBlue
                     )
                 }

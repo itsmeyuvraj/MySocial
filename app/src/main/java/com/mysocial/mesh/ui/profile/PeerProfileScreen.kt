@@ -42,6 +42,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import com.mysocial.mesh.ui.theme.AppFontFamily
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -149,8 +150,10 @@ fun PeerProfileScreen(
                         Text(
                             text = peerAuthorId.toFormattedBbid(),
                             color = FbTextSecondary,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp
+                            fontFamily = AppFontFamily,
+                            fontSize = 11.5.sp,
+                            letterSpacing = 0.4.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
@@ -220,9 +223,10 @@ fun PeerProfileScreen(
                                 Text(
                                     text = peerAuthorId.toFormattedBbid(),
                                     color = FbTextSecondary,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium
+                                    fontFamily = AppFontFamily,
+                                    fontSize = 11.5.sp,
+                                    letterSpacing = 0.4.sp,
+                                    fontWeight = FontWeight.SemiBold
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Icon(

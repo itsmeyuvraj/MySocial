@@ -90,6 +90,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Warning
 import com.mysocial.mesh.utils.toFormattedBbid
 import com.mysocial.mesh.model.PostWithAuthor
+import com.mysocial.mesh.ui.theme.AppFontFamily
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FbBorder
 import com.mysocial.mesh.ui.theme.FbRed
@@ -292,13 +293,14 @@ fun PostCard(
                         Text(
                             text = authorId.toFormattedBbid(),
                             color = FbTextSecondary,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium,
+                            fontFamily = AppFontFamily,
+                            fontSize = 10.5.sp,
+                            letterSpacing = 0.4.sp,
+                            fontWeight = FontWeight.SemiBold,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
                                 .background(FbSurfaceElevated)
-                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                                .padding(horizontal = 5.dp, vertical = 1.5.dp)
                         )
                     }
 
