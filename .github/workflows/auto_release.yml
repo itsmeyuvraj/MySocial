@@ -1,0 +1,94 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: 'Release version tag (e.g. v1.0.0)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Auto-Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      - name: Extract Commit Info & Version
+        id: vars
+        run: |
+          RAW_TAG="${{ inputs.version_tag }}"
+          if [ -z "$RAW_TAG" ]; then
+            RAW_TAG="${{ github.ref_name }}"
+          fi
+          TAG_CLEAN="${RAW_TAG#v}"
+          if [ -z "$TAG_CLEAN" ] || [ "$TAG_CLEAN" = "main" ]; then
+            TAG_CLEAN="1.0.0"
+          fi
+          IFS='.' read -r major minor patch <<< "$TAG_CLEAN"
+          major=${major:-1}
+          minor=${minor:-0}
+          patch=${patch:-0}
+          VER_CODE=$(( major * 10000 + minor * 100 + patch ))
+          VER_NAME="$major.$minor.$patch"
+          echo "ver_code=$VER_CODE" >> $GITHUB_OUTPUT
+          echo "ver_name=$VER_NAME" >> $GITHUB_OUTPUT
+          echo "tag_name=v$VER_NAME" >> $GITHUB_OUTPUT
+
+      - name: Build Release APK & AAB Bundle
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          mkdir -p app/src/main/assets
+          if [ -n "$COMMIT_MSG" ]; then
+            echo "$COMMIT_MSG" > app/src/main/assets/release_notes.txt
+          fi
+          ./gradlew assembleRelease bundleRelease \
+            -PappVersionCode=${{ steps.vars.outputs.ver_code }} \
+            -PappVersionName=${{ steps.vars.outputs.ver_name }}
+
+      - name: Prepare Release Assets
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk MySocial.apk
+          cp app/build/outputs/bundle/release/app-release.aab MySocial.aab
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag_name }}
+          name: "MySocial ${{ steps.vars.outputs.tag_name }}"
+          body: |
+            ### 🚀 What's New in MySocial
+            ${{ github.event.head_commit.message }}
+
+            ---
+            *Automated CI/CD build for commit `${{ github.sha }}`.*
+          files: |
+            MySocial.apk
+            MySocial.aab
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

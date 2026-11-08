@@ -1,0 +1,887 @@
+package com.mysocial.mesh.data
+
+import android.content.Context
+import android.util.Log
+import com.mysocial.mesh.crypto.CryptoManager
+import com.mysocial.mesh.model.BlockedAuthorEntity
+import com.mysocial.mesh.model.ContentType
+import com.mysocial.mesh.model.ConversationSummary
+import com.mysocial.mesh.model.DirectMessageContent
+import com.mysocial.mesh.model.DirectMessageEntity
+import com.mysocial.mesh.model.FollowPayload
+import com.mysocial.mesh.model.LogEntry
+import com.mysocial.mesh.model.PostPayload
+import com.mysocial.mesh.model.PostEditPayload
+import com.mysocial.mesh.model.PostDeletePayload
+import com.mysocial.mesh.model.PostWithAuthor
+import com.mysocial.mesh.model.ProfilePayload
+import com.mysocial.mesh.model.ProfileViewEntity
+import com.mysocial.mesh.model.ReactionPayload
+import com.mysocial.mesh.model.ReplyPayload
+import com.mysocial.mesh.protocol.GossipSyncEngine
+import com.mysocial.mesh.protocol.SyncEvent
+import com.mysocial.mesh.transport.DiscoveredPeer
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
+
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+
+data class DatabaseStats(
+    val totalEntries: Int,
+    val totalAuthors: Int,
+    val totalPosts: Int
+)
+
+/**
+ * Single source of truth repository orchestrating Room database queries,
+ * cryptographic identity operations, and peer gossip sync services.
+ */
+class MeshRepository(
+    private val db: MeshDatabase,
+    val cryptoManager: CryptoManager,
+    val syncEngine: GossipSyncEngine,
+    val appSettings: AppSettings? = null
+) {
+    private val repoScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val _discoveredPeers = MutableStateFlow<List<DiscoveredPeer>>(emptyList())
+    val discoveredPeers: StateFlow<List<DiscoveredPeer>> = _discoveredPeers.asStateFlow()
+
+    init {
+        db.cryptoManager = cryptoManager
+        db.onBlobDiscovered = { blobHash ->
+            repoScope.launch {
+                syncEngine.prioritizeBlob(blobHash)
+            }
+        }
+        db.onDirectMessageReceived = { messageId, senderId ->
+            repoScope.launch {
+                sendDirectMessageReceipt(messageId, senderId, 2) // 2 = DELIVERED
+            }
+        }
+        db.onPttVoiceBurstReceived = { burst ->
+            if (burst.senderAuthorId != cryptoManager.authorId) {
+                logActivity("Walkie-Talkie on ${burst.channel} from ${burst.senderDisplayName}")
+                pttWalkieTalkieManager?.playVoiceBurst(burst)
+                db.appContext?.let { ctx ->
+                    val sec = String.format(java.util.Locale.US, "%.1fs", burst.durationMs / 1000f)
+                    com.mysocial.mesh.utils.PeerNotificationHelper.notifyPttVoiceBurst(
+                        context = ctx,
+                        senderName = burst.senderDisplayName,
+                        durationSec = sec
+                    )
+                }
+            }
+        }
+        startStalePeerPruner()
+    }
+
+    private fun startStalePeerPruner() {
+        repoScope.launch {
+            while (isActive) {
+                delay(3000)
+                val now = System.currentTimeMillis()
+                val staleThresholdMs = 45_000L
+                val current = _discoveredPeers.value
+                val fresh = current.filter { now - it.lastSeenTimestamp <= staleThresholdMs }
+                if (fresh.size != current.size) {
+                    _discoveredPeers.value = fresh
+                }
+            }
+        }
+    }
+
+    var onContentPublished: (() -> Unit)? = null
+    var onPttBroadcast: ((com.mysocial.mesh.model.PttVoiceBurstPayload) -> Unit)? = null
+
+    val groupManager: com.mysocial.mesh.group.GroupManager by lazy {
+        com.mysocial.mesh.group.GroupManager(db, cryptoManager, syncEngine) {
+            onContentPublished?.invoke()
+        }
+    }
+
+    val emergencyChannelManager: com.mysocial.mesh.emergency.EmergencyChannelManager by lazy {
+        com.mysocial.mesh.emergency.EmergencyChannelManager(db)
+    }
+
+    val storyManager: com.mysocial.mesh.story.StoryManager by lazy {
+        com.mysocial.mesh.story.StoryManager(db, cryptoManager, syncEngine) {
+            onContentPublished?.invoke()
+        }
+    }
+
+    val pttWalkieTalkieManager: com.mysocial.mesh.emergency.PttWalkieTalkieManager? by lazy {
+        db.appContext?.let { ctx ->
+            com.mysocial.mesh.emergency.PttWalkieTalkieManager(ctx, cryptoManager, syncEngine, repoScope) {
+                onContentPublished?.invoke()
+            }.also { manager ->
+                manager.onPttBroadcast = { burst ->
+                    onPttBroadcast?.invoke(burst)
+                }
+            }
+        }
+    }
+
+    private val timeFormat = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault())
+
+    private val _activityLogs = MutableStateFlow<List<String>>(
+        listOf("${timeFormat.format(java.util.Date())} • Looking for people nearby")
+    )
+    val activityLogs: StateFlow<List<String>> = _activityLogs.asStateFlow()
+
+    fun logActivity(message: String) {
+        val time = timeFormat.format(java.util.Date())
+        val entry = "$time • $message"
+        val current = _activityLogs.value
+        if (current.firstOrNull()?.endsWith(message) == true) return
+        _activityLogs.value = (listOf(entry) + current).take(50)
+    }
+
+    fun getPeerName(peerId: String): String {
+        val found = _discoveredPeers.value.find { it.peerId == peerId }?.peerName
+        return if (!found.isNullOrBlank() && found != "MeshPeer" && !found.startsWith("peer_")) {
+            found
+        } else if (peerId.startsWith("direct_")) {
+            "Nearby Device (${peerId.removePrefix("direct_").replace('_', '.')})"
+        } else {
+            "Nearby Device"
+        }
+    }
+
+    suspend fun getPeerDisplayName(peerId: String): String {
+        return withContext(Dispatchers.IO) {
+            val profile = db.profileDao().getProfile(peerId)
+            if (!profile?.displayName.isNullOrBlank()) {
+                profile.displayName
+            } else {
+                getPeerName(peerId)
+            }
+        }
+    }
+
+    fun updateDiscoveredPeers(peers: List<DiscoveredPeer>) {
+        val myAuthorId = cryptoManager.authorId
+        val now = System.currentTimeMillis()
+        val staleThresholdMs = 45_000L
+        val filtered = peers.filter { it.peerId != myAuthorId && (now - it.lastSeenTimestamp <= staleThresholdMs) }
+        val oldSize = _discoveredPeers.value.size
+        val deduplicated = filtered.distinctBy { it.peerId }
+        _discoveredPeers.value = deduplicated
+        if (deduplicated.size > oldSize && deduplicated.isNotEmpty()) {
+            val peerName = deduplicated.lastOrNull()?.peerName ?: "Friend"
+            if (peerName != "Nearby Device" && !peerName.startsWith("Direct IP") && !peerName.startsWith("peer_") && !peerName.startsWith("Host ADB")) {
+                logActivity("Discovered $peerName nearby")
+            }
+        }
+    }
+
+    fun updatePeerNameAndId(oldIdOrHost: String, newPeerId: String, newPeerName: String) {
+        val myAuthorId = cryptoManager.authorId
+        if (newPeerId == myAuthorId) return
+
+        val current = _discoveredPeers.value.toMutableList()
+        val index = current.indexOfFirst {
+            it.peerId == oldIdOrHost || it.peerId == newPeerId || it.hostAddress == oldIdOrHost
+        }
+        val now = System.currentTimeMillis()
+        if (index != -1) {
+            val existing = current[index]
+            current[index] = existing.copy(
+                peerId = newPeerId,
+                peerName = newPeerName,
+                lastSeenTimestamp = now
+            )
+        } else {
+            current.add(
+                DiscoveredPeer(
+                    peerId = newPeerId,
+                    peerName = newPeerName,
+                    transportType = com.mysocial.mesh.protocol.TransportType.MDNS_WIFI,
+                    lastSeenTimestamp = now
+                )
+            )
+        }
+        val deduplicated = current
+            .filter { it.peerId != myAuthorId && (now - it.lastSeenTimestamp <= 45_000L) }
+            .distinctBy { it.peerId }
+        _discoveredPeers.value = deduplicated
+        if (newPeerName.isNotBlank() && newPeerName != "MeshPeer" && newPeerName != "Nearby Device" && !newPeerName.startsWith("Host ADB")) {
+            logActivity("Connected with $newPeerName")
+        }
+    }
+
+    /**
+     * Observes the main social feed with selectable filter:
+     * - openMeshFilter = true: All mesh traffic (carried by mules, direct, all hops)
+     * - openMeshFilter = false: Followed authors + 2-hop trust graph
+     */
+    fun observeFeed(openMeshFilter: Boolean): Flow<List<PostWithAuthor>> {
+        return if (openMeshFilter) {
+            db.postViewDao().observeAllFeed(cryptoManager.authorId)
+        } else {
+            db.postViewDao().observeFollowedAndTwoHopFeed(cryptoManager.authorId)
+        }
+    }
+
+    /**
+     * Observes replies for a specific parent/root post hash.
+     */
+    fun observeReplies(parentHash: String): Flow<List<PostWithAuthor>> {
+        return db.postViewDao().observeReplies(parentHash)
+    }
+
+    /**
+     * Observes recent PTT Walkie-Talkie voice bursts across all channels.
+     */
+    fun observePttVoiceBursts(): Flow<List<com.mysocial.mesh.model.PttVoiceBurstPayload>> {
+        return db.logEntryDao().observeRecentPttEntries().map { entities ->
+            entities.mapNotNull { entity ->
+                try {
+                    com.mysocial.mesh.model.PttVoiceBurstPayload.fromJson(entity.contentJson)
+                } catch (_: Exception) {
+                    null
+                }
+            }
+        }
+    }
+
+    /**
+     * Clears all recorded and received PTT voice bursts from the ledger.
+     */
+    suspend fun clearAllPttVoiceBursts() = withContext(Dispatchers.IO) {
+        db.logEntryDao().clearAllPttEntries()
+    }
+
+    /**
+     * Observes posts authored by a specific user (e.g. self profile timeline).
+     */
+    fun observePostsByAuthor(authorId: String): Flow<List<PostWithAuthor>> {
+        return db.postViewDao().observePostsByAuthor(authorId, cryptoManager.authorId)
+    }
+
+    /**
+     * Creates and signs a new local POST LogEntry (with optional media attachment, TTL, SOS flag, and Poll options),
+     * committing it to Room.
+     */
+    suspend fun createPost(
+        text: String,
+        tags: List<String> = emptyList(),
+        media: com.mysocial.mesh.model.MediaAttachment? = null,
+        isPublic: Boolean = true,
+        expiresAt: Long? = null,
+        isSos: Boolean = false,
+        pollOptions: List<String>? = null
+    ): Result<LogEntry> {
+        val payload = PostPayload(
+            text = text.trim(),
+            tags = tags,
+            media = media,
+            isPublic = isPublic,
+            expiresAt = expiresAt,
+            isSos = isSos,
+            pollOptions = pollOptions
+        ).toJson()
+        return syncEngine.createAndPublishLocalEntry(ContentType.POST, payload).also {
+            if (it.isSuccess) {
+                val suffix = when {
+                    isSos -> " [Urgent Alert]"
+                    pollOptions != null -> " with poll"
+                    media != null -> " with photo"
+                    else -> ""
+                }
+                val aud = if (isPublic) "public" else "friends-only"
+                logActivity("Published new $aud post$suffix: \"${text.take(30)}${if (text.length > 30) "..." else ""}\"")
+                onContentPublished?.invoke()
+
+                // Opportunistically broadcast emergency SOS or short text over Sub-GHz LoRa radio
+                val entry = it.getOrNull()
+                if (entry != null) {
+                    val appContext = db.appContext
+                    if (appContext != null) {
+                        val bridge = com.mysocial.mesh.lora.LoraCompanionBridge.getInstance(appContext)
+                        repoScope.launch(Dispatchers.IO) {
+                            if (isSos) {
+                                bridge.broadcastSosAlert(entry.authorId, text, entry.entryHash)
+                            } else if (text.length <= 160) {
+                                bridge.broadcastShortPost(entry.authorId, text, entry.entryHash)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Casts a 1-tap poll vote on a target post with option index.
+     */
+    suspend fun votePoll(targetHash: String, optionIndex: Int): Result<LogEntry> {
+        val payload = ReactionPayload(
+            targetHash = targetHash,
+            emoji = "poll:$optionIndex",
+            pollOptionIndex = optionIndex
+        ).toJson()
+        return syncEngine.createAndPublishLocalEntry(ContentType.REACTION, payload).also {
+            if (it.isSuccess) {
+                logActivity("Voted option ${optionIndex + 1} on poll")
+                onContentPublished?.invoke()
+            }
+        }
+    }
+
+    /**
+     * Observes live poll votes for a given post.
+     */
+    fun observePollVotes(targetHash: String): Flow<List<com.mysocial.mesh.model.ReactionEntity>> {
+        return db.reactionDao().observePollVotesForPost(targetHash)
+    }
+
+    /**
+     * Observes the set of post entryHashes that the given user has liked.
+     */
+    fun observeUserLikedPostHashes(authorId: String): Flow<Set<String>> {
+        return db.reactionDao().observeUserLikedPostHashes(authorId).map { it.toSet() }
+    }
+
+    suspend fun setVerifiedInPerson(authorId: String, verified: Boolean) {
+        db.followDao().upsert(
+            com.mysocial.mesh.model.FollowViewEntity(
+                followerId = cryptoManager.authorId,
+                followeeId = authorId,
+                isFollowing = true,
+                updatedAtSeq = System.currentTimeMillis(),
+                isVerifiedInPerson = verified
+            )
+        )
+        db.profileDao().setVerifiedInPerson(authorId, verified)
+        db.followDao().setVerifiedInPerson(authorId, verified)
+    }
+
+    suspend fun isVerifiedInPerson(targetAuthorId: String): Boolean {
+        return db.followDao().isVerifiedInPerson(cryptoManager.authorId, targetAuthorId) ?: false
+    }
+
+    fun getBlobsDirectorySizeBytes(context: Context): Long {
+        return try {
+            val blobsDir = MediaProcessor.getBlobsDirectory(context)
+            blobsDir.listFiles { f -> f.extension == "blob" }?.sumOf { it.length() } ?: 0L
+        } catch (_: Exception) {
+            0L
+        }
+    }
+
+    /**
+     * Observes blob manifest status for a media attachment.
+     */
+    fun observeBlobManifest(blobHash: String): Flow<BlobManifestEntity?> {
+        return db.blobDao().observeManifest(blobHash)
+    }
+
+    /**
+     * Observes received chunk count for a media attachment.
+     */
+    fun observeBlobReceivedChunks(blobHash: String): Flow<Int> {
+        return db.blobDao().observeReceivedChunksCount(blobHash)
+    }
+
+    /**
+     * Prioritizes downloading a specific blob across active connections.
+     */
+    suspend fun prioritizeBlobDownload(blobHash: String) {
+        syncEngine.prioritizeBlob(blobHash)
+    }
+
+    /**
+     * Registers a locally processed completed blob into Room blob_manifests.
+     */
+    suspend fun registerCompletedBlob(media: com.mysocial.mesh.data.ProcessedMedia) {
+        db.blobDao().upsertManifest(
+            BlobManifestEntity(
+                blobHash = media.blobHash,
+                totalBytes = media.totalBytes,
+                chunkCount = media.chunkCount,
+                mimeType = media.mimeType,
+                isComplete = true,
+                localFilePath = media.localFile.absolutePath
+            )
+        )
+    }
+
+    suspend fun deletePost(entryHash: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val payload = PostDeletePayload(targetHash = entryHash).toJson()
+            val result = syncEngine.createAndPublishLocalEntry(ContentType.POST_DELETE, payload)
+            if (result.isSuccess) {
+                logActivity("Deleted post")
+                onContentPublished?.invoke()
+                true
+            } else {
+                db.postViewDao().deletePost(entryHash)
+                logActivity("Deleted post locally")
+                onContentPublished?.invoke()
+                true
+            }
+        } catch (e: Exception) {
+            db.postViewDao().deletePost(entryHash)
+            onContentPublished?.invoke()
+            false
+        }
+    }
+
+    suspend fun editPost(entryHash: String, newText: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val payload = PostEditPayload(targetHash = entryHash, newText = newText.trim()).toJson()
+            val result = syncEngine.createAndPublishLocalEntry(ContentType.POST_EDIT, payload)
+            if (result.isSuccess) {
+                logActivity("Updated post content")
+                onContentPublished?.invoke()
+                true
+            } else {
+                db.postViewDao().updatePostText(entryHash, newText.trim())
+                logActivity("Updated post content locally")
+                onContentPublished?.invoke()
+                true
+            }
+        } catch (e: Exception) {
+            db.postViewDao().updatePostText(entryHash, newText.trim())
+            onContentPublished?.invoke()
+            false
+        }
+    }
+
+    /**
+     * Creates and signs a new local REPLY LogEntry, committing it to Room.
+     */
+    suspend fun createReply(text: String, rootHash: String, parentHash: String): Result<LogEntry> {
+        val payload = ReplyPayload(
+            text = text.trim(),
+            rootHash = rootHash,
+            parentHash = parentHash
+        ).toJson()
+        return syncEngine.createAndPublishLocalEntry(ContentType.REPLY, payload).also {
+            if (it.isSuccess) {
+                logActivity("Added comment to post")
+                onContentPublished?.invoke()
+            }
+        }
+    }
+
+    /**
+     * Adds an emoji reaction to a post, incrementing likeCount.
+     * Checks if the user has already reacted to prevent duplicate log entries.
+     */
+    suspend fun reactToPost(targetHash: String, emoji: String = "❤️"): Result<LogEntry> {
+        // Guard: prevent duplicate reactions from creating wasteful log entries
+        val alreadyReacted = db.reactionDao().hasUserReacted(targetHash, cryptoManager.authorId, emoji)
+        if (alreadyReacted > 0) {
+            return Result.failure(IllegalStateException("Already liked"))
+        }
+        val payload = ReactionPayload(
+            targetHash = targetHash,
+            emoji = emoji
+        ).toJson()
+        return syncEngine.createAndPublishLocalEntry(ContentType.REACTION, payload).also {
+            if (it.isSuccess) {
+                logActivity("Reacted $emoji to post")
+                onContentPublished?.invoke()
+            }
+        }
+    }
+
+    /**
+     * Updates local profile (displayName, bio, avatarSeed) and publishes PROFILE LogEntry.
+     */
+    suspend fun updateProfile(displayName: String, bio: String, avatarSeed: String): Result<LogEntry> {
+        val cleanName = displayName.trim()
+        val payload = ProfilePayload(
+            displayName = cleanName,
+            bio = bio.trim(),
+            avatarSeed = avatarSeed
+        ).toJson()
+        syncEngine.myDisplayName = cleanName
+        return syncEngine.createAndPublishLocalEntry(ContentType.PROFILE, payload).also {
+            if (it.isSuccess) {
+                logActivity("Updated profile name to \"$displayName\"")
+                onContentPublished?.invoke()
+            }
+        }
+    }
+
+    /**
+     * Follows or unfollows a target peer authorId.
+     */
+    suspend fun toggleFollow(targetAuthorId: String, following: Boolean): Result<LogEntry> {
+        val payload = FollowPayload(
+            targetAuthorId = targetAuthorId,
+            following = following
+        ).toJson()
+        return syncEngine.createAndPublishLocalEntry(ContentType.FOLLOW, payload).also {
+            if (it.isSuccess) {
+                logActivity(if (following) "Added friend" else "Removed friend")
+                onContentPublished?.invoke()
+            }
+        }
+    }
+
+    /**
+     * Checks if local user is following a given author.
+     */
+    suspend fun isFollowing(targetAuthorId: String): Boolean {
+        return db.followDao().isFollowing(cryptoManager.authorId, targetAuthorId) ?: false
+    }
+
+    /**
+     * Observes author IDs that the current user is following / has added as trusted friends.
+     */
+    fun observeFollowedAuthorIds(): Flow<List<String>> {
+        return db.followDao().observeFollowedAuthorIds(cryptoManager.authorId)
+    }
+
+    fun observeAllProfiles(): Flow<List<ProfileViewEntity>> {
+        return db.profileDao().observeAllProfiles()
+    }
+
+    fun observeFollowedProfiles(): Flow<List<ProfileViewEntity>> {
+        return combine(
+            observeFollowedAuthorIds(),
+            db.profileDao().observeAllProfiles()
+        ) { followedIds, profiles ->
+            val set = followedIds.toSet()
+            profiles.filter { set.contains(it.authorId) }
+        }
+    }
+
+    /**
+     * Observes a profile by authorId.
+     */
+    fun observeProfile(authorId: String): Flow<ProfileViewEntity?> {
+        return db.profileDao().observeProfile(authorId)
+    }
+
+    suspend fun getProfile(authorId: String): ProfileViewEntity? {
+        return db.profileDao().getProfile(authorId)
+    }
+
+    /**
+     * Observes local user's own profile.
+     */
+    fun observeMyProfile(): Flow<ProfileViewEntity?> {
+        return db.profileDao().observeProfile(cryptoManager.authorId)
+    }
+
+    /**
+     * Observes database metrics for Identity / Stats tab.
+     */
+    fun observeDatabaseStats(): Flow<DatabaseStats> {
+        return combine(
+            db.logEntryDao().observeTotalEntriesCount(),
+            db.logEntryDao().observeTotalAuthorsCount()
+        ) { entries, authors ->
+            DatabaseStats(
+                totalEntries = entries,
+                totalAuthors = authors,
+                totalPosts = 0 // dynamically supplemented
+            )
+        }
+    }
+
+    suspend fun getTotalPostsCount(): Int = withContext(Dispatchers.IO) {
+        db.postViewDao().getTotalPostsCount()
+    }
+
+    /**
+     * Sends an End-to-End Encrypted (E2EE) 1-on-1 private message to a recipient.
+     * The plaintext is encrypted using ephemeral X25519 ECDH + AES-256-GCM, saved locally,
+     * and gossiped as a ContentType.DIRECT_MESSAGE LogEntry.
+     */
+    suspend fun sendDirectMessage(recipientAuthorId: String, text: String): Result<DirectMessageEntity> {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return Result.failure(IllegalArgumentException("Message cannot be blank"))
+
+        return withContext(Dispatchers.IO) {
+            try {
+                // 1. Structure as DirectMessageContent and encrypt via E2eeManager
+                val content = DirectMessageContent(text = trimmed)
+                val payload = cryptoManager.encryptDirectMessage(recipientAuthorId, content.toJson())
+                val now = System.currentTimeMillis()
+
+                // 2. Insert into local direct_messages table as outgoing message (status: 0 = SENDING)
+                val entity = DirectMessageEntity(
+                    messageId = payload.messageId,
+                    conversationPeerId = recipientAuthorId,
+                    senderId = cryptoManager.authorId,
+                    recipientId = recipientAuthorId,
+                    text = trimmed,
+                    timestamp = now,
+                    isOutgoing = true,
+                    isRead = true,
+                    status = 0
+                )
+                db.directMessageDao().insertMessage(entity)
+
+                // 3. Publish to local append-only log so it gossips across the mesh
+                val result = syncEngine.createAndPublishLocalEntry(
+                    ContentType.DIRECT_MESSAGE,
+                    payload.toJson()
+                )
+
+                if (result.isSuccess) {
+                    db.directMessageDao().updateMessageStatus(payload.messageId, 1) // 1 = SENT
+                    logActivity("Sent encrypted direct message to ${recipientAuthorId.take(12)}...")
+                    onContentPublished?.invoke()
+                    Result.success(entity.copy(status = 1))
+                } else {
+                    db.directMessageDao().updateMessageStatus(payload.messageId, 2) // 2 = FAILED
+                    Result.failure(result.exceptionOrNull() ?: IllegalStateException("Failed to publish direct message"))
+                }
+            } catch (e: Exception) {
+                Log.e("MeshRepository", "Failed to send direct message: ${e.message}", e)
+                Result.failure(e)
+            }
+        }
+    }
+
+    /**
+     * Sends an End-to-End Encrypted (E2EE) 1-on-1 private message containing media (photo or voice note).
+     */
+    suspend fun sendDirectMessageWithMedia(
+        recipientAuthorId: String,
+        text: String = "",
+        mediaType: String, // "IMAGE" or "AUDIO"
+        blobHash: String,
+        mimeType: String,
+        totalBytes: Long,
+        chunkCount: Int,
+        durationMs: Long? = null,
+        microPreviewBase64: String? = null
+    ): Result<DirectMessageEntity> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val content = DirectMessageContent(
+                    text = text.trim(),
+                    mediaType = mediaType,
+                    mediaBlobHash = blobHash,
+                    mediaMimeType = mimeType,
+                    mediaTotalBytes = totalBytes,
+                    mediaChunkCount = chunkCount,
+                    mediaDurationMs = durationMs,
+                    mediaMicroPreviewBase64 = microPreviewBase64
+                )
+                val payload = cryptoManager.encryptDirectMessage(recipientAuthorId, content.toJson())
+                val now = System.currentTimeMillis()
+
+                val entity = DirectMessageEntity(
+                    messageId = payload.messageId,
+                    conversationPeerId = recipientAuthorId,
+                    senderId = cryptoManager.authorId,
+                    recipientId = recipientAuthorId,
+                    text = content.text,
+                    timestamp = now,
+                    isOutgoing = true,
+                    isRead = true,
+                    status = 0,
+                    mediaType = mediaType,
+                    mediaBlobHash = blobHash,
+                    mediaMimeType = mimeType,
+                    mediaChunkCount = chunkCount,
+                    mediaDurationMs = durationMs,
+                    mediaMicroPreviewBase64 = microPreviewBase64
+                )
+                db.directMessageDao().insertMessage(entity)
+
+                val result = syncEngine.createAndPublishLocalEntry(
+                    ContentType.DIRECT_MESSAGE,
+                    payload.toJson()
+                )
+
+                if (result.isSuccess) {
+                    db.directMessageDao().updateMessageStatus(payload.messageId, 1) // 1 = SENT
+                    val mediaLabel = if (mediaType == "IMAGE") "photo" else "voice note"
+                    logActivity("Sent encrypted $mediaLabel to ${recipientAuthorId.take(12)}...")
+                    onContentPublished?.invoke()
+                    Result.success(entity.copy(status = 1))
+                } else {
+                    db.directMessageDao().updateMessageStatus(payload.messageId, 2) // 2 = FAILED
+                    Result.failure(result.exceptionOrNull() ?: IllegalStateException("Failed to publish direct message with media"))
+                }
+            } catch (e: Exception) {
+                Log.e("MeshRepository", "Failed to send direct message with media: ${e.message}", e)
+                Result.failure(e)
+            }
+        }
+    }
+
+    /**
+     * Observes the ordered message history for a 1-on-1 conversation thread.
+     */
+    fun observeMessagesForPeer(peerId: String): Flow<List<DirectMessageEntity>> {
+        return db.directMessageDao().observeMessagesForPeer(peerId)
+    }
+
+    /**
+     * Observes conversation threads with peers, enriched with profile, verification, and online status.
+     */
+    fun observeConversations(): Flow<List<ConversationSummary>> {
+        return combine(
+            db.directMessageDao().observeRecentConversations(),
+            db.profileDao().observeAllProfiles(),
+            discoveredPeers
+        ) { recentMsgs, profiles, peers ->
+            val profilesMap = profiles.associateBy { it.authorId }
+            val onlinePeerIds = peers.map { it.peerId }.toSet()
+
+            recentMsgs.map { msg ->
+                val peerId = msg.conversationPeerId
+                val profile = profilesMap[peerId]
+                val snippet = when (msg.mediaType) {
+                    "IMAGE" -> if (msg.text.isNotBlank()) "📷 ${msg.text}" else "📷 Photo"
+                    "AUDIO" -> "🎤 Voice message"
+                    else -> msg.text
+                }
+                ConversationSummary(
+                    peerId = peerId,
+                    peerDisplayName = profile?.displayName,
+                    peerAvatarSeed = profile?.avatarSeed ?: peerId,
+                    lastMessageText = snippet,
+                    lastMessageTimestamp = msg.timestamp,
+                    unreadCount = if (!msg.isOutgoing && !msg.isRead) 1 else 0,
+                    isPeerOnline = onlinePeerIds.contains(peerId),
+                    isVerified = profile?.isVerifiedInPerson == true
+                )
+            }
+        }
+    }
+
+    /**
+     * Marks all unread incoming messages in a conversation as read and broadcasts READ receipts.
+     */
+    suspend fun markConversationAsRead(peerId: String) {
+        withContext(Dispatchers.IO) {
+            val unreadMessages = db.directMessageDao().getUnreadIncomingMessagesForPeer(peerId)
+            db.directMessageDao().markConversationAsRead(peerId)
+
+            for (msg in unreadMessages) {
+                sendDirectMessageReceipt(msg.messageId, msg.senderId, 3) // 3 = READ
+            }
+        }
+    }
+
+    /**
+     * Deletes a specific direct message locally from the conversation thread.
+     */
+    suspend fun deleteDirectMessage(messageId: String) {
+        withContext(Dispatchers.IO) {
+            db.directMessageDao().deleteMessage(messageId)
+        }
+    }
+
+    /**
+     * Sends a Direct Message Delivery or Read Receipt across the mesh.
+     * status: 2 = DELIVERED, 3 = READ
+     */
+    suspend fun sendDirectMessageReceipt(messageId: String, senderAuthorId: String, status: Int): Result<LogEntry> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val payload = com.mysocial.mesh.model.DirectMessageReceiptPayload(
+                    messageId = messageId,
+                    originalSenderId = senderAuthorId,
+                    recipientId = cryptoManager.authorId,
+                    status = status,
+                    timestamp = System.currentTimeMillis()
+                )
+                val result = syncEngine.createAndPublishLocalEntry(
+                    ContentType.DIRECT_MESSAGE_RECEIPT,
+                    payload.toJson()
+                )
+                if (result.isSuccess) {
+                    onContentPublished?.invoke()
+                }
+                result
+            } catch (e: Exception) {
+                Log.e("MeshRepository", "Failed to send receipt: ${e.message}", e)
+                Result.failure(e)
+            }
+        }
+    }
+
+    /**
+     * Requests prioritized on-demand download of a specific media blob over active connections.
+     */
+    suspend fun prioritizeBlob(blobHash: String) {
+        prioritizeBlobDownload(blobHash)
+    }
+
+    /**
+     * Observes total unread incoming direct messages for badges and top bar indicators.
+     */
+    fun observeTotalUnreadMessagesCount(): Flow<Int> {
+        return db.directMessageDao().observeTotalUnreadCount()
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // DECENTRALIZED BLOCKLIST & WEB-OF-TRUST SYBIL EVICTION
+    // -----------------------------------------------------------------------------------------
+
+    suspend fun blockAuthor(authorId: String, reason: String = "User blocked", isSybilEvicted: Boolean = false) {
+        withContext(Dispatchers.IO) {
+            db.blockedAuthorDao().insert(
+                BlockedAuthorEntity(
+                    authorId = authorId,
+                    blockedAt = System.currentTimeMillis(),
+                    reason = reason,
+                    isSybilEvicted = isSybilEvicted
+                )
+            )
+        }
+    }
+
+    suspend fun unblockAuthor(authorId: String) {
+        withContext(Dispatchers.IO) {
+            db.blockedAuthorDao().unblock(authorId)
+        }
+    }
+
+    suspend fun isAuthorBlocked(authorId: String): Boolean {
+        return withContext(Dispatchers.IO) {
+            db.blockedAuthorDao().isAuthorBlocked(authorId) > 0
+        }
+    }
+
+    fun observeBlockedAuthors(): Flow<List<BlockedAuthorEntity>> {
+        return db.blockedAuthorDao().observeBlockedAuthors()
+    }
+
+    /**
+     * Web-of-Trust Sybil Eviction Consensus:
+     * If >= 3 mutual verified friends or contacts block or report an author,
+     * the author is automatically flagged as Sybil-evicted and their packets
+     * are discarded at the radio transport layer before wasting flash storage.
+     */
+    suspend fun checkAndApplySybilEviction(targetAuthorId: String, reportingPeerIds: List<String>): Boolean {
+        return withContext(Dispatchers.IO) {
+            val verifiedFriends = db.followDao().getFollowedAuthorIds(cryptoManager.authorId).toSet()
+            val mutualReports = reportingPeerIds.count { it in verifiedFriends }
+            if (mutualReports >= 3) {
+                blockAuthor(
+                    targetAuthorId,
+                    reason = "Web-of-Trust Sybil eviction ($mutualReports verified mutual reports)",
+                    isSybilEvicted = true
+                )
+                true
+            } else {
+                false
+            }
+        }
+    }
+}

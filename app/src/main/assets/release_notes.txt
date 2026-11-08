@@ -1,0 +1,18 @@
+* Feature: Ultra-Clean Decluttered Feed with sleek collapsible emergency hub, compact composer card, and modern segmented filter pills
+* Feature: Expanded Appearance Studio with AMOLED Pitch Black (#000000), 5 accent color palettes (Blue, Emerald, Violet, Rose, Amber), and live preview
+* Feature: Timeline Density Controls with Compact Feed Mode and Multi-Hop Passport routing badges toggle
+* Improvement: Collapsible direction-finder radar on emergency alerts for clean vertical timeline flow
+* Feature: Opportunistic Internet Gateway Uplink (Mule-to-Cloud Bridge) relaying queued SOS alerts to cloud endpoints with signed delivery receipts
+* Feature: Android Wi-Fi Aware (NAN) high-bandwidth zero-configuration P2P discovery and direct streaming
+* Feature: Cross-Platform iOS Companion Bridge via CoreBluetooth L2CAP Connection-Oriented Channels (CoC)
+* Feature: Ephemeral Disappearing 24-Hour Mesh Stories with top avatar carousel and full-screen viewer
+* Feature: Private Multi-Party Mesh Group Spaces encrypted with AES-256-GCM symmetric sender keys and QR invite links
+* Feature: Topic & Radius Emergency Channels (#emergency-sos, #medical-aid, #shelter-updates, #food-and-water, #lost-and-found, #power-and-fuel)
+* Feature: Push-to-Talk (PTT) Half-Duplex Emergency Mesh Walkie-Talkie with real-time voice bursts
+* Feature: Compass Bearing Direction Finder Radar pointing toward emergency senders with magnetic heading and distance estimation
+* Feature: LoRa & ESP32 Hardware Companion Bridge bridging SOS emergency alerts over 868/915 MHz across 5–15 km
+* Feature: Adaptive Epidemic Scoping & Congestion Dampening dynamically preventing RF broadcast collisions in dense crowds
+* Security: Decentralized Blocklist & Web-of-Trust Sybil Eviction with 3-friend consensus dropping malicious packets at the radio layer
+* Performance: Native Rust core (mysocial-core) with ARMv8 NEON SIMD crypto, zero-copy wire validation & Merkle chunk tree hashing
+* Bug Fix: Resolved Wi-Fi NsdManager unregistration timeouts on legacy Android devices with thread-safe state tracking
+* Database: Room DB v10 schema migration with groups, stories, and gateway relay tracking

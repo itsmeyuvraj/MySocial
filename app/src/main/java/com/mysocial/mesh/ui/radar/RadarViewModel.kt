@@ -1,0 +1,117 @@
+package com.mysocial.mesh.ui.radar
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.mysocial.mesh.data.MeshRepository
+import com.mysocial.mesh.model.ProfileViewEntity
+import com.mysocial.mesh.protocol.SyncEvent
+import com.mysocial.mesh.service.MeshSyncService
+import com.mysocial.mesh.transport.DiscoveredPeer
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.currentCoroutineContext
+
+class RadarViewModel(
+    private val repository: MeshRepository,
+    private val getService: () -> MeshSyncService?
+) : ViewModel() {
+
+    private val ticker = flow {
+        while (currentCoroutineContext().isActive) {
+            emit(System.currentTimeMillis())
+            delay(3000)
+        }
+    }
+
+    val discoveredPeers: StateFlow<List<DiscoveredPeer>> = combine(
+        repository.discoveredPeers,
+        repository.observeAllProfiles(),
+        ticker
+    ) { peers, profiles, now ->
+        val myAuthorId = repository.cryptoManager.authorId
+        val profileMap = profiles.associateBy { it.authorId }
+        val otherProfiles = profiles.filter { it.authorId != myAuthorId }
+
+        peers
+            .filter { peer ->
+                peer.peerId != myAuthorId &&
+                (now - peer.lastSeenTimestamp <= 45_000L)
+            }
+            .distinctBy { it.peerId }
+            .map { peer ->
+                val matchedProfile = profileMap[peer.peerId]
+                if (matchedProfile != null && matchedProfile.displayName.isNotBlank()) {
+                    peer.copy(peerName = matchedProfile.displayName)
+                } else if (peer.peerName.startsWith("Host ADB") ||
+                    peer.peerName.startsWith("Direct IP") ||
+                    peer.peerName.startsWith("Wi-Fi Peer") ||
+                    peer.peerName.startsWith("Nearby Device") ||
+                    peer.peerName.startsWith("Nearby Friend") ||
+                    peer.peerName == "MeshPeer"
+                ) {
+                    val fallback = otherProfiles.firstOrNull { it.authorId == peer.peerId }?.displayName
+                    if (!fallback.isNullOrBlank()) {
+                        peer.copy(peerName = fallback)
+                    } else {
+                        peer.copy(peerName = "Nearby Friend")
+                    }
+                } else {
+                    peer
+                }
+            }
+            .filter { peer ->
+                peer.peerId != myAuthorId
+            }
+    }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val syncLogs: StateFlow<List<String>> = repository.activityLogs
+
+    val followedAuthorIds: StateFlow<Set<String>> = repository.observeFollowedAuthorIds()
+        .map { it.toSet() }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    val verifiedAuthorIds: StateFlow<Set<String>> = repository.observeAllProfiles()
+        .map { profiles -> profiles.filter { it.isVerifiedInPerson }.map { it.authorId }.toSet() }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    val myProfile: StateFlow<ProfileViewEntity?> = repository.observeMyProfile()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val myAuthorId: String get() = repository.cryptoManager.authorId
+
+    fun toggleFollow(targetAuthorId: String, following: Boolean) {
+        viewModelScope.launch {
+            repository.toggleFollow(targetAuthorId, following)
+        }
+    }
+
+    fun forceSyncAll() {
+        getService()?.forceSyncAll()
+    }
+
+    fun forceSyncPeer(peerId: String) {
+        getService()?.forceSyncAll()
+    }
+
+    fun syncWithDirectIp(targetHost: String, targetPort: Int = 42530) {
+        getService()?.syncWithDirectIp(targetHost, targetPort)
+    }
+}

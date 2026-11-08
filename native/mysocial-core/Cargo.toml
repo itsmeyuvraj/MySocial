@@ -1,0 +1,22 @@
+[package]
+name = "mysocial-core"
+version = "0.1.0"
+edition = "2021"
+authors = ["Yuvraj Poudyal"]
+description = "High-performance native core for MySocial mesh networking"
+
+[lib]
+name = "mysocial_core"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+sha2 = { version = "0.10", default-features = false }
+jni = { version = "0.21", default-features = false }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
