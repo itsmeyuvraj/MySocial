@@ -135,35 +135,26 @@ fun RadarScreen(
 
                 if (peers.isEmpty()) {
                     item {
-                        Card(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
-                            colors = CardDefaults.cardColors(containerColor = FbSurface),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                            shape = RoundedCornerShape(16.dp)
+                                .padding(vertical = 24.dp, horizontal = 16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(20.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = "No one nearby yet",
-                                    color = FbTextPrimary,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "When other phones with MySocial are close by, they will appear on the radar above and connect automatically.",
-                                    color = FbTextSecondary,
-                                    fontSize = 12.sp,
-                                    textAlign = TextAlign.Center,
-                                    lineHeight = 17.sp
-                                )
-                            }
+                            Text(
+                                text = "No one nearby yet",
+                                color = FbTextPrimary,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "When other phones with MySocial are close by, they will appear on the radar above and connect automatically.",
+                                color = FbTextSecondary,
+                                fontSize = 13.sp,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 18.sp
+                            )
                         }
                     }
                 } else {
@@ -617,9 +608,10 @@ fun ActivityLogCard(logs: List<String>) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp)),
+            .clip(RoundedCornerShape(10.dp))
+            .border(0.5.dp, FbBorder, RoundedCornerShape(10.dp)),
         colors = CardDefaults.cardColors(containerColor = FbSurface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             if (logs.isEmpty()) {

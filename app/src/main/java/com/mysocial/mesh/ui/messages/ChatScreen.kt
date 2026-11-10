@@ -271,7 +271,6 @@ fun ChatScreen(
             ) {
                 Column {
                     HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
-                    HorizontalDivider(color = FbBorder, thickness = 0.5.dp)
 
                     // Image attachment preview strip
                     if (selectedImageUri != null) {

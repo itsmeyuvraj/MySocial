@@ -19,12 +19,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -81,6 +84,7 @@ fun MessagesListScreen(
     viewModel: MessagesViewModel,
     onNavigateBack: () -> Unit,
     onOpenChat: (peerAuthorId: String, peerDisplayName: String) -> Unit,
+    showBackButton: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val conversations by viewModel.conversations.collectAsState()
@@ -117,157 +121,194 @@ fun MessagesListScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column {
-                    Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = onNavigateBack,
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(FbSurfaceElevated)
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = FbTextPrimary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                            if (showBackButton) {
+                                IconButton(
+                                    onClick = onNavigateBack,
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "Back",
+                                        tint = FbTextPrimary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
 
-                        Spacer(modifier = Modifier.width(12.dp))
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "Messages",
+                                        color = FbTextPrimary,
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Icon(
+                                        imageVector = Icons.Filled.Lock,
+                                        contentDescription = "Encrypted",
+                                        tint = FacebookBlue,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                }
                                 Text(
-                                    text = "Chats",
-                                    color = FbTextPrimary,
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Icon(
-                                    imageVector = Icons.Filled.Lock,
-                                    contentDescription = "Encrypted",
-                                    tint = FacebookBlue,
-                                    modifier = Modifier.size(14.dp)
+                                    text = "End-to-end encrypted • Peer-to-peer",
+                                    color = FbTextSecondary,
+                                    fontSize = 11.sp
                                 )
                             }
-                            Text(
-                                text = "End-to-end encrypted • Peer-to-peer",
-                                color = FbTextSecondary,
-                                fontSize = 11.sp
-                            )
+
+                            // Header Action Buttons
+                            if (selectedTab == 0) {
+                                IconButton(
+                                    onClick = { showNewChatDialog = true },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Add,
+                                        contentDescription = "New Message",
+                                        tint = FbTextPrimary,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            } else {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(
+                                        onClick = { showJoinGroupDialog = true },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Link,
+                                            contentDescription = "Join Group",
+                                            tint = FbTextSecondary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { showCreateGroupDialog = true },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Add,
+                                            contentDescription = "New Group",
+                                            tint = FbTextPrimary,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                    // Search input
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { viewModel.setSearchQuery(it) },
-                        placeholder = { Text("Search conversations...", color = FbTextTertiary, fontSize = 14.sp) },
-                        leadingIcon = {
-                            Icon(Icons.Filled.Search, contentDescription = null, tint = FbTextSecondary, modifier = Modifier.size(18.dp))
-                        },
-                        singleLine = true,
-                        shape = RoundedCornerShape(20.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = FbSurfaceElevated,
-                            unfocusedContainerColor = FbSurfaceElevated,
-                            focusedBorderColor = FacebookBlue,
-                            unfocusedBorderColor = FbBorder,
-                            focusedTextColor = FbTextPrimary,
-                            unfocusedTextColor = FbTextPrimary
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(46.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(38.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        color = FbSurfaceElevated,
-                        border = androidx.compose.foundation.BorderStroke(0.6.dp, FbBorder)
-                    ) {
+                        // Modern Search Pill matching FeedSearchTopBar
                         Row(
                             modifier = Modifier
-                                .fillMaxSize()
-                                .padding(3.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(FbSurfaceElevated)
+                                .padding(horizontal = 12.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(if (selectedTab == 0) FbSurface else Color.Transparent)
-                                    .then(
-                                        if (selectedTab == 0) Modifier.border(0.8.dp, FacebookBlue.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-                                        else Modifier
+                            Icon(
+                                imageVector = Icons.Filled.Search,
+                                contentDescription = null,
+                                tint = FbTextSecondary,
+                                modifier = Modifier.size(17.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Box(modifier = Modifier.weight(1f)) {
+                                if (searchQuery.isEmpty()) {
+                                    Text(
+                                        text = if (selectedTab == 0) "Search messages..." else "Search groups...",
+                                        color = FbTextSecondary,
+                                        fontSize = 14.sp
                                     )
-                                    .clickable { selectedTab = 0 },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "Direct Messages",
-                                    fontSize = 12.sp,
-                                    fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (selectedTab == 0) FacebookBlue else FbTextSecondary
+                                }
+                                BasicTextField(
+                                    value = searchQuery,
+                                    onValueChange = { viewModel.setSearchQuery(it) },
+                                    singleLine = true,
+                                    textStyle = TextStyle(
+                                        color = FbTextPrimary,
+                                        fontSize = 14.sp
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
                                 )
                             }
-
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(if (selectedTab == 1) FbSurface else Color.Transparent)
-                                    .then(
-                                        if (selectedTab == 1) Modifier.border(0.8.dp, FacebookBlue.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-                                        else Modifier
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { viewModel.setSearchQuery("") },
+                                    modifier = Modifier.size(20.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Close,
+                                        contentDescription = "Clear search",
+                                        tint = FbTextSecondary,
+                                        modifier = Modifier.size(16.dp)
                                     )
-                                    .clickable { selectedTab = 1 },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "Mesh Groups (${groups.size})",
-                                    fontSize = 12.sp,
-                                    fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (selectedTab == 1) FacebookBlue else FbTextSecondary
-                                )
+                                }
                             }
                         }
                     }
-                }
-                HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
-            }
-        }
-    },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    if (selectedTab == 0) {
-                        showNewChatDialog = true
-                    } else {
-                        showCreateGroupDialog = true
+
+                    // Instagram-Style Clean Underline Tabs
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(FbSurface)
+                            .padding(horizontal = 16.dp, vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(24.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier.clickable { selectedTab = 0 },
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Direct",
+                                fontSize = 14.5.sp,
+                                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
+                                color = if (selectedTab == 0) FbTextPrimary else FbTextSecondary,
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .width(42.dp)
+                                    .height(2.dp)
+                                    .clip(RoundedCornerShape(1.dp))
+                                    .background(if (selectedTab == 0) FbTextPrimary else Color.Transparent)
+                            )
+                        }
+
+                        Column(
+                            modifier = Modifier.clickable { selectedTab = 1 },
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = if (groups.isNotEmpty()) "Groups (${groups.size})" else "Groups",
+                                fontSize = 14.5.sp,
+                                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
+                                color = if (selectedTab == 1) FbTextPrimary else FbTextSecondary,
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .width(42.dp)
+                                    .height(2.dp)
+                                    .clip(RoundedCornerShape(1.dp))
+                                    .background(if (selectedTab == 1) FbTextPrimary else Color.Transparent)
+                            )
+                        }
                     }
-                },
-                containerColor = FacebookBlue,
-                contentColor = Color.White,
-                shape = CircleShape
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = if (selectedTab == 0) "New Chat" else "New Group",
-                    modifier = Modifier.size(24.dp)
-                )
+                    HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
+                }
             }
         },
         containerColor = FbBackground
@@ -345,8 +386,8 @@ fun MessagesListScreen(
                                 }
                             )
                             HorizontalDivider(
-                                color = FbBorder,
-                                thickness = 0.6.dp,
+                                color = FbDivider,
+                                thickness = 0.5.dp,
                                 modifier = Modifier.padding(start = 76.dp)
                             )
                         }
@@ -470,8 +511,8 @@ fun MessagesListScreen(
                                 }
                             }
                             HorizontalDivider(
-                                color = FbBorder,
-                                thickness = 0.6.dp,
+                                color = FbDivider,
+                                thickness = 0.5.dp,
                                 modifier = Modifier.padding(start = 76.dp)
                             )
                         }

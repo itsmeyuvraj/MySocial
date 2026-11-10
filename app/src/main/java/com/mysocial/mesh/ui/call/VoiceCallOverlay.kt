@@ -135,10 +135,11 @@ fun IncomingCallDialog(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(16.dp)
+                .border(0.5.dp, FbBorder, RoundedCornerShape(24.dp)),
             colors = CardDefaults.cardColors(containerColor = FbSurface),
             shape = RoundedCornerShape(24.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(
                 modifier = Modifier
@@ -296,10 +297,11 @@ fun ActiveCallSheet(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .navigationBarsPadding(),
+            .navigationBarsPadding()
+            .border(0.5.dp, FbBorder, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
         color = FbSurface,
-        tonalElevation = 6.dp,
-        shadowElevation = 8.dp,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
     ) {
         Column(

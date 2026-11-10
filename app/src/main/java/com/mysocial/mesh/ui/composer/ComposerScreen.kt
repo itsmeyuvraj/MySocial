@@ -344,9 +344,9 @@ fun ComposerScreen(
                                     .fillMaxWidth()
                                     .height(200.dp)
                                     .clickable { photoPickerLauncher.launch("image/*") },
-                                shape = RoundedCornerShape(14.dp),
+                                shape = RoundedCornerShape(12.dp),
                                 colors = CardDefaults.cardColors(containerColor = FbSurfaceElevated),
-                                border = BorderStroke(1.5.dp, FacebookBlue.copy(alpha = 0.35f))
+                                border = BorderStroke(0.5.dp, FbBorder)
                             ) {
                                 Column(
                                     modifier = Modifier.fillMaxSize(),
@@ -471,9 +471,9 @@ fun ComposerScreen(
                         // Dedicated Poll Options Builder Card
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
+                            shape = RoundedCornerShape(12.dp),
                             colors = CardDefaults.cardColors(containerColor = FbSurfaceElevated),
-                            border = BorderStroke(1.dp, FbBorder)
+                            border = BorderStroke(0.5.dp, FbBorder)
                         ) {
                             Column(modifier = Modifier.padding(14.dp)) {
                                 Row(
@@ -607,8 +607,8 @@ fun ComposerScreen(
                         // Prominent High-Priority Emergency Banner
                         Card(
                             colors = CardDefaults.cardColors(containerColor = FbRedLight),
-                            border = BorderStroke(1.2.dp, FbRed.copy(alpha = 0.6f)),
-                            shape = RoundedCornerShape(14.dp),
+                            border = BorderStroke(0.5.dp, FbRed.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(

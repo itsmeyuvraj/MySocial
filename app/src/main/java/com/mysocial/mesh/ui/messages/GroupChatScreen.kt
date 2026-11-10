@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -33,6 +35,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -65,6 +68,7 @@ import com.mysocial.mesh.ui.components.formatRelativeTime
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FbBackground
 import com.mysocial.mesh.ui.theme.FbBorder
+import com.mysocial.mesh.ui.theme.FbDivider
 import com.mysocial.mesh.ui.theme.FbSurface
 import com.mysocial.mesh.ui.theme.FbSurfaceElevated
 import com.mysocial.mesh.ui.theme.FbTextPrimary
@@ -104,96 +108,103 @@ fun GroupChatScreen(
         topBar = {
             Surface(
                 color = FbSurface,
-                shadowElevation = 2.dp,
+                shadowElevation = 0.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = onNavigateBack,
+                Column {
+                    Row(
                         modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(FbSurfaceElevated)
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = FbTextPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(FacebookBlue.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Group,
-                            contentDescription = null,
-                            tint = FacebookBlue,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = group.groupName,
-                                color = FbTextPrimary,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
+                        IconButton(
+                            onClick = onNavigateBack,
+                            modifier = Modifier.size(36.dp)
+                        ) {
                             Icon(
-                                imageVector = Icons.Filled.Lock,
-                                contentDescription = "Group Encrypted",
-                                tint = FacebookBlue,
-                                modifier = Modifier.size(12.dp)
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = FbTextPrimary,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
-                        Text(
-                            text = "${members.size} members • AES-256-GCM Space",
-                            color = FbTextSecondary,
-                            fontSize = 11.sp
-                        )
-                    }
 
-                    IconButton(
-                        onClick = { showInviteDialog = true }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Share,
-                            contentDescription = "Invite to Group",
-                            tint = FacebookBlue
-                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(FacebookBlue.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Group,
+                                contentDescription = null,
+                                tint = FacebookBlue,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = group.groupName,
+                                    color = FbTextPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Filled.Lock,
+                                    contentDescription = "Group Encrypted",
+                                    tint = FacebookBlue,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                            Text(
+                                text = "${members.size} members • AES-256-GCM Space",
+                                color = FbTextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { showInviteDialog = true },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Share,
+                                contentDescription = "Invite to Group",
+                                tint = FbTextPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
+                    HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
                 }
             }
         },
         bottomBar = {
             Surface(
                 color = FbSurface,
-                shadowElevation = 4.dp,
-                modifier = Modifier.fillMaxWidth()
+                shadowElevation = 0.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .imePadding()
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Column {
+                    HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                     OutlinedTextField(
                         value = inputText,
                         onValueChange = { inputText = it },
@@ -245,6 +256,7 @@ fun GroupChatScreen(
                 }
             }
         }
+    }
     ) { innerPadding ->
         LazyColumn(
             state = listState,

@@ -940,57 +940,48 @@ fun FeedEmptyState(
     isNearby: Boolean,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(14.dp),
-        colors = CardDefaults.cardColors(containerColor = FbSurface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        shape = RoundedCornerShape(8.dp)
+            .padding(vertical = 48.dp, horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .size(64.dp)
+                .clip(CircleShape)
+                .background(FbSurfaceElevated),
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(CircleShape)
-                    .background(FacebookBlueLight),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = if (isNearby) Icons.Filled.Public else Icons.Filled.Group,
-                    contentDescription = null,
-                    tint = FacebookBlue,
-                    modifier = Modifier.size(32.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Text(
-                text = if (isNearby) "No Public Posts Yet" else "No Posts from Friends",
-                color = FbTextPrimary,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text(
-                text = if (isNearby)
-                    "Share something with people around you! Posts are shared automatically when other phones with MySocial are nearby."
-                else
-                    "Connect with friends by scanning their QR code in the Profile tab.",
-                color = FbTextSecondary,
-                fontSize = 13.sp,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                lineHeight = 18.sp
+            Icon(
+                imageVector = if (isNearby) Icons.Filled.Public else Icons.Filled.Group,
+                contentDescription = null,
+                tint = FacebookBlue,
+                modifier = Modifier.size(32.dp)
             )
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = if (isNearby) "No Posts Yet" else "No Posts from Friends",
+            color = FbTextPrimary,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Text(
+            text = if (isNearby)
+                "Posts from nearby phones will appear here automatically when connected over the mesh network."
+            else
+                "Connect with friends by scanning their QR code in the Profile tab.",
+            color = FbTextSecondary,
+            fontSize = 13.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            lineHeight = 18.sp
+        )
     }
 }
 
@@ -999,40 +990,35 @@ fun SuggestedTagsRow(
     tags: List<String>,
     onTagClick: (String) -> Unit
 ) {
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = FbSurface),
-        shape = RoundedCornerShape(10.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            .padding(horizontal = 16.dp, vertical = 6.dp)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Text(
-                text = "Popular Topics & Tags",
-                color = FbTextSecondary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                tags.forEach { tag ->
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = FbSurfaceElevated,
-                        modifier = Modifier.clickable { onTagClick(tag) }
-                    ) {
-                        Text(
-                            text = tag,
-                            color = FacebookBlue,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                        )
-                    }
+        Text(
+            text = "Popular Topics & Tags",
+            color = FbTextSecondary,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            tags.forEach { tag ->
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = FbSurfaceElevated,
+                    modifier = Modifier.clickable { onTagClick(tag) }
+                ) {
+                    Text(
+                        text = tag,
+                        color = FacebookBlue,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
                 }
             }
         }
@@ -1073,66 +1059,57 @@ fun SearchEmptyState(
     query: String,
     onClearClick: () -> Unit
 ) {
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(14.dp),
-        colors = CardDefaults.cardColors(containerColor = FbSurface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        shape = RoundedCornerShape(8.dp)
+            .padding(vertical = 48.dp, horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .size(64.dp)
+                .clip(CircleShape)
+                .background(FbSurfaceElevated),
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(CircleShape)
-                    .background(FacebookBlueLight),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Search,
-                    contentDescription = null,
-                    tint = FacebookBlue,
-                    modifier = Modifier.size(32.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Text(
-                text = "No Posts Found",
-                color = FbTextPrimary,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold
+            Icon(
+                imageVector = Icons.Filled.Search,
+                contentDescription = null,
+                tint = FacebookBlue,
+                modifier = Modifier.size(32.dp)
             )
+        }
 
-            Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-            Text(
-                text = "We couldn't find any posts matching \"$query\". Try searching by different keywords, author names, or hashtags.",
-                color = FbTextSecondary,
-                fontSize = 13.sp,
-                textAlign = TextAlign.Center,
-                lineHeight = 18.sp
-            )
+        Text(
+            text = "No Posts Found",
+            color = FbTextPrimary,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold
+        )
 
-            Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
-            Button(
-                onClick = onClearClick,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = FacebookBlue,
-                    contentColor = Color.White
-                ),
-                shape = RoundedCornerShape(6.dp)
-            ) {
-                Text("Clear Search", fontWeight = FontWeight.Bold)
-            }
+        Text(
+            text = "We couldn't find any posts matching \"$query\". Try searching by different keywords, author names, or hashtags.",
+            color = FbTextSecondary,
+            fontSize = 13.sp,
+            textAlign = TextAlign.Center,
+            lineHeight = 18.sp
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(
+            onClick = onClearClick,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = FacebookBlue,
+                contentColor = Color.White
+            ),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text("Clear Search", fontWeight = FontWeight.Bold)
         }
     }
 }
