@@ -567,8 +567,17 @@ class MeshRepository(
             observeFollowedAuthorIds(),
             db.profileDao().observeAllProfiles()
         ) { followedIds, profiles ->
-            val set = followedIds.toSet()
-            profiles.filter { set.contains(it.authorId) }
+            val profileMap = profiles.associateBy { it.authorId }
+            followedIds.map { authorId ->
+                profileMap[authorId] ?: ProfileViewEntity(
+                    authorId = authorId,
+                    displayName = "Neighbor ${authorId.take(4).uppercase()}",
+                    bio = "",
+                    avatarSeed = authorId,
+                    updatedAtSeq = 0L,
+                    isVerifiedInPerson = isVerifiedInPerson(authorId)
+                )
+            }
         }
     }
 

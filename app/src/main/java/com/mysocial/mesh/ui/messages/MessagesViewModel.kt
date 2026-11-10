@@ -39,8 +39,20 @@ class MessagesViewModel(
     val totalUnreadCount: StateFlow<Int> = repository.observeTotalUnreadMessagesCount()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    val availableFriends: StateFlow<List<ProfileViewEntity>> = repository.observeFollowedProfiles()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val availableFriends: StateFlow<List<ProfileViewEntity>> = combine(
+        repository.observeFollowedProfiles(),
+        _searchQuery
+    ) { friends, query ->
+        if (query.isBlank()) {
+            friends
+        } else {
+            val q = query.trim().lowercase()
+            friends.filter { friend ->
+                friend.displayName.lowercase().contains(q) ||
+                friend.authorId.lowercase().contains(q)
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val groups: StateFlow<List<com.mysocial.mesh.model.GroupEntity>> =
         repository.groupManager.observeGroups()

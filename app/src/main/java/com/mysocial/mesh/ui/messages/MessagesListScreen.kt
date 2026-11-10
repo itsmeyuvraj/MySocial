@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,6 +30,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -57,6 +60,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mysocial.mesh.model.ConversationSummary
+import com.mysocial.mesh.model.ProfileViewEntity
 import com.mysocial.mesh.ui.components.AvatarView
 import com.mysocial.mesh.ui.components.VerifiedBadge
 import com.mysocial.mesh.ui.components.formatRelativeTime
@@ -94,7 +98,6 @@ fun MessagesListScreen(
 
     var selectedTab by remember { mutableIntStateOf(0) } // 0 = Direct, 1 = Groups
     var viewingGroup by remember { mutableStateOf<GroupEntity?>(null) }
-    var showNewChatDialog by remember { mutableStateOf(false) }
     var showCreateGroupDialog by remember { mutableStateOf(false) }
     var showJoinGroupDialog by remember { mutableStateOf(false) }
     var newGroupName by remember { mutableStateOf("") }
@@ -164,20 +167,8 @@ fun MessagesListScreen(
                                 )
                             }
 
-                            // Header Action Buttons
-                            if (selectedTab == 0) {
-                                IconButton(
-                                    onClick = { showNewChatDialog = true },
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Add,
-                                        contentDescription = "New Message",
-                                        tint = FbTextPrimary,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                            } else {
+                            // Header Action Buttons for Groups
+                            if (selectedTab == 1) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     IconButton(
                                         onClick = { showJoinGroupDialog = true },
@@ -319,8 +310,8 @@ fun MessagesListScreen(
                 .padding(paddingValues)
         ) {
             if (selectedTab == 0) {
-                if (conversations.isEmpty()) {
-                    // Empty state
+                if (conversations.isEmpty() && availableFriends.isEmpty()) {
+                    // Empty state (no friends, no chats)
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -355,41 +346,122 @@ fun MessagesListScreen(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
-                            text = "Messages are encrypted directly between you and your friend's phone over the mesh. No servers ever read your words.",
+                            text = "Messages are encrypted directly between you and your friend's phone over the mesh. Add friends by scanning their QR code on the Profile tab or finding neighbors on the Radar tab to start chatting.",
                             color = FbTextSecondary,
                             fontSize = 13.sp,
                             lineHeight = 18.sp,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        Button(
-                            onClick = { showNewChatDialog = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = FacebookBlue, contentColor = Color.White),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Start a Chat", fontWeight = FontWeight.SemiBold)
-                        }
                     }
                 } else {
+                    val conversationPeerIds = remember(conversations) {
+                        conversations.map { it.peerId }.toSet()
+                    }
+                    val friendsNotInConversations = remember(availableFriends, conversationPeerIds) {
+                        availableFriends.filter { !conversationPeerIds.contains(it.authorId) }
+                    }
+
                     LazyColumn(
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        items(conversations, key = { it.peerId }) { conversation ->
-                            ConversationItem(
-                                conversation = conversation,
-                                onClick = {
-                                    onOpenChat(conversation.peerId, conversation.peerDisplayName ?: "Neighbor")
+                        // Instagram-style Horizontal Friends Tray at top
+                        if (availableFriends.isNotEmpty()) {
+                            item(key = "friends_tray_section") {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(FbSurface)
+                                        .padding(vertical = 10.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 2.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Friends",
+                                            color = FbTextPrimary,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "${availableFriends.size}",
+                                            color = FbTextSecondary,
+                                            fontSize = 11.5.sp
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    LazyRow(
+                                        contentPadding = PaddingValues(horizontal = 16.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                    ) {
+                                        items(availableFriends, key = { "tray_${it.authorId}" }) { friend ->
+                                            FriendDirectTrayItem(
+                                                friend = friend,
+                                                onClick = {
+                                                    onOpenChat(friend.authorId, friend.displayName)
+                                                }
+                                            )
+                                        }
+                                    }
                                 }
-                            )
-                            HorizontalDivider(
-                                color = FbDivider,
-                                thickness = 0.5.dp,
-                                modifier = Modifier.padding(start = 76.dp)
-                            )
+                                HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
+                            }
+                        }
+
+                        // Conversations list
+                        if (conversations.isNotEmpty()) {
+                            item(key = "conversations_header") {
+                                Text(
+                                    text = "Conversations",
+                                    color = FbTextSecondary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp)
+                                )
+                            }
+                            items(conversations, key = { it.peerId }) { conversation ->
+                                ConversationItem(
+                                    conversation = conversation,
+                                    onClick = {
+                                        onOpenChat(conversation.peerId, conversation.peerDisplayName ?: "Neighbor")
+                                    }
+                                )
+                                HorizontalDivider(
+                                    color = FbDivider,
+                                    thickness = 0.5.dp,
+                                    modifier = Modifier.padding(start = 76.dp)
+                                )
+                            }
+                        }
+
+                        // Friends list: When no conversations exist, list all friends; otherwise list friends not yet in conversations
+                        val friendsToList = if (conversations.isEmpty()) availableFriends else friendsNotInConversations
+                        if (friendsToList.isNotEmpty()) {
+                            item(key = "friends_list_header") {
+                                Text(
+                                    text = if (conversations.isEmpty()) "Friends" else "All Friends",
+                                    color = FbTextSecondary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 4.dp)
+                                )
+                            }
+                            items(friendsToList, key = { "friend_${it.authorId}" }) { friend ->
+                                FriendListItem(
+                                    friend = friend,
+                                    onClick = {
+                                        onOpenChat(friend.authorId, friend.displayName)
+                                    }
+                                )
+                                HorizontalDivider(
+                                    color = FbDivider,
+                                    thickness = 0.5.dp,
+                                    modifier = Modifier.padding(start = 76.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -522,84 +594,7 @@ fun MessagesListScreen(
         }
     }
 
-    // New Chat / Pick Friend Dialog
-    if (showNewChatDialog) {
-        AlertDialog(
-            onDismissRequest = { showNewChatDialog = false },
-            containerColor = FbSurface,
-            title = {
-                Text(
-                    text = "Start Encrypted Chat",
-                    color = FbTextPrimary,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
-            },
-            text = {
-                if (availableFriends.isEmpty()) {
-                    Text(
-                        text = "You haven't added any friends yet. Scan a friend's QR code on the Profile tab to add verified neighbors!",
-                        color = FbTextSecondary,
-                        fontSize = 13.sp
-                    )
-                } else {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(260.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(availableFriends, key = { it.authorId }) { friend ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable {
-                                        showNewChatDialog = false
-                                        onOpenChat(friend.authorId, friend.displayName)
-                                    }
-                                    .padding(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                AvatarView(
-                                    seed = friend.avatarSeed,
-                                    displayName = friend.displayName,
-                                    size = 42.dp
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = friend.displayName,
-                                            color = FbTextPrimary,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 14.sp
-                                        )
-                                        if (friend.isVerifiedInPerson) {
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            VerifiedBadge(size = 14.dp)
-                                        }
-                                    }
-                                    Text(
-                                        text = friend.authorId.toFormattedBbid(),
-                                        color = FbTextSecondary,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 10.sp
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showNewChatDialog = false }) {
-                    Text("Close", color = FbTextSecondary)
-                }
-            }
-        )
-    }
+
 
     if (showCreateGroupDialog) {
         AlertDialog(
@@ -808,5 +803,103 @@ fun ConversationItem(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun FriendListItem(
+    friend: ProfileViewEntity,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AvatarView(
+            seed = friend.avatarSeed,
+            displayName = friend.displayName,
+            size = 50.dp
+        )
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = friend.displayName,
+                    color = FbTextPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (friend.isVerifiedInPerson) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    VerifiedBadge(size = 14.dp)
+                }
+            }
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "${friend.authorId.toFormattedBbid()} • Tap to chat",
+                color = FbTextSecondary,
+                fontSize = 11.5.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Icon(
+            imageVector = Icons.Filled.ChatBubbleOutline,
+            contentDescription = "Message",
+            tint = FacebookBlue,
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+@Composable
+fun FriendDirectTrayItem(
+    friend: ProfileViewEntity,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .width(62.dp)
+            .clickable { onClick() },
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(contentAlignment = Alignment.BottomEnd) {
+            AvatarView(
+                seed = friend.avatarSeed,
+                displayName = friend.displayName,
+                size = 52.dp
+            )
+            if (friend.isVerifiedInPerson) {
+                Box(
+                    modifier = Modifier
+                        .size(16.dp)
+                        .background(FbSurface, CircleShape)
+                        .padding(1.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    VerifiedBadge(size = 14.dp)
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = friend.displayName,
+            color = FbTextPrimary,
+            fontSize = 11.5.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center
+        )
     }
 }
