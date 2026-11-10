@@ -57,7 +57,7 @@ class GossipSyncEngine(
     private val db: MeshDatabase,
     private val cryptoManager: CryptoManager,
     var myDisplayName: String = "User",
-    private val openMeshMode: Boolean = true,
+    val openMeshMode: Boolean = true,
     private val batchSize: Int = 50,
     private val handshakeTimeoutMs: Long = 10_000L,
     private val context: Context? = null,
@@ -176,6 +176,17 @@ class GossipSyncEngine(
             val remoteHelloMsg = withTimeoutOrNull(handshakeTimeoutMs) {
                 connection.receiveMessage()
             } ?: throw IllegalStateException("Timeout waiting for HELLO_VECTOR from $peerId")
+
+            if (remoteHelloMsg is GossipMessage.VoiceCallSignal) {
+                Log.i(tag, "Received real-time VoiceCallSignal during handshake from $peerId")
+                handleDirectVoiceCallSignal(remoteHelloMsg, connection.remoteAddress)
+                try {
+                    val s = com.mysocial.mesh.model.VoiceCallSignalPayload.fromJson(remoteHelloMsg.payloadJson)
+                    connection.send(GossipMessage.VoiceCallSignalAck(s.callId, s.signalType))
+                    kotlinx.coroutines.delay(100)
+                } catch (_: Exception) {}
+                return@withContext Result.success(1)
+            }
 
             if (remoteHelloMsg is GossipMessage.PttBurst) {
                 Log.i(tag, "Received real-time PTT burst during handshake from $peerId")
@@ -323,6 +334,13 @@ class GossipSyncEngine(
                                 for (err in batchResult.errors) {
                                     Log.w(tag, "Rejecting invalid incoming log entry from $peerId: $err")
                                 }
+                            }
+                            is GossipMessage.VoiceCallSignal -> {
+                                handleDirectVoiceCallSignal(msg, connection.remoteAddress)
+                                try {
+                                    val s = com.mysocial.mesh.model.VoiceCallSignalPayload.fromJson(msg.payloadJson)
+                                    connection.send(GossipMessage.VoiceCallSignalAck(s.callId, s.signalType))
+                                } catch (_: Exception) {}
                             }
                             is GossipMessage.PttBurst -> {
                                 handleDirectPttBurst(msg)
@@ -889,6 +907,25 @@ class GossipSyncEngine(
             }
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    /**
+     * Handles an incoming real-time Voice Call Signal (INVITE, ACCEPT, REJECT, HANGUP) received directly over mesh connection.
+     */
+    fun handleDirectVoiceCallSignal(signalMsg: GossipMessage.VoiceCallSignal, remoteAddress: String? = null) {
+        try {
+            var signal = com.mysocial.mesh.model.VoiceCallSignalPayload.fromJson(signalMsg.payloadJson)
+            if ((signal.hostAddress.isBlank() || signal.hostAddress == "127.0.0.1" || signal.hostAddress.startsWith("10.0.2.")) && !remoteAddress.isNullOrBlank()) {
+                signal = signal.copy(hostAddress = remoteAddress)
+            }
+            val myAuthorId = cryptoManager.authorId
+            if (signal.recipientAuthorId == myAuthorId || signal.callerAuthorId == myAuthorId) {
+                Log.i(tag, "Dispatched incoming real-time VoiceCallSignal: ${signal.signalType} (callId: ${signal.callId}, remoteHost: ${signal.hostAddress})")
+                db.onVoiceCallSignalReceived?.invoke(signal)
+            }
+        } catch (e: Exception) {
+            Log.w(tag, "Failed to handle direct VoiceCallSignal: ${e.message}")
         }
     }
 

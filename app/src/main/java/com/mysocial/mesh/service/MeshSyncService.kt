@@ -393,6 +393,10 @@ class MeshSyncService : Service() {
         forceSyncAll()
     }
 
+    fun broadcastVoiceCallSignal(signal: com.mysocial.mesh.model.VoiceCallSignalPayload) {
+        wifiTransport?.broadcastVoiceCallSignal(signal)
+    }
+
     fun forceSyncAll() {
         wifiTransport?.discoveredPeers?.value?.forEach { peer ->
             wifiTransport?.forceSync(peer.peerId)
@@ -401,7 +405,7 @@ class MeshSyncService : Service() {
             bleTransport?.forceSync(peer.peerId)
         }
         if (wifiTransport?.isEmulator == true) {
-            wifiTransport?.syncWithDirectIp("10.0.2.2", com.mysocial.mesh.transport.MdnsWifiTransport.DEFAULT_PORT, "Host ADB Bridge")
+            wifiTransport?.syncWithDirectIp("10.0.2.2", com.mysocial.mesh.transport.MdnsWifiTransport.ADB_EMULATOR_TO_PHONE_PORT, "Phone ADB Bridge")
         }
     }
 

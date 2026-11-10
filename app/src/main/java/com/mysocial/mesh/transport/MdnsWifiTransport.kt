@@ -108,6 +108,8 @@ class MdnsWifiTransport(
     companion object {
         const val DEFAULT_PORT = 42530
         const val ADB_REVERSE_PORT = 42535
+        const val ADB_EMULATOR_TO_PHONE_PORT = 42540
+        const val ADB_EMULATOR_TO_PHONE_AUDIO_PORT = 42541
         private const val MAX_CONCURRENT_WIFI_SYNC = 4
     }
 
@@ -352,6 +354,7 @@ class MdnsWifiTransport(
         val allHosts = targets.map { Pair(it.hostAddress!!, it.port!!) }.toMutableSet()
 
         if (isEmulator) {
+            allHosts.add(Pair("10.0.2.2", ADB_EMULATOR_TO_PHONE_PORT))
             allHosts.add(Pair("10.0.2.2", DEFAULT_PORT))
         } else {
             allHosts.add(Pair("127.0.0.1", ADB_REVERSE_PORT))
@@ -403,6 +406,64 @@ class MdnsWifiTransport(
         }
     }
 
+    /**
+     * Broadcasts an urgent real-time Voice Call signal (INVITE, ACCEPT, REJECT, HANGUP) immediately to all reachable peers over TCP.
+     */
+    fun broadcastVoiceCallSignal(signal: com.mysocial.mesh.model.VoiceCallSignalPayload) {
+        val targets = _peersMap.values.filter { it.hostAddress != null && it.port != null }.toList()
+        val allHosts = targets.map { Pair(it.hostAddress!!, it.port!!) }.toMutableSet()
+
+        if (isEmulator) {
+            allHosts.add(Pair("10.0.2.2", ADB_EMULATOR_TO_PHONE_PORT))
+            allHosts.add(Pair("10.0.2.2", DEFAULT_PORT))
+        } else {
+            allHosts.add(Pair("127.0.0.1", ADB_REVERSE_PORT))
+        }
+
+        if (signal.hostAddress.isNotBlank()) {
+            allHosts.add(Pair(signal.hostAddress, DEFAULT_PORT))
+        }
+
+        scope.launch(Dispatchers.IO) {
+            val msg = com.mysocial.mesh.protocol.GossipMessage.VoiceCallSignal(
+                payloadJson = signal.toJson()
+            )
+            for ((host, p) in allHosts) {
+                launch {
+                    try {
+                        val s = Socket()
+                        s.tcpNoDelay = true
+                        s.soTimeout = 4000
+                        s.connect(java.net.InetSocketAddress(host, p), 3000)
+                        val conn = com.mysocial.mesh.protocol.StreamPeerConnection(
+                            peerId = "call_signal_${host}_$p",
+                            peerName = "Peer ($host)",
+                            transportType = TransportType.MDNS_WIFI,
+                            socket = s
+                        )
+                        conn.send(msg)
+                        // Read reply/ACK so we don't abort before receiver reads the payload
+                        try {
+                            kotlinx.coroutines.withTimeoutOrNull(3000) {
+                                while (conn.isConnected) {
+                                    val reply = conn.receiveMessage()
+                                    if (reply is com.mysocial.mesh.protocol.GossipMessage.VoiceCallSignalAck && reply.callId == signal.callId) {
+                                        Log.i(tag, "VoiceCallSignal ${signal.signalType} acknowledged by $host:$p")
+                                        break
+                                    }
+                                }
+                            }
+                        } catch (_: Exception) {}
+                        conn.close()
+                        Log.i(tag, "Successfully transmitted real-time VoiceCallSignal ${signal.signalType} to $host:$p")
+                    } catch (e: Exception) {
+                        Log.d(tag, "Target $host:$p not reachable for direct VoiceCallSignal: ${e.message}")
+                    }
+                }
+            }
+        }
+    }
+
     private fun startServerAcceptLoop() {
         serverJob = scope.launch(Dispatchers.IO) {
             val server = serverSocket ?: return@launch
@@ -424,13 +485,18 @@ class MdnsWifiTransport(
         Log.i(tag, "Accepted inbound TCP connection from $remoteIp:${socket.port}")
         val safeIpKey = remoteIp.replace(".", "_")
         val peerId = "direct_$safeIpKey"
-        val returnPort = if (remoteIp == "127.0.0.1") ADB_REVERSE_PORT else DEFAULT_PORT
+        val returnHost = if (isEmulator && remoteIp == "127.0.0.1") "10.0.2.2" else remoteIp
+        val returnPort = when {
+            isEmulator && remoteIp == "127.0.0.1" -> ADB_EMULATOR_TO_PHONE_PORT
+            remoteIp == "127.0.0.1" -> ADB_REVERSE_PORT
+            else -> DEFAULT_PORT
+        }
         if (remoteIp != "unknown") {
             val peer = DiscoveredPeer(
                 peerId = peerId,
                 peerName = if (remoteIp == "127.0.0.1") "Nearby Peer" else "Nearby Device ($remoteIp)",
                 transportType = TransportType.MDNS_WIFI,
-                hostAddress = remoteIp,
+                hostAddress = returnHost,
                 port = returnPort,
                 lastSeenTimestamp = System.currentTimeMillis(),
                 isSyncing = true

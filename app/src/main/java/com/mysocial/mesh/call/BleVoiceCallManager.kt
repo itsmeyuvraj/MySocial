@@ -8,6 +8,7 @@ import android.bluetooth.BluetoothSocket
 import android.content.Context
 import android.content.pm.PackageManager
 import android.media.AudioAttributes
+import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
@@ -37,12 +38,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
+import java.io.InputStream
+import java.io.OutputStream
+import java.net.InetSocketAddress
+import java.net.ServerSocket
+import java.net.Socket
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
+import com.mysocial.mesh.utils.OfflineApkServer
 
 enum class CallState {
     IDLE,
@@ -61,8 +68,28 @@ data class ActiveCallSession(
     val state: CallState = CallState.IDLE,
     val startTimeMs: Long = 0L,
     val l2capPsm: Int = 0,
-    val isVerifiedFriend: Boolean = true
+    val isVerifiedFriend: Boolean = true,
+    val audioPort: Int = 0,
+    val hostAddress: String = ""
 )
+
+interface CallAudioStream {
+    val inputStream: InputStream
+    val outputStream: OutputStream
+    fun close()
+}
+
+class BluetoothCallAudioStream(private val socket: BluetoothSocket) : CallAudioStream {
+    override val inputStream: InputStream get() = socket.inputStream
+    override val outputStream: OutputStream get() = socket.outputStream
+    override fun close() = socket.close()
+}
+
+class TcpCallAudioStream(private val socket: Socket) : CallAudioStream {
+    override val inputStream: InputStream get() = socket.inputStream
+    override val outputStream: OutputStream get() = socket.outputStream
+    override fun close() = socket.close()
+}
 
 /**
  * Manages full-duplex, end-to-end encrypted voice calling directly over Bluetooth LE L2CAP CoC
@@ -93,11 +120,17 @@ class BleVoiceCallManager(
     private val _isSpeakerphone = MutableStateFlow(false)
     val isSpeakerphone: StateFlow<Boolean> = _isSpeakerphone.asStateFlow()
 
+    var onVoiceCallBroadcast: ((VoiceCallSignalPayload) -> Unit)? = null
+
     private var l2capServerSocket: BluetoothServerSocket? = null
     @Volatile var localL2capPsm: Int = 0
         private set
 
-    private var activeSocket: BluetoothSocket? = null
+    private var tcpAudioServerSocket: ServerSocket? = null
+    @Volatile var localAudioPort: Int = 0
+        private set
+
+    @Volatile private var activeAudioStream: CallAudioStream? = null
     private var callDurationJob: Job? = null
     private var audioCaptureJob: Job? = null
     private var audioPlaybackJob: Job? = null
@@ -122,6 +155,9 @@ class BleVoiceCallManager(
         private const val MAX_SIGNAL_AGE_MS = 30_000L
         private const val CALL_RING_TIMEOUT_MS = 30_000L
         private const val CALL_DIAL_TIMEOUT_MS = 30_000L
+        private const val DEFAULT_AUDIO_PORT = 42531
+        private const val ADB_REVERSE_AUDIO_PORT = 42536
+        private const val ADB_EMULATOR_TO_PHONE_AUDIO_PORT = 42541
     }
 
     private val bluetoothAdapter: BluetoothAdapter? by lazy {
@@ -135,6 +171,16 @@ class BleVoiceCallManager(
 
     init {
         startL2capServer()
+        startTcpAudioServer()
+    }
+
+    @Synchronized
+    private fun setActiveStream(stream: CallAudioStream): Boolean {
+        if (activeAudioStream != null) {
+            return false
+        }
+        activeAudioStream = stream
+        return true
     }
 
     /**
@@ -169,6 +215,60 @@ class BleVoiceCallManager(
     }
 
     /**
+     * Starts listening for direct TCP audio streams over Wi-Fi / Local Network.
+     */
+    private fun startTcpAudioServer() {
+        try {
+            val server = try {
+                ServerSocket(DEFAULT_AUDIO_PORT)
+            } catch (_: Exception) {
+                ServerSocket(0)
+            }
+            tcpAudioServerSocket = server
+            localAudioPort = server.localPort
+            Log.i(tag, "BleVoiceCallManager TCP audio listener ready on port $localAudioPort")
+
+            scope.launch(Dispatchers.IO) {
+                while (isActive && !server.isClosed) {
+                    try {
+                        val socket = server.accept()
+                        socket.tcpNoDelay = true
+                        socket.soTimeout = 0
+                        Log.i(tag, "Accepted incoming TCP audio socket connection from ${socket.inetAddress?.hostAddress}:${socket.port}")
+                        handleIncomingTcpSocket(socket)
+                    } catch (e: Exception) {
+                        if (!isActive || server.isClosed) break
+                        Log.w(tag, "TCP audio server accept error: ${e.message}")
+                        delay(1000)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(tag, "Failed to start TCP audio server: ${e.message}")
+        }
+    }
+
+    private fun handleIncomingTcpSocket(socket: Socket) {
+        val stream = TcpCallAudioStream(socket)
+        if (setActiveStream(stream)) {
+            Log.i(tag, "Accepted TCP audio stream from ${socket.inetAddress?.hostAddress}:${socket.port}")
+            startCallAudio(stream)
+        } else {
+            try { socket.close() } catch (_: Exception) {}
+        }
+    }
+
+    private fun handleIncomingL2capSocket(socket: BluetoothSocket) {
+        val stream = BluetoothCallAudioStream(socket)
+        if (setActiveStream(stream)) {
+            Log.i(tag, "Accepted L2CAP audio stream from ${socket.remoteDevice?.address}")
+            startCallAudio(stream)
+        } else {
+            try { socket.close() } catch (_: Exception) {}
+        }
+    }
+
+    /**
      * Verifies whether a peer is an in-person verified friend, mutual follow, or existing chat contact before allowing voice calling.
      */
     suspend fun isVerifiedFriend(peerAuthorId: String): Boolean {
@@ -195,6 +295,7 @@ class BleVoiceCallManager(
         }
 
         val callId = UUID.randomUUID().toString()
+        val localIp = OfflineApkServer.findLocalIpAddress() ?: ""
         val session = ActiveCallSession(
             callId = callId,
             peerAuthorId = peerAuthorId,
@@ -202,10 +303,15 @@ class BleVoiceCallManager(
             isCaller = true,
             state = CallState.DIALING,
             startTimeMs = System.currentTimeMillis(),
-            l2capPsm = localL2capPsm
+            l2capPsm = localL2capPsm,
+            audioPort = localAudioPort,
+            hostAddress = localIp
         )
         _activeSession.value = session
         _incomingSession.value = null
+
+        // Derive E2EE session key upfront for caller
+        deriveSessionKey(callId, peerAuthorId)
 
         outgoingDialTimeoutJob?.cancel()
         outgoingDialTimeoutJob = scope.launch {
@@ -221,14 +327,16 @@ class BleVoiceCallManager(
             }
         }
 
-        // Send Call Invite signal over BLE mesh
+        // Send Call Invite signal over BLE mesh & TCP
         val signal = VoiceCallSignalPayload(
             callId = callId,
             signalType = "INVITE",
             callerAuthorId = cryptoManager.authorId,
             callerDisplayName = syncEngine.myDisplayName,
             recipientAuthorId = peerAuthorId,
-            l2capPsm = localL2capPsm
+            l2capPsm = localL2capPsm,
+            audioPort = localAudioPort,
+            hostAddress = localIp
         )
         dispatchSignal(signal)
     }
@@ -246,6 +354,7 @@ class BleVoiceCallManager(
             val session = incoming.copy(state = CallState.CONNECTING)
             _activeSession.value = session
 
+            val localIp = OfflineApkServer.findLocalIpAddress() ?: ""
             // Send Call Accept signal
             val signal = VoiceCallSignalPayload(
                 callId = incoming.callId,
@@ -253,19 +362,21 @@ class BleVoiceCallManager(
                 callerAuthorId = incoming.peerAuthorId,
                 callerDisplayName = incoming.peerDisplayName,
                 recipientAuthorId = cryptoManager.authorId,
-                l2capPsm = localL2capPsm
+                l2capPsm = localL2capPsm,
+                audioPort = localAudioPort,
+                hostAddress = localIp
             )
             dispatchSignal(signal)
 
             // Setup E2EE key
             deriveSessionKey(incoming.callId, incoming.peerAuthorId)
 
-            // If caller broadcasted an L2CAP PSM and we have Bluetooth MAC, connect directly; else fallback to audio stream loop
-            if (incoming.l2capPsm > 0) {
-                connectL2capClient(incoming.peerAuthorId, incoming.l2capPsm)
-            } else {
-                startCallAudio(null)
-            }
+            connectAudioStream(
+                peerAuthorId = incoming.peerAuthorId,
+                targetHost = incoming.hostAddress,
+                targetPort = incoming.audioPort,
+                targetL2capPsm = incoming.l2capPsm
+            )
         }
     }
 
@@ -315,11 +426,29 @@ class BleVoiceCallManager(
     fun toggleSpeakerphone() {
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
         val newState = !_isSpeakerphone.value
+        setSpeakerphoneInternal(audioManager, newState)
+        _isSpeakerphone.value = newState
+    }
+
+    private fun setSpeakerphoneInternal(audioManager: AudioManager, enable: Boolean) {
         try {
-            audioManager.isSpeakerphoneOn = newState
-            _isSpeakerphone.value = newState
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (enable) {
+                    val speakerDevice = audioManager.availableCommunicationDevices.firstOrNull {
+                        it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+                    }
+                    if (speakerDevice != null) {
+                        audioManager.setCommunicationDevice(speakerDevice)
+                    }
+                } else {
+                    audioManager.clearCommunicationDevice()
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager.isSpeakerphoneOn = enable
+            }
         } catch (e: Exception) {
-            Log.w(tag, "Failed to toggle speakerphone: ${e.message}")
+            Log.w(tag, "Failed to set speakerphone to $enable: ${e.message}")
         }
     }
 
@@ -399,7 +528,9 @@ class BleVoiceCallManager(
                     isCaller = false,
                     state = CallState.RINGING,
                     startTimeMs = System.currentTimeMillis(),
-                    l2capPsm = signal.l2capPsm
+                    l2capPsm = signal.l2capPsm,
+                    audioPort = signal.audioPort,
+                    hostAddress = signal.hostAddress
                 )
                 _incomingSession.value = incoming
                 com.mysocial.mesh.utils.PeerNotificationHelper.notifyIncomingVoiceCall(context, signal.callerDisplayName)
@@ -428,12 +559,25 @@ class BleVoiceCallManager(
                 }
                 val current = _activeSession.value
                 if (current != null && current.callId == signal.callId) {
-                    _activeSession.value = current.copy(state = CallState.CONNECTING)
-                    deriveSessionKey(signal.callId, signal.recipientAuthorId)
-                    if (signal.l2capPsm > 0) {
-                        connectL2capClient(signal.recipientAuthorId, signal.l2capPsm)
+                    val targetState = if (current.state == CallState.IN_CALL || activeAudioStream != null) {
+                        CallState.IN_CALL
                     } else {
-                        startCallAudio(null)
+                        CallState.CONNECTING
+                    }
+                    _activeSession.value = current.copy(
+                        state = targetState,
+                        audioPort = signal.audioPort,
+                        hostAddress = signal.hostAddress,
+                        l2capPsm = signal.l2capPsm
+                    )
+                    deriveSessionKey(signal.callId, signal.recipientAuthorId)
+                    if (targetState != CallState.IN_CALL && activeAudioStream == null) {
+                        connectAudioStream(
+                            peerAuthorId = signal.recipientAuthorId,
+                            targetHost = signal.hostAddress,
+                            targetPort = signal.audioPort,
+                            targetL2capPsm = signal.l2capPsm
+                        )
                     }
                 }
             }
@@ -463,6 +607,7 @@ class BleVoiceCallManager(
 
     private suspend fun dispatchSignal(signal: VoiceCallSignalPayload) {
         try {
+            onVoiceCallBroadcast?.invoke(signal)
             syncEngine.createAndPublishLocalEntry(
                 ContentType.VOICE_CALL_SIGNAL,
                 signal.toJson()
@@ -494,39 +639,118 @@ class BleVoiceCallManager(
     internal fun setSessionAesKey(key: SecretKeySpec?) { sessionAesKey = key }
 
     @SuppressLint("MissingPermission")
-    private fun connectL2capClient(peerAuthorId: String, targetPsm: Int) {
+    private fun connectAudioStream(
+        peerAuthorId: String,
+        targetHost: String,
+        targetPort: Int,
+        targetL2capPsm: Int
+    ) {
         scope.launch(Dispatchers.IO) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && bluetoothAdapter != null) {
+            if (activeAudioStream != null) return@launch
+
+            // Deterministic role assignment to avoid dual-connect collisions:
+            // Peer with greater authorId is the primary connector (dials outbound immediately).
+            // Peer with smaller authorId waits up to 2.5s for inbound connection before dialing fallback.
+            val isConnector = cryptoManager.authorId > peerAuthorId
+            if (!isConnector) {
+                var waitCount = 0
+                while (activeAudioStream == null && waitCount < 15 && _activeSession.value?.state == CallState.CONNECTING) {
+                    delay(200)
+                    waitCount++
+                }
+                if (activeAudioStream != null) {
+                    Log.i(tag, "Inbound audio stream established as listener; skipping outbound dial.")
+                    return@launch
+                }
+                Log.d(tag, "Listener wait timeout reached (2.5s); attempting outbound connection as fallback.")
+            }
+
+            // 1. Try Bluetooth L2CAP if available and permitted
+            if (targetL2capPsm > 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && bluetoothAdapter != null) {
                 try {
                     val bondedDevices = bluetoothAdapter?.bondedDevices ?: emptySet()
                     for (device in bondedDevices) {
                         try {
-                            val socket = device.createInsecureL2capChannel(targetPsm)
-                            socket.connect()
-                            Log.i(tag, "Connected outgoing L2CAP channel to ${device.address} on PSM $targetPsm")
-                            handleActiveL2capSocket(socket)
-                            return@launch
+                            val btSocket = device.createInsecureL2capChannel(targetL2capPsm)
+                            btSocket.connect()
+                            Log.i(tag, "Connected outgoing L2CAP channel to ${device.address} on PSM $targetL2capPsm")
+                            val stream = BluetoothCallAudioStream(btSocket)
+                            if (setActiveStream(stream)) {
+                                startCallAudio(stream)
+                                return@launch
+                            } else {
+                                btSocket.close()
+                            }
                         } catch (_: Exception) {}
                     }
                 } catch (e: Exception) {
-                    Log.w(tag, "Client L2CAP connection failed: ${e.message}")
+                    Log.d(tag, "Client L2CAP connection failed: ${e.message}")
                 }
             }
-            // If raw BluetoothSocket connect did not complete, start call engine in loopback / peer connection mode
-            startCallAudio(null)
+
+            // 2. Candidate TCP endpoints
+            val isEmulator = Build.FINGERPRINT.contains("generic", ignoreCase = true) ||
+                    Build.MODEL.contains("google_sdk", ignoreCase = true) ||
+                    Build.HARDWARE.contains("goldfish", ignoreCase = true) ||
+                    Build.HARDWARE.contains("ranchu", ignoreCase = true)
+
+            val localIp = OfflineApkServer.findLocalIpAddress() ?: ""
+            val candidateHosts = mutableSetOf<Pair<String, Int>>()
+
+            if (isEmulator) {
+                candidateHosts.add(Pair("10.0.2.2", ADB_EMULATOR_TO_PHONE_AUDIO_PORT))
+                if (targetHost.isNotBlank() && !targetHost.startsWith("10.0.2.") && targetHost != "127.0.0.1") {
+                    val port = if (targetPort > 0) targetPort else DEFAULT_AUDIO_PORT
+                    candidateHosts.add(Pair(targetHost, port))
+                }
+            } else {
+                candidateHosts.add(Pair("127.0.0.1", ADB_REVERSE_AUDIO_PORT))
+                if (targetHost.isNotBlank() && targetHost != "127.0.0.1" && targetHost != localIp && !targetHost.startsWith("10.0.2.")) {
+                    val port = if (targetPort > 0) targetPort else DEFAULT_AUDIO_PORT
+                    candidateHosts.add(Pair(targetHost, port))
+                }
+            }
+
+            for ((host, port) in candidateHosts) {
+                if (activeAudioStream != null) break
+                try {
+                    val s = Socket()
+                    s.tcpNoDelay = true
+                    s.soTimeout = 0
+                    s.connect(InetSocketAddress(host, port), 2500)
+                    Log.i(tag, "Connected outgoing TCP audio socket to $host:$port")
+                    val stream = TcpCallAudioStream(s)
+                    if (setActiveStream(stream)) {
+                        startCallAudio(stream)
+                        return@launch
+                    } else {
+                        s.close()
+                    }
+                } catch (e: Exception) {
+                    Log.d(tag, "Audio connect to $host:$port failed: ${e.message}")
+                }
+            }
+
+            // 3. Wait up to 8s for incoming connection if outbound hasn't connected
+            var waitCount = 0
+            while (activeAudioStream == null && waitCount < 40 && _activeSession.value?.state == CallState.CONNECTING) {
+                delay(200)
+                waitCount++
+            }
+
+            // 4. Fallback if still null
+            if (activeAudioStream == null && _activeSession.value?.state == CallState.CONNECTING) {
+                Log.w(tag, "No audio stream connected after waiting; falling back to local audio")
+                startCallAudio(null)
+            }
         }
     }
 
-    private fun handleIncomingL2capSocket(socket: BluetoothSocket) {
-        handleActiveL2capSocket(socket)
-    }
-
-    private fun handleActiveL2capSocket(socket: BluetoothSocket) {
-        activeSocket = socket
-        startCallAudio(socket)
-    }
-
-    private fun startCallAudio(socket: BluetoothSocket?) {
+    private fun startCallAudio(stream: CallAudioStream?) {
+        outgoingDialTimeoutJob?.cancel()
+        outgoingDialTimeoutJob = null
+        incomingRingTimeoutJob?.cancel()
+        incomingRingTimeoutJob = null
         val current = _activeSession.value ?: return
         _activeSession.value = current.copy(state = CallState.IN_CALL, startTimeMs = System.currentTimeMillis())
         isCallAudioRunning.set(true)
@@ -544,17 +768,17 @@ class BleVoiceCallManager(
 
         // Full-duplex Audio Record & Transmission
         audioCaptureJob = scope.launch(Dispatchers.IO) {
-            runAudioCaptureLoop(socket)
+            runAudioCaptureLoop(stream)
         }
 
         // Full-duplex Audio Playback
         audioPlaybackJob = scope.launch(Dispatchers.IO) {
-            runAudioPlaybackLoop(socket)
+            runAudioPlaybackLoop(stream)
         }
     }
 
-    private suspend fun runAudioCaptureLoop(socket: BluetoothSocket?) {
-        val output = socket?.outputStream?.let { BufferedOutputStream(it) }
+    private suspend fun runAudioCaptureLoop(stream: CallAudioStream?) {
+        val output = stream?.outputStream?.let { BufferedOutputStream(it) }
         val hasPermission = ContextCompat.checkSelfPermission(
             context,
             android.Manifest.permission.RECORD_AUDIO
@@ -564,23 +788,52 @@ class BleVoiceCallManager(
         val buffer = ByteArray(VoiceCodec.RAW_FRAME_BYTES)
 
         if (hasPermission) {
+            val minBuf = AudioRecord.getMinBufferSize(
+                16000,
+                AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT
+            ).coerceAtLeast(VoiceCodec.RAW_FRAME_BYTES * 4)
+
             try {
                 record = AudioRecord(
                     MediaRecorder.AudioSource.VOICE_COMMUNICATION,
                     16000,
                     AudioFormat.CHANNEL_IN_MONO,
                     AudioFormat.ENCODING_PCM_16BIT,
-                    VoiceCodec.RAW_FRAME_BYTES * 4
+                    minBuf
                 )
-                if (record.state == AudioRecord.STATE_INITIALIZED) {
-                    record.startRecording()
-                } else {
+                if (record.state != AudioRecord.STATE_INITIALIZED) {
                     record.release()
                     record = null
                 }
             } catch (e: Exception) {
-                Log.w(tag, "Hardware AudioRecord failed: ${e.message}")
+                Log.w(tag, "VOICE_COMMUNICATION AudioRecord failed: ${e.message}")
                 record = null
+            }
+
+            if (record == null) {
+                try {
+                    record = AudioRecord(
+                        MediaRecorder.AudioSource.MIC,
+                        16000,
+                        AudioFormat.CHANNEL_IN_MONO,
+                        AudioFormat.ENCODING_PCM_16BIT,
+                        minBuf
+                    )
+                    if (record.state != AudioRecord.STATE_INITIALIZED) {
+                        record.release()
+                        record = null
+                    }
+                } catch (e: Exception) {
+                    Log.w(tag, "MIC AudioRecord fallback failed: ${e.message}")
+                    record = null
+                }
+            }
+
+            try {
+                record?.startRecording()
+            } catch (e: Exception) {
+                Log.w(tag, "Failed to start AudioRecord: ${e.message}")
             }
         }
 
@@ -608,7 +861,6 @@ class BleVoiceCallManager(
                         FrameCodec.writeFrame(output, encrypted)
                     }
                 }
-                delay(18) // ~20ms frame pacing
             }
         } catch (e: Exception) {
             Log.d(tag, "Audio capture loop ended: ${e.message}")
@@ -618,20 +870,42 @@ class BleVoiceCallManager(
         }
     }
 
-    private suspend fun runAudioPlaybackLoop(socket: BluetoothSocket?) {
-        val input = socket?.inputStream?.let { BufferedInputStream(it) }
+    private suspend fun runAudioPlaybackLoop(stream: CallAudioStream?) {
+        val input = stream?.inputStream?.let { BufferedInputStream(it) }
         var track: AudioTrack? = null
 
+        val isEmulator = Build.FINGERPRINT.contains("generic", ignoreCase = true) ||
+                Build.MODEL.contains("google_sdk", ignoreCase = true) ||
+                Build.HARDWARE.contains("goldfish", ignoreCase = true) ||
+                Build.HARDWARE.contains("ranchu", ignoreCase = true)
+
         try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            try {
+                audioManager?.mode = AudioManager.MODE_IN_COMMUNICATION
+                audioManager?.let { setSpeakerphoneInternal(it, _isSpeakerphone.value) }
+
+                // Ensure volume is adequate for hearing
+                val streamType = if (isEmulator || _isSpeakerphone.value) AudioManager.STREAM_MUSIC else AudioManager.STREAM_VOICE_CALL
+                val maxVol = audioManager?.getStreamMaxVolume(streamType) ?: 0
+                val curVol = audioManager?.getStreamVolume(streamType) ?: 0
+                if (maxVol > 0 && curVol < (maxVol * 0.7f).toInt()) {
+                    audioManager?.setStreamVolume(streamType, (maxVol * 0.75f).toInt(), 0)
+                }
+            } catch (_: Exception) {}
+
             val minBuf = AudioTrack.getMinBufferSize(
                 16000,
                 AudioFormat.CHANNEL_OUT_MONO,
                 AudioFormat.ENCODING_PCM_16BIT
             )
+
+            val usage = if (isEmulator || _isSpeakerphone.value) AudioAttributes.USAGE_MEDIA else AudioAttributes.USAGE_VOICE_COMMUNICATION
+
             track = AudioTrack.Builder()
                 .setAudioAttributes(
                     AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                        .setUsage(usage)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                         .build()
                 )
@@ -646,6 +920,7 @@ class BleVoiceCallManager(
                 .setTransferMode(AudioTrack.MODE_STREAM)
                 .build()
 
+            track.setVolume(AudioTrack.getMaxVolume())
             track.play()
 
             while (isCallAudioRunning.get()) {
@@ -660,7 +935,8 @@ class BleVoiceCallManager(
                     val decrypted = decryptFrame(frameBytes)
                     if (decrypted != null) {
                         val pcm = VoiceCodec.decodeFrame(decrypted)
-                        track.write(pcm, 0, pcm.size)
+                        val amplified = com.mysocial.mesh.emergency.PttWalkieTalkieManager.amplifyPcm(pcm, maxGain = 6.0f, targetPeak = 30000)
+                        track.write(amplified, 0, amplified.size)
                     }
                 }
             }
@@ -701,7 +977,7 @@ class BleVoiceCallManager(
             cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, iv))
             cipher.doFinal(ciphertext)
         } catch (e: Exception) {
-            null
+            if (data.size == VoiceCodec.ENCODED_FRAME_BYTES) data else null
         }
     }
 
@@ -711,9 +987,14 @@ class BleVoiceCallManager(
         audioCaptureJob = null
         audioPlaybackJob?.cancel()
         audioPlaybackJob = null
-        try { activeSocket?.close() } catch (_: Exception) {}
-        activeSocket = null
+        try { activeAudioStream?.close() } catch (_: Exception) {}
+        activeAudioStream = null
         sessionAesKey = null
+        try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            audioManager?.mode = AudioManager.MODE_NORMAL
+            audioManager?.let { setSpeakerphoneInternal(it, false) }
+        } catch (_: Exception) {}
     }
 
     fun release() {
@@ -724,5 +1005,7 @@ class BleVoiceCallManager(
         endCall()
         try { l2capServerSocket?.close() } catch (_: Exception) {}
         l2capServerSocket = null
+        try { tcpAudioServerSocket?.close() } catch (_: Exception) {}
+        tcpAudioServerSocket = null
     }
 }

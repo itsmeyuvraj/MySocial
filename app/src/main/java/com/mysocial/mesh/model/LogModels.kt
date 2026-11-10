@@ -198,7 +198,9 @@ data class VoiceCallSignalPayload(
     val recipientAuthorId: String,
     val l2capPsm: Int = 0,
     val ephemeralPublicKeyBase64: String = "",
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val audioPort: Int = 0,
+    val hostAddress: String = ""
 ) {
     fun toJson(): String = CanonicalJson.encodeToString(this)
 

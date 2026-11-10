@@ -192,6 +192,9 @@ class MainActivity : ComponentActivity() {
                 repository.onPttBroadcast = { burst ->
                     s.broadcastPttBurst(burst)
                 }
+                repository.onVoiceCallBroadcast = { signal ->
+                    s.broadcastVoiceCallSignal(signal)
+                }
                 s.getSyncEngine().addPeerIdentifiedListener { connectionPeerId, remoteAuthorId, remoteDisplayName ->
                     repository.updatePeerNameAndId(connectionPeerId, remoteAuthorId, remoteDisplayName)
                 }

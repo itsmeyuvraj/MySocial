@@ -107,6 +107,7 @@ class MeshRepository(
 
     var onContentPublished: (() -> Unit)? = null
     var onPttBroadcast: ((com.mysocial.mesh.model.PttVoiceBurstPayload) -> Unit)? = null
+    var onVoiceCallBroadcast: ((com.mysocial.mesh.model.VoiceCallSignalPayload) -> Unit)? = null
 
     val groupManager: com.mysocial.mesh.group.GroupManager by lazy {
         com.mysocial.mesh.group.GroupManager(db, cryptoManager, syncEngine) {
@@ -141,6 +142,10 @@ class MeshRepository(
         ctx?.let {
             com.mysocial.mesh.call.BleVoiceCallManager(it, cryptoManager, syncEngine, db, repoScope) {
                 onContentPublished?.invoke()
+            }.also { manager ->
+                manager.onVoiceCallBroadcast = { signal ->
+                    onVoiceCallBroadcast?.invoke(signal)
+                }
             }
         }
     }
