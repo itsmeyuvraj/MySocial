@@ -947,10 +947,12 @@ object LogProjector {
 
             ContentType.VOICE_CALL_SIGNAL -> {
                 try {
-                    val callSignal = com.mysocial.mesh.model.VoiceCallSignalPayload.fromJson(entry.contentJson)
                     val myAuthorId = db.cryptoManager?.authorId
-                    if (myAuthorId != null && (callSignal.recipientAuthorId == myAuthorId || callSignal.callerAuthorId == myAuthorId)) {
-                        db.onVoiceCallSignalReceived?.invoke(callSignal)
+                    if (myAuthorId != null && entry.authorId != myAuthorId) {
+                        val callSignal = com.mysocial.mesh.model.VoiceCallSignalPayload.fromJson(entry.contentJson)
+                        if (callSignal.recipientAuthorId == myAuthorId || callSignal.callerAuthorId == myAuthorId) {
+                            db.onVoiceCallSignalReceived?.invoke(callSignal)
+                        }
                     }
                 } catch (e: Exception) {
                     Log.w("MeshDatabase", "Failed to project voice call signal: ${e.message}")

@@ -117,9 +117,15 @@ class IdentityViewModel(
             if (trustData != null && trustData.isValidSignature) {
                 repository.toggleFollow(trustData.authorId, true)
                 repository.setVerifiedInPerson(trustData.authorId, true)
+                if (trustData.displayName.isNotBlank()) {
+                    repository.upsertFriendProfile(trustData.authorId, trustData.displayName)
+                }
                 onResult(true, "Added ${trustData.displayName} as verified friend!")
             } else if (trustData != null) {
                 repository.toggleFollow(trustData.authorId, true)
+                if (trustData.displayName.isNotBlank()) {
+                    repository.upsertFriendProfile(trustData.authorId, trustData.displayName)
+                }
                 onResult(true, "Added ${trustData.displayName} as friend")
             } else {
                 val raw = scannedText.trim()

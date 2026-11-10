@@ -73,7 +73,8 @@ class BleVoiceCallManager(
     private val cryptoManager: CryptoManager,
     private val syncEngine: GossipSyncEngine,
     private val db: MeshDatabase,
-    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+    private val onContentPublished: (() -> Unit)? = null
 ) {
     private val tag = "BleVoiceCallManager"
 
@@ -160,6 +161,11 @@ class BleVoiceCallManager(
     fun startCall(peerAuthorId: String, peerDisplayName: String): Job = scope.launch {
         if (!isVerifiedFriend(peerAuthorId)) {
             Log.w(tag, "Cannot call $peerAuthorId: Peer is not a verified friend.")
+            withContext(Dispatchers.Main) {
+                try {
+                    android.widget.Toast.makeText(context, "Cannot call: peer is not a verified friend.", android.widget.Toast.LENGTH_SHORT).show()
+                } catch (_: Exception) {}
+            }
             return@launch
         }
 
@@ -193,6 +199,7 @@ class BleVoiceCallManager(
      */
     fun acceptCall(): Job? {
         val incoming = _incomingSession.value ?: return null
+        com.mysocial.mesh.utils.PeerNotificationHelper.cancelIncomingVoiceCall(context)
         return scope.launch {
             _incomingSession.value = null
             val session = incoming.copy(state = CallState.CONNECTING)
@@ -212,9 +219,11 @@ class BleVoiceCallManager(
             // Setup E2EE key
             deriveSessionKey(incoming.callId, incoming.peerAuthorId)
 
-            // If caller broadcasted an L2CAP PSM and we have Bluetooth MAC, connect directly
+            // If caller broadcasted an L2CAP PSM and we have Bluetooth MAC, connect directly; else fallback to audio stream loop
             if (incoming.l2capPsm > 0) {
                 connectL2capClient(incoming.peerAuthorId, incoming.l2capPsm)
+            } else {
+                startCallAudio(null)
             }
         }
     }
@@ -223,6 +232,7 @@ class BleVoiceCallManager(
      * Rejects an incoming call or terminates an active call.
      */
     fun endCall(): Job? {
+        com.mysocial.mesh.utils.PeerNotificationHelper.cancelIncomingVoiceCall(context)
         val current = _activeSession.value ?: _incomingSession.value
         _activeSession.value = null
         _incomingSession.value = null
@@ -272,61 +282,79 @@ class BleVoiceCallManager(
      */
     fun handleCallSignal(signal: VoiceCallSignalPayload): Job = scope.launch {
         val myAuthorId = cryptoManager.authorId
-            if (signal.recipientAuthorId != myAuthorId && signal.callerAuthorId != myAuthorId) {
-                return@launch
+        if (signal.recipientAuthorId != myAuthorId && signal.callerAuthorId != myAuthorId) {
+            return@launch
+        }
+
+        when (signal.signalType) {
+            "INVITE" -> {
+                // Callee processes INVITE. Caller never processes own INVITE.
+                if (signal.callerAuthorId == myAuthorId || signal.recipientAuthorId != myAuthorId) {
+                    return@launch
+                }
+
+                // Only allow calls from verified friends!
+                if (!isVerifiedFriend(signal.callerAuthorId)) {
+                    Log.w(tag, "Silently rejecting call from non-verified peer ${signal.callerAuthorId}")
+                    val reject = VoiceCallSignalPayload(
+                        callId = signal.callId,
+                        signalType = "REJECT",
+                        callerAuthorId = myAuthorId,
+                        callerDisplayName = syncEngine.myDisplayName,
+                        recipientAuthorId = signal.callerAuthorId
+                    )
+                    dispatchSignal(reject)
+                    return@launch
+                }
+
+                // Incoming call from verified friend
+                val incoming = ActiveCallSession(
+                    callId = signal.callId,
+                    peerAuthorId = signal.callerAuthorId,
+                    peerDisplayName = signal.callerDisplayName,
+                    isCaller = false,
+                    state = CallState.RINGING,
+                    startTimeMs = System.currentTimeMillis(),
+                    l2capPsm = signal.l2capPsm
+                )
+                _incomingSession.value = incoming
+                com.mysocial.mesh.utils.PeerNotificationHelper.notifyIncomingVoiceCall(context, signal.callerDisplayName)
             }
 
-            when (signal.signalType) {
-                "INVITE" -> {
-                    // Only allow calls from verified friends!
-                    if (!isVerifiedFriend(signal.callerAuthorId)) {
-                        Log.w(tag, "Silently rejecting call from non-verified peer ${signal.callerAuthorId}")
-                        val reject = VoiceCallSignalPayload(
-                            callId = signal.callId,
-                            signalType = "REJECT",
-                            callerAuthorId = signal.callerAuthorId,
-                            callerDisplayName = signal.callerDisplayName,
-                            recipientAuthorId = myAuthorId
-                        )
-                        dispatchSignal(reject)
-                        return@launch
-                    }
-
-                    // Incoming call from verified friend
-                    val incoming = ActiveCallSession(
-                        callId = signal.callId,
-                        peerAuthorId = signal.callerAuthorId,
-                        peerDisplayName = signal.callerDisplayName,
-                        isCaller = false,
-                        state = CallState.RINGING,
-                        startTimeMs = System.currentTimeMillis(),
-                        l2capPsm = signal.l2capPsm
-                    )
-                    _incomingSession.value = incoming
+            "ACCEPT" -> {
+                com.mysocial.mesh.utils.PeerNotificationHelper.cancelIncomingVoiceCall(context)
+                // Caller processes ACCEPT from callee. Callee ignores own ACCEPT.
+                if (signal.recipientAuthorId == myAuthorId) {
+                    return@launch
                 }
-
-                "ACCEPT" -> {
-                    val current = _activeSession.value
-                    if (current != null && current.callId == signal.callId) {
-                        _activeSession.value = current.copy(state = CallState.CONNECTING)
-                        deriveSessionKey(signal.callId, signal.recipientAuthorId)
-                        if (signal.l2capPsm > 0) {
-                            connectL2capClient(signal.recipientAuthorId, signal.l2capPsm)
-                        }
+                val current = _activeSession.value
+                if (current != null && current.callId == signal.callId) {
+                    _activeSession.value = current.copy(state = CallState.CONNECTING)
+                    deriveSessionKey(signal.callId, signal.recipientAuthorId)
+                    if (signal.l2capPsm > 0) {
+                        connectL2capClient(signal.recipientAuthorId, signal.l2capPsm)
+                    } else {
+                        startCallAudio(null)
                     }
                 }
+            }
 
-                "REJECT", "HANGUP" -> {
-                    val current = _activeSession.value ?: _incomingSession.value
-                    if (current != null && current.callId == signal.callId) {
-                        _activeSession.value = null
-                        _incomingSession.value = null
-                        _callDurationSec.value = 0
-                        stopAudioEngine()
-                    }
+            "REJECT", "HANGUP" -> {
+                com.mysocial.mesh.utils.PeerNotificationHelper.cancelIncomingVoiceCall(context)
+                // If this is a hangup we sent ourselves, we already cleared session locally
+                if (signal.callerAuthorId == myAuthorId && signal.recipientAuthorId != myAuthorId) {
+                    return@launch
+                }
+                val current = _activeSession.value ?: _incomingSession.value
+                if (current != null && current.callId == signal.callId) {
+                    _activeSession.value = null
+                    _incomingSession.value = null
+                    _callDurationSec.value = 0
+                    stopAudioEngine()
                 }
             }
         }
+    }
 
     private suspend fun dispatchSignal(signal: VoiceCallSignalPayload) {
         try {
@@ -334,6 +362,7 @@ class BleVoiceCallManager(
                 ContentType.VOICE_CALL_SIGNAL,
                 signal.toJson()
             )
+            onContentPublished?.invoke()
         } catch (e: Exception) {
             Log.w(tag, "Failed to publish voice call signal: ${e.message}")
         }

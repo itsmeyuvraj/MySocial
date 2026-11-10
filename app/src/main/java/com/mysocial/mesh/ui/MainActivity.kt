@@ -675,7 +675,8 @@ class MainActivity : ComponentActivity() {
                     onDecline = { repository.voiceCallManager?.declineCall() },
                     onEndCall = { repository.voiceCallManager?.endCall() },
                     onToggleMute = { repository.voiceCallManager?.toggleMute() },
-                    onToggleSpeaker = { repository.voiceCallManager?.toggleSpeakerphone() }
+                    onToggleSpeaker = { repository.voiceCallManager?.toggleSpeakerphone() },
+                    modifier = Modifier.align(Alignment.BottomCenter)
                 )
             }
         }

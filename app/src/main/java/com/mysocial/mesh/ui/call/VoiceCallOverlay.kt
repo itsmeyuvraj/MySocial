@@ -300,8 +300,8 @@ fun ActiveCallSheet(
             .navigationBarsPadding()
             .border(0.5.dp, FbBorder, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
         color = FbSurface,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
+        tonalElevation = 8.dp,
+        shadowElevation = 8.dp,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
     ) {
         Column(

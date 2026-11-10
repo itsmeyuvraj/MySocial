@@ -304,4 +304,66 @@ object PeerNotificationHelper {
             Log.e(TAG, "Failed to post SOS notification", e)
         }
     }
+
+    private const val CALL_CHANNEL_ID = "voice_calls_channel"
+    private const val CALL_NOTIFICATION_ID = 4000
+
+    fun notifyIncomingVoiceCall(context: Context, callerName: String) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            ?: return
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CALL_CHANNEL_ID,
+                "Voice Calls",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Incoming Direct BLE Voice Calls"
+                enableVibration(true)
+            }
+            manager.createNotificationChannel(channel)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                return
+            }
+        }
+
+        val launchIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            4000,
+            launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(context, CALL_CHANNEL_ID)
+            .setContentTitle("📞 Incoming Direct Voice Call")
+            .setContentText("$callerName is calling via BLE mesh...")
+            .setSmallIcon(R.drawable.ic_stat_nearby_peer)
+            .setOngoing(true)
+            .setContentIntent(pendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .build()
+
+        try {
+            manager.notify(CALL_NOTIFICATION_ID, notification)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to post voice call notification", e)
+        }
+    }
+
+    fun cancelIncomingVoiceCall(context: Context) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            ?: return
+        try {
+            manager.cancel(CALL_NOTIFICATION_ID)
+        } catch (_: Exception) {}
+    }
 }
