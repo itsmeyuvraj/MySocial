@@ -42,6 +42,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -78,6 +79,8 @@ import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FacebookBlueLight
 import com.mysocial.mesh.ui.theme.FbBackground
 import com.mysocial.mesh.ui.theme.FbBorder
+import com.mysocial.mesh.ui.theme.FbDivider
+import com.mysocial.mesh.ui.theme.InstagramStoryGradient
 import com.mysocial.mesh.ui.theme.FbGreen
 import com.mysocial.mesh.ui.theme.FbSurface
 import com.mysocial.mesh.ui.theme.FbSurfaceElevated
@@ -130,45 +133,105 @@ fun IdentityScreen(
         modifier = modifier.fillMaxSize(),
         color = FbBackground
     ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            // 1. Profile Header Card (Facebook Style Profile)
-            item {
-                Card(
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Instagram-Style Top Bar
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = FbSurface
+            ) {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 4.dp)
-                        .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
-                    colors = CardDefaults.cardColors(containerColor = FbSurface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                    shape = RoundedCornerShape(16.dp)
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = displayName.lowercase().replace(" ", "_"),
+                            color = FbTextPrimary,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        VerifiedBadge(size = 16.dp)
+                    }
+
+                    IconButton(
+                        onClick = { showTrustQrDialog = true },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.QrCode2,
+                            contentDescription = "My QR Code",
+                            tint = FbTextPrimary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+            }
+            HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
+
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 24.dp)
+            ) {
+                // Profile Header (Instagram Layout)
+                item {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                            .background(FbSurface)
+                            .padding(horizontal = 16.dp, vertical = 14.dp)
                     ) {
-                        AvatarView(
-                            seed = authorId,
-                            displayName = displayName,
-                            size = 84.dp,
-                            showOnlineBadge = true
-                        )
+                        // Avatar + Stats Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(80.dp)
+                                    .clip(CircleShape)
+                                    .background(InstagramStoryGradient)
+                                    .padding(2.5.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(CircleShape)
+                                        .background(FbSurface)
+                                        .padding(2.dp)
+                                ) {
+                                    AvatarView(
+                                        seed = authorId,
+                                        displayName = displayName,
+                                        size = 72.dp,
+                                        showOnlineBadge = true
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(28.dp))
+
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                horizontalArrangement = Arrangement.SpaceAround,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                ProfileStatColumn(count = "${myPosts.size}", label = "posts")
+                                ProfileStatColumn(count = "${followedAuthorIds.size}", label = "friends")
+                                ProfileStatColumn(count = "Mesh", label = "verified")
+                            }
+                        }
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Name Section (Normal vs Inline Editing)
+                        // Display Name
                         if (isEditingName) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp)
+                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 OutlinedTextField(
                                     value = tempName,
@@ -196,10 +259,7 @@ fun IdentityScreen(
                                         }
                                     )
                                 )
-
                                 Spacer(modifier = Modifier.width(8.dp))
-
-                                // Save Name Button (Checkmark)
                                 IconButton(
                                     onClick = {
                                         val clean = tempName.trim()
@@ -210,89 +270,26 @@ fun IdentityScreen(
                                     },
                                     modifier = Modifier.size(36.dp)
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(34.dp)
-                                            .clip(CircleShape)
-                                            .background(FacebookBlue),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Check,
-                                            contentDescription = "Save Name",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
+                                    Icon(Icons.Filled.Check, contentDescription = "Save", tint = FacebookBlue)
                                 }
-
-                                Spacer(modifier = Modifier.width(4.dp))
-
-                                // Cancel Name Button (Close)
-                                IconButton(
-                                    onClick = { isEditingName = false },
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(34.dp)
-                                            .clip(CircleShape)
-                                            .background(FbSurfaceElevated),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Close,
-                                            contentDescription = "Cancel",
-                                            tint = FbTextSecondary,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
+                                IconButton(onClick = { isEditingName = false }, modifier = Modifier.size(36.dp)) {
+                                    Icon(Icons.Filled.Close, contentDescription = "Cancel", tint = FbTextSecondary)
                                 }
                             }
                         } else {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                Text(
-                                    text = displayName,
-                                    color = FbTextPrimary,
-                                    fontSize = 22.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                IconButton(
-                                    onClick = {
-                                        tempName = displayName
-                                        isEditingName = true
-                                        isEditingBio = false
-                                    },
-                                    modifier = Modifier.size(28.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(26.dp)
-                                            .clip(CircleShape)
-                                            .background(FbSurfaceElevated),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Edit,
-                                            contentDescription = "Edit Name",
-                                            tint = FacebookBlue,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                    }
-                                }
-                            }
+                            Text(
+                                text = displayName,
+                                color = FbTextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
                         }
 
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(3.dp))
 
-                        // Deterministic BBID Row with 1-tap Copy
+                        // Deterministic BBID Pill with Copy Action
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(FbSurfaceElevated)
@@ -301,100 +298,34 @@ fun IdentityScreen(
                                     clipboard.setPrimaryClip(ClipData.newPlainText("ID", authorId.toFormattedBbid()))
                                     Toast.makeText(context, "ID copied: ${authorId.toFormattedBbid()}", Toast.LENGTH_SHORT).show()
                                 }
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Text(
                                 text = authorId.toFormattedBbid(),
                                 color = FacebookBlue,
                                 fontFamily = FontFamily.Monospace,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
                             Icon(
                                 imageVector = Icons.Filled.ContentCopy,
                                 contentDescription = "Copy ID",
                                 tint = FacebookBlue,
-                                modifier = Modifier.size(14.dp)
+                                modifier = Modifier.size(11.dp)
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
 
-                        // Expandable Raw Public Key Row
-                        var isRawKeyExpanded by remember { mutableStateOf(false) }
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .clickable { isRawKeyExpanded = !isRawKeyExpanded }
-                                    .padding(vertical = 4.dp)
-                            ) {
-                                Text(
-                                    text = if (isRawKeyExpanded) "Hide Full Account Key" else "Advanced Account Key",
-                                    color = FbTextTertiary,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Icon(
-                                    imageVector = if (isRawKeyExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                                    contentDescription = null,
-                                    tint = FbTextTertiary,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            }
-                            if (isRawKeyExpanded) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(FbBackground)
-                                        .clickable {
-                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                            clipboard.setPrimaryClip(ClipData.newPlainText("AccountKey", authorId))
-                                            Toast.makeText(context, "Account key copied", Toast.LENGTH_SHORT).show()
-                                        }
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        text = authorId,
-                                        color = FbTextSecondary,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 10.sp,
-                                        maxLines = 1,
-                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f, fill = false)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Icon(
-                                        imageVector = Icons.Filled.ContentCopy,
-                                        contentDescription = "Copy",
-                                        tint = FbTextSecondary,
-                                        modifier = Modifier.size(12.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        // Bio Section (Normal vs Inline Editing)
+                        // Bio
                         if (isEditingBio) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp)
-                            ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
                                 OutlinedTextField(
                                     value = tempBio,
                                     onValueChange = { tempBio = it },
                                     maxLines = 3,
-                                    placeholder = { Text("Write a short bio...", color = FbTextTertiary, fontSize = 13.sp) },
+                                    placeholder = { Text("Write a bio...", color = FbTextTertiary, fontSize = 13.sp) },
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .focusRequester(bioFocusRequester),
@@ -407,201 +338,139 @@ fun IdentityScreen(
                                         cursorColor = FacebookBlue
                                     )
                                 )
-
                                 Spacer(modifier = Modifier.height(6.dp))
-
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.End,
-                                    verticalAlignment = Alignment.CenterVertically
+                                    horizontalArrangement = Arrangement.End
                                 ) {
-                                    TextButton(
-                                        onClick = { isEditingBio = false },
-                                        shape = RoundedCornerShape(6.dp)
-                                    ) {
-                                        Text("Cancel", color = FbTextSecondary, fontSize = 13.sp)
+                                    TextButton(onClick = { isEditingBio = false }) {
+                                        Text("Cancel", color = FbTextSecondary, fontSize = 12.sp)
                                     }
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
                                     Button(
                                         onClick = {
                                             viewModel.saveProfile(displayName, tempBio.trim())
                                             isEditingBio = false
                                         },
                                         colors = ButtonDefaults.buttonColors(containerColor = FacebookBlue),
-                                        shape = RoundedCornerShape(6.dp),
-                                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                                        shape = RoundedCornerShape(6.dp)
                                     ) {
-                                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Save", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                        Text("Save", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
                         } else {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center,
-                                modifier = Modifier.padding(horizontal = 16.dp)
-                            ) {
-                                Text(
-                                    text = bio,
-                                    color = FbTextSecondary,
-                                    fontSize = 14.sp,
-                                    textAlign = TextAlign.Center,
-                                    lineHeight = 20.sp,
-                                    modifier = Modifier.weight(1f, fill = false)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                IconButton(
-                                    onClick = {
-                                        tempBio = bio
-                                        isEditingBio = true
-                                        isEditingName = false
-                                    },
-                                    modifier = Modifier.size(26.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(24.dp)
-                                            .clip(CircleShape)
-                                            .background(FbSurfaceElevated),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Edit,
-                                            contentDescription = "Edit Bio",
-                                            tint = FacebookBlue,
-                                            modifier = Modifier.size(13.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // In-Person Web of Trust Card
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 4.dp)
-                        .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
-                    colors = CardDefaults.cardColors(containerColor = FbSurface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            VerifiedBadge(size = 20.dp)
-                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Friend Verification",
+                                text = bio,
                                 color = FbTextPrimary,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp
                             )
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Verify friends in person by scanning their QR code to give them a verified blue tick on their posts.",
-                            color = FbTextSecondary,
-                            fontSize = 12.sp,
-                            lineHeight = 17.sp
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Action Buttons: Edit profile | Share QR | Scan QR
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Button(
-                                onClick = { showTrustQrDialog = true },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(6.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = FacebookBlue)
-                            ) {
-                                Icon(Icons.Filled.QrCode2, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("My QR Code", fontSize = 12.sp)
-                            }
-                            Button(
-                                onClick = { showScannerDialog = true },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(6.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = FbGreen)
-                            ) {
-                                Icon(Icons.Filled.QrCodeScanner, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Scan Friend's QR", fontSize = 12.sp)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 2. Section Header: My Posts
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Article,
-                        contentDescription = null,
-                        tint = FacebookBlue,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "My Posts",
-                        color = FbTextPrimary,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "(${myPosts.size})",
-                        color = FbTextSecondary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-
-            // 4. User's Posts list
-            if (myPosts.isEmpty()) {
-                item {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp),
-                        colors = CardDefaults.cardColors(containerColor = FbSurface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(52.dp)
-                                    .clip(CircleShape)
-                                    .background(FacebookBlueLight),
+                                    .weight(1f)
+                                    .height(34.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(FbSurfaceElevated)
+                                    .clickable {
+                                        tempName = displayName
+                                        tempBio = bio
+                                        isEditingName = true
+                                    },
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Article,
-                                    contentDescription = null,
-                                    tint = FacebookBlue,
-                                    modifier = Modifier.size(28.dp)
+                                Text(
+                                    text = "Edit profile",
+                                    color = FbTextPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
                                 )
                             }
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(34.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(FbSurfaceElevated)
+                                    .clickable { showTrustQrDialog = true },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Share QR",
+                                    color = FbTextPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(34.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(FbSurfaceElevated)
+                                    .clickable { showScannerDialog = true },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Scan QR",
+                                    color = FbTextPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Instagram Profile Posts Tab
+                item {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(FbSurface)
+                                .height(44.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Article,
+                                contentDescription = "Posts",
+                                tint = FbTextPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
+                    }
+                }
+
+                // User's Posts list
+                if (myPosts.isEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 48.dp, horizontal = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Article,
+                                contentDescription = null,
+                                tint = FbTextTertiary,
+                                modifier = Modifier.size(44.dp)
+                            )
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
                                 text = "No posts yet",
@@ -611,40 +480,40 @@ fun IdentityScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Posts you share on the Feed will appear here on your profile.",
+                                text = "When you share photos or updates on MySocial, they'll show up here.",
                                 color = FbTextSecondary,
                                 fontSize = 13.sp,
                                 textAlign = TextAlign.Center
                             )
                         }
                     }
-                }
-            } else {
-                items(myPosts, key = { it.post.entryHash }) { postItem ->
-                    PostCard(
-                        postWithAuthor = postItem,
-                        onLikeClick = { viewModel.reactToPost(postItem.post.entryHash) },
-                        onReplyClick = {
-                            selectedPostForComments = postItem
-                            autoFocusCommentInput = true
-                        },
-                        onPostClick = {
-                            selectedPostForComments = postItem
-                            autoFocusCommentInput = false
-                        },
-                        onEditClick = { hash, newText -> viewModel.editPost(hash, newText) },
-                        onDeleteClick = { hash -> viewModel.deletePost(hash) },
-                        currentAuthorId = authorId,
-                        isAuthorOnline = true,
-                        isFriend = false,
-                        isLiked = postItem.post.entryHash in likedPostHashes,
-                        modifier = Modifier.padding(horizontal = 14.dp)
-                    )
+                } else {
+                    items(myPosts, key = { it.post.entryHash }) { postItem ->
+                        PostCard(
+                            postWithAuthor = postItem,
+                            onLikeClick = { viewModel.reactToPost(postItem.post.entryHash) },
+                            onReplyClick = {
+                                selectedPostForComments = postItem
+                                autoFocusCommentInput = true
+                            },
+                            onPostClick = {
+                                selectedPostForComments = postItem
+                                autoFocusCommentInput = false
+                            },
+                            onEditClick = { hash, newText -> viewModel.editPost(hash, newText) },
+                            onDeleteClick = { hash -> viewModel.deletePost(hash) },
+                            currentAuthorId = authorId,
+                            isAuthorOnline = true,
+                            isFriend = false,
+                            isLiked = postItem.post.entryHash in likedPostHashes,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             }
         }
 
-        // Facebook-style Post Details & Comments Bottom Sheet
+        // Instagram-style Post Details & Comments Bottom Sheet
         if (selectedPostForComments != null) {
             val targetPost = selectedPostForComments!!
             val comments by viewModel.observeReplies(targetPost.post.entryHash).collectAsState(initial = emptyList())
@@ -767,5 +636,23 @@ fun IdentityScreen(
                 }
             )
         }
+    }
+}
+
+@Composable
+private fun ProfileStatColumn(count: String, label: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = count,
+            color = FbTextPrimary,
+            fontWeight = FontWeight.Bold,
+            fontSize = 17.sp
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = label,
+            color = FbTextSecondary,
+            fontSize = 12.sp
+        )
     }
 }

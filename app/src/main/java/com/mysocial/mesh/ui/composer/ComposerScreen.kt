@@ -85,6 +85,7 @@ import com.mysocial.mesh.ui.theme.FbAmber
 import com.mysocial.mesh.ui.theme.FbAmberLight
 import com.mysocial.mesh.ui.theme.FbBackground
 import com.mysocial.mesh.ui.theme.FbBorder
+import com.mysocial.mesh.ui.theme.FbDivider
 import com.mysocial.mesh.ui.theme.FbGreen
 import com.mysocial.mesh.ui.theme.FbRed
 import com.mysocial.mesh.ui.theme.FbRedLight
@@ -159,16 +160,16 @@ fun ComposerScreen(
             // Mode-specific Top Bar
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = if (composerMode == ComposerMode.ALERT) FbRedLight else FbSurface,
-                shadowElevation = 1.dp
+                color = if (composerMode == ComposerMode.ALERT) FbRedLight else FbSurface
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
+                Column {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (onDismiss != null) {
                             IconButton(
@@ -259,6 +260,8 @@ fun ComposerScreen(
                             )
                         }
                     }
+                }
+                HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
                 }
             }
 

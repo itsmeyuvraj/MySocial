@@ -73,6 +73,7 @@ import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FacebookBlueLight
 import com.mysocial.mesh.ui.theme.FbBackground
 import com.mysocial.mesh.ui.theme.FbBorder
+import com.mysocial.mesh.ui.theme.FbDivider
 import com.mysocial.mesh.ui.theme.FbGreen
 import com.mysocial.mesh.ui.theme.FbSurface
 import com.mysocial.mesh.ui.theme.FbSurfaceElevated
@@ -221,30 +222,32 @@ fun RadarScreen(
 fun NearbyHeader() {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = FbSurface,
-        shadowElevation = 1.dp
+        color = FbSurface
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            NearbyPulseIcon()
-            Spacer(modifier = Modifier.width(12.dp))
-            Column {
-                Text(
-                    text = "Find Friends",
-                    color = FbTextPrimary,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "Looking for nearby phones",
-                    color = FbTextSecondary,
-                    fontSize = 11.sp
-                )
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                NearbyPulseIcon()
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "Discover People",
+                        color = FbTextPrimary,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Offline Bluetooth & Wi-Fi mesh network",
+                        color = FbTextSecondary,
+                        fontSize = 12.sp
+                    )
+                }
             }
+            HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
         }
     }
 }
@@ -350,14 +353,13 @@ fun ShareItRadarView(
 
     val blueColor = FacebookBlue
 
-    Card(
+    Surface(
         modifier = modifier
             .fillMaxWidth()
             .height(310.dp)
-            .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = FbSurface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            .border(0.5.dp, FbBorder, RoundedCornerShape(12.dp)),
+        shape = RoundedCornerShape(12.dp),
+        color = FbSurface
     ) {
         BoxWithConstraints(
             modifier = Modifier

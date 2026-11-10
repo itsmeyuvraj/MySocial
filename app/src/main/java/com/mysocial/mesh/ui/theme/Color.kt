@@ -18,73 +18,73 @@ data class FbColorScheme(
     val blueLight: Color,
     val green: Color = Color(0xFF10B981),
     val greenLight: Color,
-    val red: Color = Color(0xFFF43F5E),
+    val red: Color = Color(0xFFED4956),
     val redLight: Color,
-    val amber: Color = Color(0xFFF59E0B),
+    val amber: Color = Color(0xFFF77737),
     val amberLight: Color,
     val isDark: Boolean
 )
 
 val LightFbColorScheme = FbColorScheme(
-    background = Color(0xFFF1F5F9),       // Soft soothing Slate-100 (never harsh glare)
-    surface = Color(0xFFFFFFFF),          // Clean Card Surface
-    surfaceElevated = Color(0xFFE2E8F0),  // Slate-200 Chip / Action Container
-    border = Color(0xFFCBD5E1),           // Slate-300 Crisp Outline
-    divider = Color(0xFFE2E8F0),
-    textPrimary = Color(0xFF0F172A),      // Deep Slate 900
-    textSecondary = Color(0xFF475569),    // Slate 600
-    textTertiary = Color(0xFF64748B),     // Slate 500
-    blue = Color(0xFF2563EB),             // Royal Electric Blue
-    blueHover = Color(0xFF1D4ED8),
-    blueLight = Color(0xFFEFF6FF),        // Soft Blue Wash
-    green = Color(0xFF059669),            // Rich Emerald
-    greenLight = Color(0xFFECFDF5),
-    red = Color(0xFFE11D48),              // Vibrant Rose
-    redLight = Color(0xFFFFF1F2),
-    amber = Color(0xFFD97706),
-    amberLight = Color(0xFFFEF3C7),
+    background = Color(0xFFFFFFFF),       // Modern Instagram Pure Crisp White Canvas
+    surface = Color(0xFFFFFFFF),          // Clean Flat Surface
+    surfaceElevated = Color(0xFFF7F7F7),  // Ultra-subtle neutral elevated surface
+    border = Color(0xFFEFEFEF),           // Modern Hairline Micro-Border
+    divider = Color(0xFFF0F0F0),          // Clean Separator
+    textPrimary = Color(0xFF000000),      // Pure Sharp Black
+    textSecondary = Color(0xFF737373),    // Balanced Instagram Subtitle Grey
+    textTertiary = Color(0xFF8E8E8E),     // Light Metadata Grey
+    blue = Color(0xFF0095F6),             // Instagram Signature Action Blue
+    blueHover = Color(0xFF1877F2),
+    blueLight = Color(0xFFEBF5FF),        // Soft Ice Tint
+    green = Color(0xFF00BA88),            // Crisp Emerald
+    greenLight = Color(0xFFE6F9F3),
+    red = Color(0xFFED4956),              // Iconic Instagram Heart Red
+    redLight = Color(0xFFFDE8E9),
+    amber = Color(0xFFF77737),            // Warm Sunset Amber
+    amberLight = Color(0xFFFFF1EB),
     isDark = false
 )
 
 val DarkFbColorScheme = FbColorScheme(
-    background = Color(0xFF090D16),       // Ultra-Deep Midnight Obsidian Canvas (Zero Eye Strain)
-    surface = Color(0xFF111827),          // Elevated Slate-900 Card with Subtle Depth
-    surfaceElevated = Color(0xFF1E293B),  // Slate-800 Pill / Chip / Elevated Action
-    border = Color(0xFF1E2E4A),           // Subtle Luminous Navy Micro-Border
-    divider = Color(0xFF162238),          // Refined Hairline Separator
-    textPrimary = Color(0xFFF8FAFC),      // Crisp Soft White (Sharp, Non-Glare)
-    textSecondary = Color(0xFF94A3B8),    // Cool Slate-400
-    textTertiary = Color(0xFF64748B),     // Slate-500 Metadata
-    blue = Color(0xFF38BDF8),             // Electric Cyan / Radiant Sapphire
-    blueHover = Color(0xFF60A5FA),        // Soft Sky
-    blueLight = Color(0x2638BDF8),        // Luminous Cyber Tint
-    green = Color(0xFF10B981),            // Vibrant Mint / Emerald
-    greenLight = Color(0x2410B981),       // Translucent Green Glow
-    red = Color(0xFFF43F5E),              // Neon Rose / Ruby for SOS Emergency
-    redLight = Color(0x26F43F5E),         // Translucent Rose Glow
-    amber = Color(0xFFF59E0B),            // Radiant Amber for Polls
-    amberLight = Color(0x26F59E0B),
+    background = Color(0xFF000000),       // Pure Instagram Dark Canvas
+    surface = Color(0xFF0A0A0A),          // Elevated Dark Surface
+    surfaceElevated = Color(0xFF262626),  // Instagram Dark Action Chip / Pill
+    border = Color(0xFF262626),           // Subtle Hairline Dark Border
+    divider = Color(0xFF1C1C1C),          // Refined Hairline Separator
+    textPrimary = Color(0xFFFFFFFF),      // Crisp Pure White
+    textSecondary = Color(0xFFA8A8A8),    // Cool Light Grey
+    textTertiary = Color(0xFF737373),     // Slate-500 Metadata
+    blue = Color(0xFF0095F6),             // Vibrant Action Blue
+    blueHover = Color(0xFF60A5FA),
+    blueLight = Color(0x260095F6),
+    green = Color(0xFF10B981),            // Vibrant Mint
+    greenLight = Color(0x2410B981),
+    red = Color(0xFFED4956),              // Iconic Heart Red
+    redLight = Color(0x26ED4956),
+    amber = Color(0xFFF77737),
+    amberLight = Color(0x26F77737),
     isDark = true
 )
 
 val AmoledFbColorScheme = FbColorScheme(
     background = Color(0xFF000000),       // Pure Pitch Black (OLED Zero Power)
-    surface = Color(0xFF0C0F17),          // Ultra-Deep Card Surface
-    surfaceElevated = Color(0xFF151C2A),  // Sleek Elevated Pill / Chip
-    border = Color(0xFF222F46),           // Crisp Hairline Border
-    divider = Color(0xFF151D2D),          // Micro Separator
+    surface = Color(0xFF000000),          // Ultra-Deep Flat Surface
+    surfaceElevated = Color(0xFF1A1A1A),  // Sleek Elevated Chip
+    border = Color(0xFF262626),           // Crisp Hairline Border
+    divider = Color(0xFF161616),          // Micro Separator
     textPrimary = Color(0xFFFFFFFF),      // Crisp Pure White
-    textSecondary = Color(0xFF94A3B8),    // Cool Slate-400
-    textTertiary = Color(0xFF64748B),     // Slate-500 Metadata
-    blue = Color(0xFF38BDF8),             // Electric Cyan
-    blueHover = Color(0xFF60A5FA),        // Soft Sky
-    blueLight = Color(0x2E38BDF8),        // Luminous Cyber Glow
+    textSecondary = Color(0xFFA8A8A8),    // Cool Light Grey
+    textTertiary = Color(0xFF737373),     // Slate-500 Metadata
+    blue = Color(0xFF0095F6),             // Action Blue
+    blueHover = Color(0xFF60A5FA),
+    blueLight = Color(0x260095F6),
     green = Color(0xFF10B981),
     greenLight = Color(0x2610B981),
-    red = Color(0xFFF43F5E),
-    redLight = Color(0x26F43F5E),
-    amber = Color(0xFFF59E0B),
-    amberLight = Color(0x26F59E0B),
+    red = Color(0xFFED4956),
+    redLight = Color(0x26ED4956),
+    amber = Color(0xFFF77737),
+    amberLight = Color(0x26F77737),
     isDark = true
 )
 
@@ -187,3 +187,15 @@ val BadgeYouBg: Color
 
 val BadgeYouText: Color
     @Composable get() = LocalFbColors.current.textSecondary
+
+// Iconic Instagram Story Gradient
+val InstagramStoryGradient = androidx.compose.ui.graphics.Brush.linearGradient(
+    listOf(
+        Color(0xFF833AB4), // Purple
+        Color(0xFFC13584), // Magenta
+        Color(0xFFE1306C), // Crimson
+        Color(0xFFFD1D1D), // Red
+        Color(0xFFF77737), // Warm Orange
+        Color(0xFFFCAF45)  // Golden Yellow
+    )
+)

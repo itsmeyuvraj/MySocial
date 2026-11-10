@@ -61,6 +61,7 @@ import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FacebookBlueLight
 import com.mysocial.mesh.ui.theme.FbBackground
 import com.mysocial.mesh.ui.theme.FbBorder
+import com.mysocial.mesh.ui.theme.FbDivider
 import com.mysocial.mesh.ui.theme.FbSurface
 import com.mysocial.mesh.ui.theme.FbSurfaceElevated
 import com.mysocial.mesh.ui.theme.FbTextPrimary
@@ -113,10 +114,10 @@ fun MessagesListScreen(
         topBar = {
             Surface(
                 color = FbSurface,
-                shadowElevation = 2.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+                Column {
+                    Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -245,8 +246,10 @@ fun MessagesListScreen(
                         }
                     }
                 }
+                HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
             }
-        },
+        }
+    },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {

@@ -99,6 +99,7 @@ import com.mysocial.mesh.ui.components.FullScreenImageViewerDialog
 import com.mysocial.mesh.ui.components.VerifiedBadge
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FbBorder
+import com.mysocial.mesh.ui.theme.FbDivider
 import com.mysocial.mesh.ui.theme.FbRed
 import com.mysocial.mesh.ui.theme.FbSurface
 import com.mysocial.mesh.ui.theme.FbSurfaceElevated
@@ -178,95 +179,98 @@ fun ChatScreen(
         topBar = {
             Surface(
                 color = FbSurface,
-                shadowElevation = 2.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = onNavigateBack,
-                        modifier = Modifier.size(36.dp)
+                Column {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = FbTextPrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(4.dp))
-
-                    AvatarView(
-                        seed = profile?.avatarSeed ?: viewModel.peerAuthorId,
-                        displayName = profile?.displayName ?: peerDisplayName,
-                        size = 38.dp,
-                        showOnlineBadge = isOnline
-                    )
-
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = profile?.displayName ?: peerDisplayName,
-                                color = FbTextPrimary,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
-                                maxLines = 1
+                        IconButton(
+                            onClick = onNavigateBack,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = FbTextPrimary,
+                                modifier = Modifier.size(20.dp)
                             )
-                            if (profile?.isVerifiedInPerson == true) {
-                                Spacer(modifier = Modifier.width(4.dp))
-                                VerifiedBadge(size = 14.dp)
+                        }
+
+                        Spacer(modifier = Modifier.width(4.dp))
+
+                        AvatarView(
+                            seed = profile?.avatarSeed ?: viewModel.peerAuthorId,
+                            displayName = profile?.displayName ?: peerDisplayName,
+                            size = 38.dp,
+                            showOnlineBadge = isOnline
+                        )
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = profile?.displayName ?: peerDisplayName,
+                                    color = FbTextPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    maxLines = 1
+                                )
+                                if (profile?.isVerifiedInPerson == true) {
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    VerifiedBadge(size = 14.dp)
+                                }
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Filled.Lock,
+                                    contentDescription = null,
+                                    tint = FacebookBlue,
+                                    modifier = Modifier.size(11.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = if (isOnline) "Active now • End-to-end encrypted" else "${viewModel.peerAuthorId.toFormattedBbid()} • Encrypted",
+                                    color = if (isOnline) FacebookBlue else FbTextSecondary,
+                                    fontSize = 12.sp,
+                                    fontFamily = FontFamily.SansSerif,
+                                    fontWeight = if (isOnline) FontWeight.Medium else FontWeight.Normal
+                                )
                             }
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+
+                        // Direct Voice Call Button
+                        IconButton(
+                            onClick = { viewModel.startVoiceCall() },
+                            modifier = Modifier.size(36.dp)
+                        ) {
                             Icon(
-                                imageVector = Icons.Filled.Lock,
-                                contentDescription = null,
+                                imageVector = Icons.Filled.Call,
+                                contentDescription = "Direct Voice Call",
                                 tint = FacebookBlue,
-                                modifier = Modifier.size(11.dp)
-                            )
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text(
-                                text = if (isOnline) "Active now • End-to-end encrypted" else "${viewModel.peerAuthorId.toFormattedBbid()} • Encrypted",
-                                color = if (isOnline) FacebookBlue else FbTextSecondary,
-                                fontSize = 12.sp,
-                                fontFamily = FontFamily.SansSerif,
-                                fontWeight = if (isOnline) FontWeight.Medium else FontWeight.Normal
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
-
-                    // Direct Voice Call Button
-                    IconButton(
-                        onClick = { viewModel.startVoiceCall() },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Call,
-                            contentDescription = "Direct Voice Call",
-                            tint = FacebookBlue,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                    HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
                 }
             }
         },
         bottomBar = {
             Surface(
                 color = FbSurface,
-                tonalElevation = 4.dp,
+                shadowElevation = 0.dp,
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
                     .imePadding()
             ) {
                 Column {
+                    HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
                     HorizontalDivider(color = FbBorder, thickness = 0.5.dp)
 
                     // Image attachment preview strip

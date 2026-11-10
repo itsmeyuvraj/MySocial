@@ -45,6 +45,13 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.WifiTethering
+import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.automirrored.outlined.Send
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -92,6 +99,7 @@ import com.mysocial.mesh.utils.toFormattedBbid
 import com.mysocial.mesh.model.PostWithAuthor
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FbBorder
+import com.mysocial.mesh.ui.theme.FbDivider
 import com.mysocial.mesh.ui.theme.FbRed
 import com.mysocial.mesh.ui.theme.FbRedLight
 import com.mysocial.mesh.ui.theme.FbSurface
@@ -176,27 +184,17 @@ fun PostCard(
     val cardBottomPadding = if (compactMode) 4.dp else 6.dp
     val avatarSize = if (compactMode) 36.dp else 42.dp
 
-    Card(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = cardHorizontalPadding, vertical = cardVerticalPadding)
-            .clip(RoundedCornerShape(cardCornerRadius))
-            .border(0.8.dp, FbBorder, RoundedCornerShape(cardCornerRadius))
-            .then(
-                if (post.isSos) {
-                    Modifier.border(1.5.dp, FbRed, RoundedCornerShape(cardCornerRadius))
-                } else Modifier
-            )
+            .background(FbSurface)
             .then(
                 if (onPostClick != null) {
                     Modifier.clickable { onPostClick() }
                 } else Modifier
-            ),
-        colors = CardDefaults.cardColors(containerColor = FbSurface),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (compactMode) 0.5.dp else 1.dp),
-        shape = RoundedCornerShape(cardCornerRadius)
+            )
     ) {
-        Column(modifier = Modifier.padding(top = cardTopPadding, bottom = cardBottomPadding)) {
+        Column(modifier = Modifier.padding(top = cardTopPadding)) {
             // SOS High-Priority Alert Banner with Collapsible Radar
             if (post.isSos) {
                 Row(
@@ -256,17 +254,17 @@ fun PostCard(
                 Spacer(modifier = Modifier.height(4.dp))
             }
 
-            // Header Row: Avatar, Name, Timestamp, Audience Badge, More button
+            // Header Row: Avatar, Name, Timestamp, More Options
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp),
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AvatarView(
                     seed = authorId,
                     displayName = displayName,
-                    size = avatarSize,
+                    size = 36.dp,
                     showOnlineBadge = isAuthorOnline
                 )
 
@@ -280,32 +278,19 @@ fun PostCard(
                         Text(
                             text = displayName,
                             color = FbTextPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
+                            overflow = TextOverflow.Ellipsis
                         )
                         if (isFriend || postWithAuthor.isAuthorVerifiedInPerson) {
-                            VerifiedBadge(size = 15.dp)
+                            VerifiedBadge(size = 14.dp)
                         }
                         Text(
-                            text = authorId.toFormattedBbid(),
-                            color = FbTextSecondary,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(FbSurfaceElevated)
-                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                            text = "•",
+                            color = FbTextTertiary,
+                            fontSize = 11.sp
                         )
-                    }
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
                         Text(
                             text = formatRelativeTime(post.timestamp),
                             color = FbTextSecondary,
@@ -315,27 +300,6 @@ fun PostCard(
                             Text(text = "•", color = FbTextTertiary, fontSize = 10.sp)
                             HopBadge(hopCount = post.hopCount, transportSource = post.transportSource)
                         }
-                        if (post.expiresAt != null) {
-                            Text(text = "•", color = FbTextTertiary, fontSize = 10.sp)
-                            Text(
-                                text = formatTtlRemaining(post.expiresAt),
-                                color = if (post.expiresAt - System.currentTimeMillis() < 3600_000L) FbRed else FbTextSecondary,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                        Text(text = "•", color = FbTextTertiary, fontSize = 10.sp)
-                        Icon(
-                            imageVector = if (post.isPublic) Icons.Filled.Public else Icons.Filled.Group,
-                            contentDescription = if (post.isPublic) "Public" else "Friends only",
-                            tint = FbTextSecondary,
-                            modifier = Modifier.size(11.dp)
-                        )
-                        Text(
-                            text = if (post.isPublic) "Public" else "Friends",
-                            color = FbTextSecondary,
-                            fontSize = 11.sp
-                        )
                     }
                 }
 
@@ -343,12 +307,13 @@ fun PostCard(
                 Box {
                     IconButton(
                         onClick = { showMenu = true },
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Filled.MoreHoriz,
                             contentDescription = "Options",
-                            tint = FbTextSecondary
+                            tint = FbTextPrimary,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
 
@@ -452,24 +417,25 @@ fun PostCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Post content
-            Text(
-                text = post.text,
-                color = FbTextPrimary,
-                fontSize = 15.sp,
-                lineHeight = 22.sp,
-                modifier = Modifier.padding(horizontal = 14.dp)
-            )
-
-            // Media attachment (Chunked Blob with micro-preview and crisp image transition)
+            // Media attachment first if available (Instagram signature layout)
             if (post.mediaBlobHash != null) {
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 PostMediaAttachmentView(
                     blobHash = post.mediaBlobHash,
                     chunkCount = post.mediaChunkCount ?: 1,
                     microPreviewBase64 = post.microPreviewBase64,
                     onPrioritizeDownload = { onPrioritizeDownload?.invoke(post.mediaBlobHash) },
-                    modifier = Modifier.padding(horizontal = 14.dp)
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else {
+                // Text-only post
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = post.text,
+                    color = FbTextPrimary,
+                    fontSize = 15.sp,
+                    lineHeight = 22.sp,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
                 )
             }
 
@@ -484,7 +450,7 @@ fun PostCard(
                 }
 
                 if (pollOptions.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     val pollDb = remember(context) { MeshDatabase.getInstance(context) }
                     val allPollReactions by pollDb.reactionDao().observePollVotesForPost(post.entryHash).collectAsState(initial = emptyList())
                     val activeVotes = remember(allPollReactions) {
@@ -503,10 +469,10 @@ fun PostCard(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 14.dp)
-                            .clip(RoundedCornerShape(8.dp))
+                            .padding(horizontal = 14.dp, vertical = 4.dp)
+                            .clip(RoundedCornerShape(10.dp))
                             .background(FbSurfaceElevated)
-                            .border(1.dp, FbBorder, RoundedCornerShape(8.dp))
+                            .border(0.8.dp, FbBorder, RoundedCornerShape(10.dp))
                             .padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
@@ -518,12 +484,12 @@ fun PostCard(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(if (isSelected) FacebookBlue.copy(alpha = 0.12f) else FbSurface)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSelected) Color(0xFF0095F6).copy(alpha = 0.12f) else FbSurface)
                                     .border(
                                         1.dp,
-                                        if (isSelected) FacebookBlue else FbBorder,
-                                        RoundedCornerShape(6.dp)
+                                        if (isSelected) Color(0xFF0095F6) else FbBorder,
+                                        RoundedCornerShape(8.dp)
                                     )
                                     .clickable { onVotePoll?.invoke(post.entryHash, index) }
                                     .padding(vertical = 10.dp, horizontal = 12.dp)
@@ -541,21 +507,21 @@ fun PostCard(
                                             Icon(
                                                 imageVector = Icons.Filled.Check,
                                                 contentDescription = "Selected",
-                                                tint = FacebookBlue,
+                                                tint = Color(0xFF0095F6),
                                                 modifier = Modifier.size(16.dp)
                                             )
                                             Spacer(modifier = Modifier.width(6.dp))
                                         }
                                         Text(
                                             text = optionText,
-                                            color = if (isSelected) FacebookBlue else FbTextPrimary,
+                                            color = if (isSelected) Color(0xFF0095F6) else FbTextPrimary,
                                             fontSize = 14.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                         )
                                     }
                                     Text(
                                         text = "$percent% ($votes)",
-                                        color = if (isSelected) FacebookBlue else FbTextSecondary,
+                                        color = if (isSelected) Color(0xFF0095F6) else FbTextSecondary,
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.SemiBold
                                     )
@@ -573,174 +539,145 @@ fun PostCard(
                 }
             }
 
-            // Hashtags (Facebook Blue style, clickable)
+            // Modern Instagram Action Bar (Heart, Comment Bubble, Share Paper Plane, Bookmark)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Heart / Like Button
+                IconButton(
+                    onClick = onLikeClick,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                        contentDescription = "Like",
+                        tint = if (isLiked) Color(0xFFED4956) else FbTextPrimary,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(14.dp))
+
+                // Comment Button
+                IconButton(
+                    onClick = onReplyClick,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.ChatBubbleOutline,
+                        contentDescription = "Comment",
+                        tint = FbTextPrimary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(14.dp))
+
+                // Share / Direct Send Button
+                IconButton(
+                    onClick = triggerShare,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.Send,
+                        contentDescription = "Share",
+                        tint = FbTextPrimary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                // Right Bookmark / Save Icon
+                Icon(
+                    imageVector = Icons.Outlined.BookmarkBorder,
+                    contentDescription = "Save",
+                    tint = FbTextPrimary,
+                    modifier = Modifier.size(25.dp)
+                )
+            }
+
+            // Likes Counter (Instagram style: "15 likes")
+            if (likeCount > 0) {
+                Text(
+                    text = if (likeCount == 1) "1 like" else "$likeCount likes",
+                    color = FbTextPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.5.sp,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 1.dp)
+                )
+            }
+
+            // Caption (For photo posts, Instagram renders: username caption)
+            if (post.mediaBlobHash != null && post.text.isNotBlank()) {
+                Text(
+                    buildAnnotatedString {
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = FbTextPrimary)) {
+                            append(displayName)
+                            append("  ")
+                        }
+                        withStyle(SpanStyle(fontWeight = FontWeight.Normal, color = FbTextPrimary)) {
+                            append(post.text)
+                        }
+                    },
+                    fontSize = 13.5.sp,
+                    lineHeight = 19.sp,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp)
+                )
+            }
+
+            // Hashtags (Clean Instagram Blue, clickable)
             if (tags.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
                 FlowRow(
-                    modifier = Modifier.padding(horizontal = 14.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     tags.forEach { tag ->
                         Text(
                             text = "#$tag",
-                            color = FacebookBlue,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF0095F6),
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Medium,
                             modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
                                 .clickable { onTagClick?.invoke(tag) }
-                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                .padding(vertical = 1.dp)
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Reaction Stats Row (e.g. 👍 ❤️ 12 • 3 comments)
-            if (likeCount > 0 || post.replyCount > 0) {
-                Row(
+            // View all comments preview link
+            if (post.replyCount > 0) {
+                Text(
+                    text = if (post.replyCount == 1) "View 1 comment" else "View all ${post.replyCount} comments",
+                    color = FbTextSecondary,
+                    fontSize = 13.sp,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    // Likes indicator icons
-                    if (likeCount > 0) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(18.dp)
-                                    .clip(CircleShape)
-                                    .background(FacebookBlue),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.ThumbUp,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(10.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "$likeCount",
-                                color = FbTextSecondary,
-                                fontSize = 13.sp
-                            )
-                        }
-                    } else {
-                        Spacer(modifier = Modifier.width(1.dp))
-                    }
-
-                    // Comments counter
-                    if (post.replyCount > 0) {
-                        Text(
-                            text = "${post.replyCount} ${if (post.replyCount == 1) "comment" else "comments"}",
-                            color = FbTextSecondary,
-                            fontSize = 13.sp,
-                            modifier = Modifier.clickable { onPostClick?.invoke() ?: onReplyClick() }
-                        )
-                    }
-                }
+                        .clickable { onPostClick?.invoke() ?: onReplyClick() }
+                        .padding(horizontal = 14.dp, vertical = 2.dp)
+                )
             }
 
-            // Divider line
-            HorizontalDivider(
-                color = FbBorder,
-                thickness = 0.8.dp,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+            // Post Relative Timestamp (Instagram uppercase style)
+            Text(
+                text = formatRelativeTime(post.timestamp).uppercase(),
+                color = FbTextTertiary,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 0.4.sp,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
             )
 
-            // Facebook Action Bar (Like, Comment, Share)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Like Button
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(6.dp))
-                        .clickable {
-                            if (!isLiked) {
-                                onLikeClick()
-                            }
-                        }
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = if (isLiked || post.likeCount > 0) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp,
-                        contentDescription = "Like",
-                        tint = likeTint,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Like",
-                        color = likeTint,
-                        fontSize = 13.sp,
-                        fontWeight = if (isLiked || post.likeCount > 0) FontWeight.Bold else FontWeight.Medium
-                    )
-                }
-
-                // Comment Button
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(6.dp))
-                        .clickable { onReplyClick() }
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.ChatBubbleOutline,
-                        contentDescription = "Comment",
-                        tint = FbTextSecondary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Comment",
-                        color = FbTextSecondary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-
-                // Share Button (Working with Android system share sheet)
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(6.dp))
-                        .clickable { triggerShare() }
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Share,
-                        contentDescription = "Share",
-                        tint = FbTextSecondary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Share",
-                        color = FbTextSecondary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
+            // Bottom hairline divider between posts
+            HorizontalDivider(
+                color = FbDivider,
+                thickness = 0.5.dp,
+                modifier = Modifier.padding(top = 10.dp)
+            )
         }
     }
 
@@ -1034,10 +971,7 @@ fun PostMediaAttachmentView(
     }
 
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .border(1.dp, FbBorder, RoundedCornerShape(8.dp)),
+        modifier = modifier.fillMaxWidth(),
         contentAlignment = Alignment.Center
     ) {
         val resolvedBitmap = fullBitmap

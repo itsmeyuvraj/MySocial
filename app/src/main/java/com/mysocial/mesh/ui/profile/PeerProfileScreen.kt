@@ -67,6 +67,8 @@ import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FacebookBlueLight
 import com.mysocial.mesh.ui.theme.FbBackground
 import com.mysocial.mesh.ui.theme.FbBorder
+import com.mysocial.mesh.ui.theme.FbDivider
+import com.mysocial.mesh.ui.theme.InstagramStoryGradient
 import com.mysocial.mesh.ui.theme.FbGreen
 import com.mysocial.mesh.ui.theme.FbSurface
 import com.mysocial.mesh.ui.theme.FbSurfaceElevated
@@ -109,390 +111,350 @@ fun PeerProfileScreen(
         color = FbBackground
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Top Bar
+            // Instagram-Style Flat Top Bar
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = FbSurface,
-                shadowElevation = 1.dp
+                color = FbSurface
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
                         onClick = onNavigateBack,
-                        modifier = Modifier.size(38.dp)
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
-                            tint = FbTextPrimary
+                            tint = FbTextPrimary,
+                            modifier = Modifier.size(22.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
 
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = resolvedName,
-                                color = FbTextPrimary,
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            if (isFriend || isVerified) {
-                                Spacer(modifier = Modifier.width(4.dp))
-                                VerifiedBadge(size = 15.dp)
-                            }
-                        }
-                        Text(
-                            text = peerAuthorId.toFormattedBbid(),
-                            color = FbTextSecondary,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp
-                        )
+                    Text(
+                        text = resolvedName.lowercase().replace(" ", "_"),
+                        color = FbTextPrimary,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (isFriend || isVerified) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        VerifiedBadge(size = 15.dp)
                     }
                 }
             }
+            HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(14.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                contentPadding = PaddingValues(bottom = 24.dp)
             ) {
-                // Profile Header Card
+                // Profile Header (Flat Instagram Layout)
                 item {
-                    Card(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
-                        colors = CardDefaults.cardColors(containerColor = FbSurface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp),
-                        shape = RoundedCornerShape(16.dp)
+                            .background(FbSurface)
+                            .padding(horizontal = 16.dp, vertical = 14.dp)
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(18.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                        // Avatar + Stats Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Avatar
-                            AvatarView(
-                                seed = peerAuthorId,
-                                displayName = resolvedName,
-                                size = 80.dp,
-                                showOnlineBadge = isNearby
-                            )
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // Name & Verification Badge
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = resolvedName,
-                                    color = FbTextPrimary,
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                if (isFriend || isVerified) {
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    VerifiedBadge(size = 18.dp)
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            // BBID Pill with Copy Action
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
+                            Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(FbSurfaceElevated)
-                                    .border(0.8.dp, FbBorder, RoundedCornerShape(6.dp))
-                                    .clickable {
-                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                        clipboard.setPrimaryClip(ClipData.newPlainText("BBID", peerAuthorId))
-                                        Toast.makeText(context, "BBID copied to clipboard", Toast.LENGTH_SHORT).show()
-                                    }
-                                    .padding(horizontal = 8.dp, vertical = 3.dp)
-                            ) {
-                                Text(
-                                    text = peerAuthorId.toFormattedBbid(),
-                                    color = FbTextSecondary,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Icon(
-                                    imageVector = Icons.Filled.ContentCopy,
-                                    contentDescription = "Copy BBID",
-                                    tint = FbTextSecondary,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            // Connection Status Pill
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(if (isNearby) FbGreen.copy(alpha = 0.12f) else FbSurfaceElevated)
-                                    .border(
-                                        0.8.dp,
-                                        if (isNearby) FbGreen.copy(alpha = 0.4f) else FbBorder,
-                                        RoundedCornerShape(20.dp)
-                                    )
-                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                                    .size(80.dp)
+                                    .clip(CircleShape)
+                                    .background(InstagramStoryGradient)
+                                    .padding(2.5.dp)
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(8.dp)
+                                        .fillMaxSize()
                                         .clip(CircleShape)
-                                        .background(if (isNearby) FbGreen else FbTextTertiary)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                val statusText = if (isNearby) {
-                                    val trans = when (currentPeer?.transportType) {
-                                        TransportType.LORA -> "LoRa 915MHz"
-                                        TransportType.WIFI_AWARE -> "Wi-Fi Aware (NAN)"
-                                        TransportType.IOS_COMPANION -> "iOS L2CAP"
-                                        TransportType.MDNS_WIFI -> "Wi-Fi Direct"
-                                        else -> "Bluetooth"
-                                    }
-                                    "In Radio Range ($trans)"
-                                } else {
-                                    "Out of Radio Range"
+                                        .background(FbSurface)
+                                        .padding(2.dp)
+                                ) {
+                                    AvatarView(
+                                        seed = peerAuthorId,
+                                        displayName = resolvedName,
+                                        size = 72.dp,
+                                        showOnlineBadge = isNearby
+                                    )
                                 }
+                            }
+
+                            Spacer(modifier = Modifier.width(28.dp))
+
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                horizontalArrangement = Arrangement.SpaceAround,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = "${posts.size}",
+                                        color = FbTextPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 17.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(text = "posts", color = FbTextSecondary, fontSize = 12.sp)
+                                }
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = if (isNearby) "Nearby" else "Mesh",
+                                        color = if (isNearby) FbGreen else FbTextPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 17.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(text = "radio", color = FbTextSecondary, fontSize = 12.sp)
+                                }
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = if (isFriend || isVerified) "Friend" else "Peer",
+                                        color = if (isFriend || isVerified) FacebookBlue else FbTextPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 17.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(text = "trust", color = FbTextSecondary, fontSize = 12.sp)
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Display Name
+                        Text(
+                            text = resolvedName,
+                            color = FbTextPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(3.dp))
+
+                        // BBID Pill with Copy Action
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(FbSurfaceElevated)
+                                .clickable {
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    clipboard.setPrimaryClip(ClipData.newPlainText("BBID", peerAuthorId))
+                                    Toast.makeText(context, "BBID copied: ${peerAuthorId.toFormattedBbid()}", Toast.LENGTH_SHORT).show()
+                                }
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = peerAuthorId.toFormattedBbid(),
+                                color = FacebookBlue,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.Filled.ContentCopy,
+                                contentDescription = "Copy BBID",
+                                tint = FacebookBlue,
+                                modifier = Modifier.size(11.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Connection Status Pill
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isNearby) FbGreen else FbTextTertiary)
+                            )
+                            val statusText = if (isNearby) {
+                                val trans = when (currentPeer?.transportType) {
+                                    TransportType.LORA -> "LoRa 915MHz"
+                                    TransportType.WIFI_AWARE -> "Wi-Fi Aware"
+                                    TransportType.IOS_COMPANION -> "iOS L2CAP"
+                                    TransportType.MDNS_WIFI -> "Local Wi-Fi"
+                                    else -> "Bluetooth"
+                                }
+                                "In Radio Range • $trans"
+                            } else {
+                                "Connected via Mesh Relay"
+                            }
+                            Text(
+                                text = statusText,
+                                color = if (isNearby) FbGreen else FbTextSecondary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Bio
+                        Text(
+                            text = bio,
+                            color = FbTextPrimary,
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Action Buttons Row (Instagram Style)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            // Follow / Following Button
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(34.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isFriend) FbSurfaceElevated else FacebookBlue)
+                                    .border(
+                                        0.5.dp,
+                                        if (isFriend) FbBorder else Color.Transparent,
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable {
+                                        coroutineScope.launch {
+                                            val newFollowing = !isFriend
+                                            repository.toggleFollow(peerAuthorId, following = newFollowing)
+                                            val msg = if (newFollowing) "Following $resolvedName" else "Unfollowed $resolvedName"
+                                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Text(
-                                    text = statusText,
-                                    color = if (isNearby) FbGreen else FbTextSecondary,
-                                    fontSize = 12.sp,
+                                    text = if (isFriend) "Following" else "Follow",
+                                    color = if (isFriend) FbTextPrimary else Color.White,
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // Bio
-                            Text(
-                                text = bio,
-                                color = FbTextSecondary,
-                                fontSize = 13.sp,
-                                textAlign = TextAlign.Center,
-                                lineHeight = 18.sp,
-                                modifier = Modifier.padding(horizontal = 12.dp)
-                            )
-
-                            Spacer(modifier = Modifier.height(16.dp))
-                            HorizontalDivider(color = FbBorder, thickness = 0.6.dp)
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            // Primary Action: Message
-                            Button(
-                                onClick = { onOpenChat(peerAuthorId, resolvedName) },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = FacebookBlue,
-                                    contentColor = Color.White
-                                ),
-                                shape = RoundedCornerShape(12.dp)
+                            // Message Button
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(34.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(FbSurfaceElevated)
+                                    .border(0.5.dp, FbBorder, RoundedCornerShape(8.dp))
+                                    .clickable { onOpenChat(peerAuthorId, resolvedName) },
+                                contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Chat,
-                                    contentDescription = "Message",
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Message $resolvedName",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp
+                                    text = "Message",
+                                    color = FbTextPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
                                 )
                             }
 
+                            // BLE Direct Voice Call Button
                             if (isFriend || isVerified) {
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Button(
-                                    onClick = { repository.voiceCallManager?.startCall(peerAuthorId, resolvedName) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = FbGreen,
-                                        contentColor = Color.White
-                                    ),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Call,
-                                        contentDescription = "Direct Voice Call",
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Voice Call $resolvedName",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 15.sp
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            // Friendship Status: Verified via QR only
-                            if (isFriend || isVerified) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
+                                Box(
                                     modifier = Modifier
+                                        .weight(1f)
+                                        .height(34.dp)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(FacebookBlueLight)
-                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                        .background(FbGreen.copy(alpha = 0.15f))
+                                        .border(0.5.dp, FbGreen.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                        .clickable { repository.voiceCallManager?.startCall(peerAuthorId, resolvedName) },
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Check,
-                                        contentDescription = "Verified Friend",
-                                        tint = FacebookBlue,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Verified Friend (Added via QR Scan)",
-                                        color = FacebookBlue,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            } else {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(FbSurfaceElevated)
-                                        .border(0.8.dp, FbBorder, RoundedCornerShape(8.dp))
-                                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.QrCodeScanner,
-                                        contentDescription = "Scan QR",
-                                        tint = FbTextSecondary,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Add as friend by scanning their QR code in Profile",
-                                        color = FbTextSecondary,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            // Decentralized Blocklist & Sybil Eviction Action
-                            androidx.compose.material3.OutlinedButton(
-                                onClick = {
-                                    coroutineScope.launch {
-                                        if (isBlocked) {
-                                            repository.unblockAuthor(peerAuthorId)
-                                            Toast.makeText(context, "$resolvedName unblocked", Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            repository.blockAuthor(peerAuthorId, reason = "Blocked from profile")
-                                            Toast.makeText(context, "$resolvedName blocked & packets dropped", Toast.LENGTH_SHORT).show()
-                                        }
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Call,
+                                            contentDescription = null,
+                                            tint = FbGreen,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "Call",
+                                            color = FbGreen,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
                                     }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = if (isBlocked) FacebookBlue else Color(0xFFEF4444)
-                                ),
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    if (isBlocked) FacebookBlue.copy(alpha = 0.5f) else Color(0xFFEF4444).copy(alpha = 0.5f)
-                                ),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (isBlocked) Icons.Filled.Check else Icons.Filled.Block,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = if (isBlocked) "Unblock Author" else "Block & Drop Packets",
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 13.sp
-                                )
+                                }
                             }
                         }
                     }
                 }
 
-                // Posts Section Header
+                // Instagram Profile Posts Tab
                 item {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "Posts by $resolvedName (${posts.size})",
-                            color = FbTextPrimary,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(FbSurface)
+                                .height(44.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Article,
+                                contentDescription = "Posts",
+                                tint = FbTextPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
                     }
                 }
 
                 // Posts Feed
                 if (posts.isEmpty()) {
                     item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = FbSurface),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                            shape = RoundedCornerShape(12.dp)
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 48.dp, horizontal = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(24.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(52.dp)
-                                        .clip(CircleShape)
-                                        .background(FacebookBlueLight),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.Article,
-                                        contentDescription = null,
-                                        tint = FacebookBlue,
-                                        modifier = Modifier.size(26.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    text = "No Posts Yet",
-                                    color = FbTextPrimary,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Posts shared by $resolvedName will appear here once synced across the mesh network.",
-                                    color = FbTextSecondary,
-                                    fontSize = 12.sp,
-                                    textAlign = TextAlign.Center,
-                                    lineHeight = 17.sp
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Article,
+                                contentDescription = null,
+                                tint = FbTextTertiary,
+                                modifier = Modifier.size(44.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "No posts yet",
+                                color = FbTextPrimary,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "When $resolvedName shares posts on the mesh, they'll show up here.",
+                                color = FbTextSecondary,
+                                fontSize = 13.sp,
+                                textAlign = TextAlign.Center
+                            )
                         }
                     }
                 } else {
@@ -508,7 +470,8 @@ fun PeerProfileScreen(
                             currentAuthorId = repository.cryptoManager.authorId,
                             isAuthorOnline = isNearby,
                             isFriend = isFriend,
-                            isLiked = postWithAuthor.post.entryHash in likedPostHashes
+                            isLiked = postWithAuthor.post.entryHash in likedPostHashes,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }

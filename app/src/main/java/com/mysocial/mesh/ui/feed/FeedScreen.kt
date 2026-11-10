@@ -159,8 +159,9 @@ fun FeedScreen(
                 enter = fadeIn(),
                 exit = fadeOut()
             ) {
-                FacebookTopBar(
+                InstagramTopBar(
                     activePeersCount = activeNearbyPeers.size,
+                    onCreateClick = { onNavigateToCompose(ComposerMode.POST) },
                     onSearchClick = { viewModel.openSearch() },
                     onNavigateToAppearance = onNavigateToAppearance,
                     onNavigateToMeshSync = onNavigateToMeshSync,
@@ -188,7 +189,7 @@ fun FeedScreen(
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(if (compactFeedMode) 5.dp else 8.dp)
+                    verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
                     if (!isSearchActive) {
                         // Ephemeral Disappearing 24-Hour Stories Carousel
@@ -201,21 +202,9 @@ fun FeedScreen(
                             )
                         }
 
-                        // "What's on your mind?" Post Creator Box
+                        // Modern Instagram Feed Filter Tabs (Nearby vs Friends)
                         item {
-                            WhatsOnYourMindCard(
-                                myAuthorId = viewModel.currentAuthorId,
-                                onPostClick = { onNavigateToCompose(ComposerMode.POST) },
-                                onPhotoClick = { onNavigateToCompose(ComposerMode.PHOTO) },
-                                onPollClick = { onNavigateToCompose(ComposerMode.POLL) },
-                                onAlertClick = { onNavigateToCompose(ComposerMode.ALERT) },
-                                compactMode = compactFeedMode
-                            )
-                        }
-
-                        // Friendly Feed Filter Tabs (Nearby vs Friends)
-                        item {
-                            FeedFilterPills(
+                            InstagramFeedTabs(
                                 isNearbyFilter = isOpenMeshFilter,
                                 onSelectFilter = { viewModel.setFilter(it) },
                                 activePeersCount = activeNearbyPeers.size
@@ -294,11 +283,12 @@ fun FeedScreen(
                             }
                         }
 
-                        // Friendly Feed Filter Tabs (Nearby vs Friends)
+                        // Modern Instagram Feed Filter Tabs (Nearby vs Friends)
                         item {
-                            FeedFilterPills(
+                            InstagramFeedTabs(
                                 isNearbyFilter = isOpenMeshFilter,
-                                onSelectFilter = { viewModel.setFilter(it) }
+                                onSelectFilter = { viewModel.setFilter(it) },
+                                activePeersCount = activeNearbyPeers.size
                             )
                         }
 
@@ -549,8 +539,9 @@ fun FeedScreen(
 }
 
 @Composable
-fun FacebookTopBar(
+fun InstagramTopBar(
     activePeersCount: Int = 0,
+    onCreateClick: () -> Unit = {},
     onSearchClick: () -> Unit = {},
     onNavigateToAppearance: () -> Unit = {},
     onNavigateToMeshSync: () -> Unit = {},
@@ -560,101 +551,76 @@ fun FacebookTopBar(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = FbSurface,
-        shadowElevation = 1.dp
+        shadowElevation = 0.dp
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            // Modern Brand Title with Mesh Nexus Emblem
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(
-                            androidx.compose.ui.graphics.Brush.linearGradient(
-                                colors = listOf(Color(0xFF38BDF8), Color(0xFF2563EB))
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.WifiTethering,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(19.dp)
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Modern Wordmark & Active Mesh Indicator
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "mysocial",
+                        color = FbTextPrimary,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = (-0.6).sp
                     )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "mysocial",
-                    color = FacebookBlue,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = (-0.8).sp
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                // Online / Offline Status Badge
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (activePeersCount > 0) FbGreen.copy(alpha = 0.12f) else FbSurfaceElevated)
-                        .border(
-                            0.6.dp,
-                            if (activePeersCount > 0) FbGreen.copy(alpha = 0.35f) else FbBorder,
-                            RoundedCornerShape(12.dp)
-                        )
-                        .padding(horizontal = 7.dp, vertical = 2.5.dp)
-                ) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    // Sleek Online Status Indicator
                     Box(
                         modifier = Modifier
-                            .size(6.dp)
+                            .size(7.dp)
                             .clip(CircleShape)
                             .background(if (activePeersCount > 0) FbGreen else FbTextTertiary)
                     )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text(
-                        text = if (activePeersCount > 0) "Online" else "Offline",
-                        color = if (activePeersCount > 0) FbGreen else FbTextSecondary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        fontFamily = FontFamily.SansSerif
-                    )
                 }
-            }
 
-            // Top action buttons (Search & Settings Dropdown Menu Button)
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                IconButton(
-                    onClick = onSearchClick,
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(FbSurfaceElevated)
+                // Instagram-Style Top Actions: Create (+) and Search & Settings
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.Search,
-                        contentDescription = "Search",
-                        tint = FbTextPrimary,
-                        modifier = Modifier.size(20.dp)
+                    // Create Post Action (+)
+                    IconButton(
+                        onClick = onCreateClick,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = "Create Post",
+                            tint = FbTextPrimary,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+
+                    // Search
+                    IconButton(
+                        onClick = onSearchClick,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Search,
+                            contentDescription = "Search",
+                            tint = FbTextPrimary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    // Settings Menu
+                    SettingsMenuButton(
+                        onNavigateToAppearance = onNavigateToAppearance,
+                        onNavigateToMeshSync = onNavigateToMeshSync,
+                        onNavigateToMuleStorage = onNavigateToMuleStorage,
+                        onNavigateToAbout = onNavigateToAbout
                     )
                 }
-
-                SettingsMenuButton(
-                    onNavigateToAppearance = onNavigateToAppearance,
-                    onNavigateToMeshSync = onNavigateToMeshSync,
-                    onNavigateToMuleStorage = onNavigateToMuleStorage,
-                    onNavigateToAbout = onNavigateToAbout
-                )
             }
+            HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
         }
     }
 }
@@ -909,89 +875,62 @@ fun WhatsOnYourMindCard(
 }
 
 @Composable
-fun FeedFilterPills(
+fun InstagramFeedTabs(
     isNearbyFilter: Boolean,
     onSelectFilter: (Boolean) -> Unit,
     activePeersCount: Int = 0,
     modifier: Modifier = Modifier
 ) {
-    Surface(
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 2.dp),
-        shape = RoundedCornerShape(12.dp),
-        color = FbSurfaceElevated,
-        border = androidx.compose.foundation.BorderStroke(0.6.dp, FbBorder)
+            .background(FbSurface)
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(3.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        // Nearby / For You Tab
+        Column(
+            modifier = Modifier.clickable { onSelectFilter(true) },
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Public Feed Pill
+            Text(
+                text = "Nearby",
+                fontSize = 15.sp,
+                fontWeight = if (isNearbyFilter) FontWeight.Bold else FontWeight.Medium,
+                color = if (isNearbyFilter) FbTextPrimary else FbTextSecondary,
+                fontFamily = FontFamily.SansSerif,
+                modifier = Modifier.padding(vertical = 4.dp)
+            )
             Box(
                 modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (isNearbyFilter) FbSurface else Color.Transparent)
-                    .then(
-                        if (isNearbyFilter) Modifier.border(0.8.dp, FacebookBlue.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-                        else Modifier
-                    )
-                    .clickable { onSelectFilter(true) }
-                    .padding(vertical = 7.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Filled.Public,
-                        contentDescription = null,
-                        tint = if (isNearbyFilter) FacebookBlue else FbTextSecondary,
-                        modifier = Modifier.size(15.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Public",
-                        color = if (isNearbyFilter) FacebookBlue else FbTextSecondary,
-                        fontSize = 13.5.sp,
-                        fontWeight = if (isNearbyFilter) FontWeight.Bold else FontWeight.Medium,
-                        fontFamily = FontFamily.SansSerif
-                    )
-                }
-            }
+                    .width(42.dp)
+                    .height(2.dp)
+                    .clip(RoundedCornerShape(1.dp))
+                    .background(if (isNearbyFilter) FbTextPrimary else Color.Transparent)
+            )
+        }
 
-            // Friends Pill
+        // Friends Tab
+        Column(
+            modifier = Modifier.clickable { onSelectFilter(false) },
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Friends",
+                fontSize = 15.sp,
+                fontWeight = if (!isNearbyFilter) FontWeight.Bold else FontWeight.Medium,
+                color = if (!isNearbyFilter) FbTextPrimary else FbTextSecondary,
+                fontFamily = FontFamily.SansSerif,
+                modifier = Modifier.padding(vertical = 4.dp)
+            )
             Box(
                 modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (!isNearbyFilter) FbSurface else Color.Transparent)
-                    .then(
-                        if (!isNearbyFilter) Modifier.border(0.8.dp, FacebookBlue.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-                        else Modifier
-                    )
-                    .clickable { onSelectFilter(false) }
-                    .padding(vertical = 7.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Filled.Group,
-                        contentDescription = null,
-                        tint = if (!isNearbyFilter) FacebookBlue else FbTextSecondary,
-                        modifier = Modifier.size(15.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Friends",
-                        color = if (!isNearbyFilter) FacebookBlue else FbTextSecondary,
-                        fontSize = 13.5.sp,
-                        fontWeight = if (!isNearbyFilter) FontWeight.Bold else FontWeight.Medium,
-                        fontFamily = FontFamily.SansSerif
-                    )
-                }
-            }
+                    .width(42.dp)
+                    .height(2.dp)
+                    .clip(RoundedCornerShape(1.dp))
+                    .background(if (!isNearbyFilter) FbTextPrimary else Color.Transparent)
+            )
         }
     }
 }

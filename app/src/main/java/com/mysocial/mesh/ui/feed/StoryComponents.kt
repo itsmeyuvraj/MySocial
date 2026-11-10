@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -61,6 +62,7 @@ import com.mysocial.mesh.ui.components.AvatarView
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FbBackground
 import com.mysocial.mesh.ui.theme.FbBorder
+import com.mysocial.mesh.ui.theme.FbDivider
 import com.mysocial.mesh.ui.theme.FbSurface
 import com.mysocial.mesh.ui.theme.FbSurfaceElevated
 import com.mysocial.mesh.ui.theme.FbTextPrimary
@@ -80,22 +82,20 @@ fun StoryCarouselView(
         stories.groupBy { it.authorId }
     }
 
-    Surface(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 2.dp),
-        shape = RoundedCornerShape(14.dp),
-        color = FbSurface,
-        border = androidx.compose.foundation.BorderStroke(0.8.dp, FbBorder)
+            .background(FbSurface)
     ) {
         LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            contentPadding = PaddingValues(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(vertical = 10.dp),
+            contentPadding = PaddingValues(horizontal = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // "Add Story" Card
+            // "Your Story" with Instagram-style avatar and + badge
             item {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -104,36 +104,36 @@ fun StoryCarouselView(
                         .padding(horizontal = 2.dp)
                 ) {
                     Box(
-                        modifier = Modifier.size(52.dp),
+                        modifier = Modifier.size(68.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         AvatarView(
                             seed = myAuthorId,
                             displayName = "You",
-                            size = 46.dp
+                            size = 62.dp
                         )
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
-                                .size(18.dp)
+                                .size(22.dp)
                                 .clip(CircleShape)
-                                .background(FacebookBlue)
-                                .border(1.5.dp, FbSurface, CircleShape),
+                                .background(Color(0xFF0095F6))
+                                .border(2.dp, FbSurface, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Add,
                                 contentDescription = "Add Story",
                                 tint = Color.White,
-                                modifier = Modifier.size(12.dp)
+                                modifier = Modifier.size(13.dp)
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(3.dp))
+                    Spacer(modifier = Modifier.height(5.dp))
                     Text(
-                        text = "Your Story",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
+                        text = "Your story",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Normal,
                         color = FbTextPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -141,20 +141,14 @@ fun StoryCarouselView(
                 }
             }
 
-            // Other Authors' Stories
+            // Other Authors' Stories with iconic Instagram gradient ring
             items(groupedByAuthor.entries.toList(), key = { it.key }) { (authorId, authorStories) ->
                 val allViewed = authorStories.all { it.isViewed }
                 val latestStory = authorStories.last()
                 val storyBorder = if (allViewed) {
                     Brush.linearGradient(listOf(FbBorder, FbBorder))
                 } else {
-                    Brush.linearGradient(
-                        listOf(
-                            Color(0xFF833AB4),
-                            Color(0xFFFD1D1D),
-                            Color(0xFFFCB045)
-                        )
-                    )
+                    com.mysocial.mesh.ui.theme.InstagramStoryGradient
                 }
 
                 Column(
@@ -165,26 +159,26 @@ fun StoryCarouselView(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(52.dp)
+                            .size(68.dp)
                             .clip(CircleShape)
                             .background(storyBorder)
-                            .padding(2.dp)
+                            .padding(2.5.dp)
                             .clip(CircleShape)
                             .background(FbSurface)
-                            .padding(1.5.dp),
+                            .padding(2.5.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         AvatarView(
                             seed = authorId,
                             displayName = latestStory.authorDisplayName,
-                            size = 42.dp
+                            size = 56.dp
                         )
                     }
-                    Spacer(modifier = Modifier.height(3.dp))
+                    Spacer(modifier = Modifier.height(5.dp))
                     Text(
-                        text = latestStory.authorDisplayName.take(9),
-                        fontSize = 11.sp,
-                        fontWeight = if (allViewed) FontWeight.Normal else FontWeight.SemiBold,
+                        text = latestStory.authorDisplayName,
+                        fontSize = 11.5.sp,
+                        fontWeight = if (allViewed) FontWeight.Normal else FontWeight.Medium,
                         color = FbTextPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -192,6 +186,7 @@ fun StoryCarouselView(
                 }
             }
         }
+        HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
     }
 }
 
