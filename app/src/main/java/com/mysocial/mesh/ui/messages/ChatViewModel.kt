@@ -48,6 +48,11 @@ class ChatViewModel(
     val voiceRecorder = VoiceRecorder(viewModelScope)
     val voicePlayer = VoicePlayer(viewModelScope)
     val isRecording: StateFlow<Boolean> = voiceRecorder.isRecording
+
+    fun startVoiceCall() {
+        val name = peerProfile.value?.displayName ?: "Friend"
+        repository.voiceCallManager?.startCall(peerAuthorId, name)
+    }
     val recordingDurationMs: StateFlow<Long> = voiceRecorder.recordingDurationMs
 
     init {

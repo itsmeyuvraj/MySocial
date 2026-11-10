@@ -76,6 +76,7 @@ import com.mysocial.mesh.data.MeshDatabase
 import com.mysocial.mesh.data.MeshRepository
 import com.mysocial.mesh.protocol.GossipSyncEngine
 import com.mysocial.mesh.service.MeshSyncService
+import com.mysocial.mesh.ui.call.VoiceCallOverlay
 import com.mysocial.mesh.ui.composer.ComposerScreen
 import com.mysocial.mesh.ui.composer.ComposerViewModel
 import com.mysocial.mesh.ui.feed.FeedScreen
@@ -421,6 +422,14 @@ class MainActivity : ComponentActivity() {
         var downloadProgress by remember { mutableStateOf<Float?>(null) }
         val totalUnreadCount by repository.observeTotalUnreadMessagesCount().collectAsState(initial = 0)
 
+        // Voice Call State
+        val voiceCallMgr = repository.voiceCallManager
+        val activeCallSession by (voiceCallMgr?.activeSession?.collectAsState() ?: remember { mutableStateOf(null) })
+        val incomingCallSession by (voiceCallMgr?.incomingSession?.collectAsState() ?: remember { mutableStateOf(null) })
+        val callDurationSec by (voiceCallMgr?.callDurationSec?.collectAsState() ?: remember { mutableIntStateOf(0) })
+        val isCallMuted by (voiceCallMgr?.isMuted?.collectAsState() ?: remember { mutableStateOf(false) })
+        val isCallSpeakerphone by (voiceCallMgr?.isSpeakerphone?.collectAsState() ?: remember { mutableStateOf(false) })
+
         if (pendingUpdateInfo != null) {
             UpdateDialog(
                 updateInfo = pendingUpdateInfo!!,
@@ -658,6 +667,20 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+
+                // Global Direct BLE Voice Call Overlay (Incoming Ringing dialog & Active In-Call sheet)
+                VoiceCallOverlay(
+                    activeSession = activeCallSession,
+                    incomingSession = incomingCallSession,
+                    durationSec = callDurationSec,
+                    isMuted = isCallMuted,
+                    isSpeakerphone = isCallSpeakerphone,
+                    onAccept = { repository.voiceCallManager?.acceptCall() },
+                    onDecline = { repository.voiceCallManager?.declineCall() },
+                    onEndCall = { repository.voiceCallManager?.endCall() },
+                    onToggleMute = { repository.voiceCallManager?.toggleMute() },
+                    onToggleSpeaker = { repository.voiceCallManager?.toggleSpeakerphone() }
+                )
             }
         }
     }

@@ -45,6 +45,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
@@ -239,6 +240,19 @@ fun ChatScreen(
                                 fontWeight = if (isOnline) FontWeight.Medium else FontWeight.Normal
                             )
                         }
+                    }
+
+                    // Direct Voice Call Button
+                    IconButton(
+                        onClick = { viewModel.startVoiceCall() },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Call,
+                            contentDescription = "Direct Voice Call",
+                            tint = FacebookBlue,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
                 }
             }

@@ -97,6 +97,22 @@ class CryptoManager private constructor(
         return E2eeManager.decrypt(privateKeyBytes, payload)
     }
 
+    /**
+     * Computes an X25519 ECDH shared secret with a peer's identity key for voice calls and secure sessions.
+     */
+    fun computeSharedSecret(peerAuthorId: String): ByteArray? {
+        return try {
+            val peerPubBytes = extractPublicKeyBytes(peerAuthorId) ?: return null
+            val peerX25519Pub = E2eeManager.ed25519PubToX25519(peerPubBytes)
+            val myX25519Priv = E2eeManager.ed25519PrivToX25519(privateKeyBytes)
+            val sharedSecret = ByteArray(32)
+            val ok = org.bouncycastle.math.ec.rfc7748.X25519.calculateAgreement(myX25519Priv, 0, peerX25519Pub, 0, sharedSecret, 0)
+            if (ok) sharedSecret else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     companion object {
         private const val ANDROID_KEYSTORE_PROVIDER = "AndroidKeyStore"
         private const val MASTER_KEY_ALIAS = "MySocialMeshMasterKey_v1"

@@ -555,6 +555,10 @@ object LogValidator {
                     val s = com.mysocial.mesh.model.StoryPayload.fromJson(json)
                     s.storyId.isNotBlank() && s.authorId.isNotBlank()
                 }
+                ContentType.VOICE_CALL_SIGNAL -> {
+                    val cs = com.mysocial.mesh.model.VoiceCallSignalPayload.fromJson(json)
+                    cs.callId.isNotBlank() && cs.signalType.isNotBlank() && cs.callerAuthorId.isNotBlank() && cs.recipientAuthorId.isNotBlank()
+                }
             }
         } catch (e: Exception) {
             false
@@ -940,6 +944,18 @@ object LogProjector {
                     Log.w("MeshDatabase", "Failed to project PTT voice burst: ${e.message}")
                 }
             }
+
+            ContentType.VOICE_CALL_SIGNAL -> {
+                try {
+                    val callSignal = com.mysocial.mesh.model.VoiceCallSignalPayload.fromJson(entry.contentJson)
+                    val myAuthorId = db.cryptoManager?.authorId
+                    if (myAuthorId != null && (callSignal.recipientAuthorId == myAuthorId || callSignal.callerAuthorId == myAuthorId)) {
+                        db.onVoiceCallSignalReceived?.invoke(callSignal)
+                    }
+                } catch (e: Exception) {
+                    Log.w("MeshDatabase", "Failed to project voice call signal: ${e.message}")
+                }
+            }
         }
     }
 }
@@ -987,6 +1003,9 @@ abstract class MeshDatabase : RoomDatabase() {
 
     @Volatile
     var onPttVoiceBurstReceived: ((com.mysocial.mesh.model.PttVoiceBurstPayload) -> Unit)? = null
+
+    @Volatile
+    var onVoiceCallSignalReceived: ((com.mysocial.mesh.model.VoiceCallSignalPayload) -> Unit)? = null
 
     abstract fun logEntryDao(): LogEntryDao
     abstract fun profileDao(): ProfileDao
@@ -1240,6 +1259,7 @@ abstract class MeshDatabase : RoomDatabase() {
             )
                 .allowMainThreadQueries()
                 .build()
+                .also { it.appContext = context.applicationContext }
         }
     }
 }

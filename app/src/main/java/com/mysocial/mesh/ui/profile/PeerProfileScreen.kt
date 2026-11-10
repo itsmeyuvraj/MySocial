@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.QrCodeScanner
@@ -312,6 +313,31 @@ fun PeerProfileScreen(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 15.sp
                                 )
+                            }
+
+                            if (isFriend || isVerified) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Button(
+                                    onClick = { repository.voiceCallManager?.startCall(peerAuthorId, resolvedName) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = FbGreen,
+                                        contentColor = Color.White
+                                    ),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Call,
+                                        contentDescription = "Direct Voice Call",
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Voice Call $resolvedName",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp
+                                    )
+                                }
                             }
 
                             Spacer(modifier = Modifier.height(10.dp))

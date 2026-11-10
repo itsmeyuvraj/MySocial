@@ -84,6 +84,9 @@ class MeshRepository(
                 }
             }
         }
+        db.onVoiceCallSignalReceived = { signal ->
+            voiceCallManager?.handleCallSignal(signal)
+        }
         startStalePeerPruner()
     }
 
@@ -130,6 +133,13 @@ class MeshRepository(
                     onPttBroadcast?.invoke(burst)
                 }
             }
+        }
+    }
+
+    val voiceCallManager: com.mysocial.mesh.call.BleVoiceCallManager? by lazy {
+        val ctx = db.appContext ?: com.mysocial.mesh.MySocialApplication.instance?.applicationContext
+        ctx?.let {
+            com.mysocial.mesh.call.BleVoiceCallManager(it, cryptoManager, syncEngine, db, repoScope)
         }
     }
 

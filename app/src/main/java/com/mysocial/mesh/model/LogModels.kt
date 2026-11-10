@@ -35,7 +35,8 @@ enum class ContentType {
     GROUP_MESSAGE,
     PTT_VOICE_BURST,
     GATEWAY_DELIVERY_RECEIPT,
-    STORY
+    STORY,
+    VOICE_CALL_SIGNAL
 }
 
 // -----------------------------------------------------------------------------------------
@@ -185,6 +186,24 @@ data class PttVoiceBurstPayload(
 
     companion object {
         fun fromJson(json: String): PttVoiceBurstPayload = CanonicalJson.decodeFromString(json)
+    }
+}
+
+@Serializable
+data class VoiceCallSignalPayload(
+    val callId: String,
+    val signalType: String, // "INVITE", "ACCEPT", "REJECT", "HANGUP"
+    val callerAuthorId: String,
+    val callerDisplayName: String,
+    val recipientAuthorId: String,
+    val l2capPsm: Int = 0,
+    val ephemeralPublicKeyBase64: String = "",
+    val timestamp: Long = System.currentTimeMillis()
+) {
+    fun toJson(): String = CanonicalJson.encodeToString(this)
+
+    companion object {
+        fun fromJson(json: String): VoiceCallSignalPayload = CanonicalJson.decodeFromString(json)
     }
 }
 
