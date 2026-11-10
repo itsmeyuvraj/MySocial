@@ -11,6 +11,7 @@ import com.mysocial.mesh.crypto.E2eeManager
 import com.mysocial.mesh.data.MeshDatabase
 import com.mysocial.mesh.model.FollowViewEntity
 import com.mysocial.mesh.model.ProfileViewEntity
+import com.mysocial.mesh.model.DirectMessageEntity
 import com.mysocial.mesh.model.VoiceCallSignalPayload
 import com.mysocial.mesh.protocol.GossipSyncEngine
 import kotlinx.coroutines.Dispatchers
@@ -398,5 +399,89 @@ class BleVoiceCallTest {
         assertFalse(aliceCallManager.isSpeakerphone.value)
         aliceCallManager.toggleSpeakerphone()
         aliceCallManager.toggleSpeakerphone()
+    }
+
+    @Test
+    fun testRejectStaleIncomingCallInvite() = runBlocking {
+        // Alice follows Bob
+        aliceDb.followDao().upsert(
+            FollowViewEntity(
+                followerId = aliceCrypto.authorId,
+                followeeId = bobCrypto.authorId,
+                isFollowing = true,
+                updatedAtSeq = 1L
+            )
+        )
+
+        // Stale call invite from 60 seconds ago (simulating replayed gossip log entry)
+        val staleInvite = VoiceCallSignalPayload(
+            callId = "call-stale-invite-test",
+            signalType = "INVITE",
+            callerAuthorId = bobCrypto.authorId,
+            callerDisplayName = "Bob",
+            recipientAuthorId = aliceCrypto.authorId,
+            l2capPsm = 131,
+            timestamp = System.currentTimeMillis() - 60_000L
+        )
+
+        aliceCallManager.handleCallSignal(staleInvite).join()
+
+        // Assert stale invite was discarded without ringing (no ghost call)
+        assertNull("Stale invite (> 30s old) must be dropped and never trigger incoming session", aliceCallManager.incomingSession.value)
+    }
+
+    @Test
+    fun testRejectTerminatedCallReplay() = runBlocking {
+        aliceDb.followDao().upsert(
+            FollowViewEntity(
+                followerId = aliceCrypto.authorId,
+                followeeId = bobCrypto.authorId,
+                isFollowing = true,
+                updatedAtSeq = 1L
+            )
+        )
+
+        val callId = "call-terminated-replay-test"
+        val inviteSignal = VoiceCallSignalPayload(
+            callId = callId,
+            signalType = "INVITE",
+            callerAuthorId = bobCrypto.authorId,
+            callerDisplayName = "Bob",
+            recipientAuthorId = aliceCrypto.authorId,
+            l2capPsm = 132,
+            timestamp = System.currentTimeMillis()
+        )
+
+        aliceCallManager.handleCallSignal(inviteSignal).join()
+        assertNotNull(aliceCallManager.incomingSession.value)
+
+        // Alice declines call -> terminates it and caches callId in terminatedCallIds
+        aliceCallManager.declineCall()?.join()
+        assertNull(aliceCallManager.incomingSession.value)
+
+        // Simulating duplicate gossip sync packet delivering the same INVITE again
+        aliceCallManager.handleCallSignal(inviteSignal).join()
+        assertNull("Duplicate/replayed signal for terminated call must be discarded", aliceCallManager.incomingSession.value)
+    }
+
+    @Test
+    fun testDirectMessageContactAllowedToCall() = runBlocking {
+        // Bob is not explicitly followed in follows_view, but Alice has exchanged messages with Bob
+        aliceDb.directMessageDao().insertMessage(
+            DirectMessageEntity(
+                messageId = "msg-1",
+                conversationPeerId = bobCrypto.authorId,
+                senderId = bobCrypto.authorId,
+                recipientId = aliceCrypto.authorId,
+                text = "Hello Alice",
+                timestamp = System.currentTimeMillis(),
+                isOutgoing = false,
+                isRead = true,
+                status = 1
+            )
+        )
+
+        val isVerified = aliceCallManager.isVerifiedFriend(bobCrypto.authorId)
+        assertTrue("Direct message chat contact must be allowed to call", isVerified)
     }
 }

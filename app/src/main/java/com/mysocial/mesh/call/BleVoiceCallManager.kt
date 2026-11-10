@@ -101,6 +101,28 @@ class BleVoiceCallManager(
     private var callDurationJob: Job? = null
     private var audioCaptureJob: Job? = null
     private var audioPlaybackJob: Job? = null
+    private var incomingRingTimeoutJob: Job? = null
+    private var outgoingDialTimeoutJob: Job? = null
+
+    // Bounded set of recently terminated/handled call IDs to prevent stale replay and ghost ringing
+    private val terminatedCallIds = java.util.Collections.synchronizedSet(object : LinkedHashSet<String>() {
+        override fun add(element: String): Boolean {
+            if (size > 200) {
+                val iterator = iterator()
+                if (iterator.hasNext()) {
+                    iterator.next()
+                    iterator.remove()
+                }
+            }
+            return super.add(element)
+        }
+    })
+
+    companion object {
+        private const val MAX_SIGNAL_AGE_MS = 30_000L
+        private const val CALL_RING_TIMEOUT_MS = 30_000L
+        private const val CALL_DIAL_TIMEOUT_MS = 30_000L
+    }
 
     private val bluetoothAdapter: BluetoothAdapter? by lazy {
         val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager
@@ -135,6 +157,8 @@ class BleVoiceCallManager(
                             handleIncomingL2capSocket(socket)
                         } catch (e: Exception) {
                             if (!isActive) break
+                            Log.w(tag, "L2CAP audio server accept error: ${e.message}")
+                            delay(1000)
                         }
                     }
                 }
@@ -145,14 +169,15 @@ class BleVoiceCallManager(
     }
 
     /**
-     * Verifies whether a peer is an in-person verified friend or mutual follow before allowing voice calling.
+     * Verifies whether a peer is an in-person verified friend, mutual follow, or existing chat contact before allowing voice calling.
      */
     suspend fun isVerifiedFriend(peerAuthorId: String): Boolean {
         if (peerAuthorId.isBlank() || peerAuthorId == cryptoManager.authorId) return false
         val isFollowing = db.followDao().isFollowing(cryptoManager.authorId, peerAuthorId) == true
         val isVerifiedInPerson = db.followDao().isVerifiedInPerson(cryptoManager.authorId, peerAuthorId) == true ||
                 db.profileDao().getProfile(peerAuthorId)?.isVerifiedInPerson == true
-        return isFollowing || isVerifiedInPerson
+        val hasDirectMessage = db.directMessageDao().hasConversationWith(peerAuthorId) > 0
+        return isFollowing || isVerifiedInPerson || hasDirectMessage
     }
 
     /**
@@ -182,6 +207,20 @@ class BleVoiceCallManager(
         _activeSession.value = session
         _incomingSession.value = null
 
+        outgoingDialTimeoutJob?.cancel()
+        outgoingDialTimeoutJob = scope.launch {
+            delay(CALL_DIAL_TIMEOUT_MS)
+            if (_activeSession.value?.callId == callId && _activeSession.value?.state == CallState.DIALING) {
+                Log.i(tag, "Outgoing call $callId timed out after 30s with no answer.")
+                endCall()
+                withContext(Dispatchers.Main) {
+                    try {
+                        android.widget.Toast.makeText(context, "No answer", android.widget.Toast.LENGTH_SHORT).show()
+                    } catch (_: Exception) {}
+                }
+            }
+        }
+
         // Send Call Invite signal over BLE mesh
         val signal = VoiceCallSignalPayload(
             callId = callId,
@@ -200,6 +239,8 @@ class BleVoiceCallManager(
     fun acceptCall(): Job? {
         val incoming = _incomingSession.value ?: return null
         com.mysocial.mesh.utils.PeerNotificationHelper.cancelIncomingVoiceCall(context)
+        incomingRingTimeoutJob?.cancel()
+        incomingRingTimeoutJob = null
         return scope.launch {
             _incomingSession.value = null
             val session = incoming.copy(state = CallState.CONNECTING)
@@ -233,7 +274,12 @@ class BleVoiceCallManager(
      */
     fun endCall(): Job? {
         com.mysocial.mesh.utils.PeerNotificationHelper.cancelIncomingVoiceCall(context)
+        incomingRingTimeoutJob?.cancel()
+        incomingRingTimeoutJob = null
+        outgoingDialTimeoutJob?.cancel()
+        outgoingDialTimeoutJob = null
         val current = _activeSession.value ?: _incomingSession.value
+        current?.callId?.let { terminatedCallIds.add(it) }
         _activeSession.value = null
         _incomingSession.value = null
         _callDurationSec.value = 0
@@ -286,6 +332,20 @@ class BleVoiceCallManager(
             return@launch
         }
 
+        // 1. Freshness check: Call signals older than 30s or > 15s in future are stale/invalid.
+        val now = System.currentTimeMillis()
+        val signalAgeMs = now - signal.timestamp
+        if (signalAgeMs > MAX_SIGNAL_AGE_MS || signalAgeMs < -15_000L) {
+            Log.d(tag, "Ignoring stale/clock-skewed call signal ${signal.signalType} (age: ${signalAgeMs}ms, callId: ${signal.callId})")
+            return@launch
+        }
+
+        // 2. Terminated call check: If call was already ended/rejected, drop duplicate/delayed signals.
+        if (terminatedCallIds.contains(signal.callId)) {
+            Log.d(tag, "Ignoring signal ${signal.signalType} for already terminated call ${signal.callId}")
+            return@launch
+        }
+
         when (signal.signalType) {
             "INVITE" -> {
                 // Callee processes INVITE. Caller never processes own INVITE.
@@ -293,17 +353,41 @@ class BleVoiceCallManager(
                     return@launch
                 }
 
-                // Only allow calls from verified friends!
-                if (!isVerifiedFriend(signal.callerAuthorId)) {
-                    Log.w(tag, "Silently rejecting call from non-verified peer ${signal.callerAuthorId}")
-                    val reject = VoiceCallSignalPayload(
+                // If this specific call is already ringing or active, ignore duplicate invite
+                if (_incomingSession.value?.callId == signal.callId || _activeSession.value?.callId == signal.callId) {
+                    return@launch
+                }
+
+                // If already in an active call, reject as busy
+                if (_activeSession.value != null && _activeSession.value?.state != CallState.IDLE) {
+                    Log.i(tag, "Rejecting incoming call from ${signal.callerAuthorId}: device busy")
+                    val busyReject = VoiceCallSignalPayload(
                         callId = signal.callId,
                         signalType = "REJECT",
                         callerAuthorId = myAuthorId,
                         callerDisplayName = syncEngine.myDisplayName,
                         recipientAuthorId = signal.callerAuthorId
                     )
-                    dispatchSignal(reject)
+                    dispatchSignal(busyReject)
+                    terminatedCallIds.add(signal.callId)
+                    return@launch
+                }
+
+                // Only allow calls from verified friends / contacts!
+                if (!isVerifiedFriend(signal.callerAuthorId)) {
+                    Log.w(tag, "Silently rejecting call from non-verified peer ${signal.callerAuthorId}")
+                    terminatedCallIds.add(signal.callId)
+                    // Only dispatch reject if signal is very fresh (< 15s) to avoid spamming the mesh
+                    if (signalAgeMs in -15_000L..15_000L) {
+                        val reject = VoiceCallSignalPayload(
+                            callId = signal.callId,
+                            signalType = "REJECT",
+                            callerAuthorId = myAuthorId,
+                            callerDisplayName = syncEngine.myDisplayName,
+                            recipientAuthorId = signal.callerAuthorId
+                        )
+                        dispatchSignal(reject)
+                    }
                     return@launch
                 }
 
@@ -319,10 +403,25 @@ class BleVoiceCallManager(
                 )
                 _incomingSession.value = incoming
                 com.mysocial.mesh.utils.PeerNotificationHelper.notifyIncomingVoiceCall(context, signal.callerDisplayName)
+
+                // Callee 30s ringing timeout
+                incomingRingTimeoutJob?.cancel()
+                incomingRingTimeoutJob = scope.launch {
+                    delay(CALL_RING_TIMEOUT_MS)
+                    if (_incomingSession.value?.callId == signal.callId) {
+                        Log.i(tag, "Incoming call ${signal.callId} timed out after 30s ringing.")
+                        _incomingSession.value = null
+                        terminatedCallIds.add(signal.callId)
+                        com.mysocial.mesh.utils.PeerNotificationHelper.cancelIncomingVoiceCall(context)
+                    }
+                }
             }
 
             "ACCEPT" -> {
                 com.mysocial.mesh.utils.PeerNotificationHelper.cancelIncomingVoiceCall(context)
+                outgoingDialTimeoutJob?.cancel()
+                outgoingDialTimeoutJob = null
+
                 // Caller processes ACCEPT from callee. Callee ignores own ACCEPT.
                 if (signal.recipientAuthorId == myAuthorId) {
                     return@launch
@@ -341,6 +440,12 @@ class BleVoiceCallManager(
 
             "REJECT", "HANGUP" -> {
                 com.mysocial.mesh.utils.PeerNotificationHelper.cancelIncomingVoiceCall(context)
+                incomingRingTimeoutJob?.cancel()
+                incomingRingTimeoutJob = null
+                outgoingDialTimeoutJob?.cancel()
+                outgoingDialTimeoutJob = null
+                terminatedCallIds.add(signal.callId)
+
                 // If this is a hangup we sent ourselves, we already cleared session locally
                 if (signal.callerAuthorId == myAuthorId && signal.recipientAuthorId != myAuthorId) {
                     return@launch
@@ -612,6 +717,10 @@ class BleVoiceCallManager(
     }
 
     fun release() {
+        incomingRingTimeoutJob?.cancel()
+        incomingRingTimeoutJob = null
+        outgoingDialTimeoutJob?.cancel()
+        outgoingDialTimeoutJob = null
         endCall()
         try { l2capServerSocket?.close() } catch (_: Exception) {}
         l2capServerSocket = null

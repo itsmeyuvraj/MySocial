@@ -368,6 +368,9 @@ interface DirectMessageDao {
     @Query("SELECT * FROM direct_messages WHERE conversationPeerId = :peerId AND isOutgoing = 0 AND isRead = 0")
     suspend fun getUnreadIncomingMessagesForPeer(peerId: String): List<DirectMessageEntity>
 
+    @Query("SELECT COUNT(*) FROM direct_messages WHERE conversationPeerId = :peerId")
+    suspend fun hasConversationWith(peerId: String): Int
+
     @Query("SELECT COUNT(*) FROM direct_messages WHERE mediaBlobHash = :blobHash")
     suspend fun isDirectMessageBlob(blobHash: String): Int
 }
@@ -951,7 +954,14 @@ object LogProjector {
                     if (myAuthorId != null && entry.authorId != myAuthorId) {
                         val callSignal = com.mysocial.mesh.model.VoiceCallSignalPayload.fromJson(entry.contentJson)
                         if (callSignal.recipientAuthorId == myAuthorId || callSignal.callerAuthorId == myAuthorId) {
-                            db.onVoiceCallSignalReceived?.invoke(callSignal)
+                            val now = System.currentTimeMillis()
+                            val signalAgeMs = now - callSignal.timestamp
+                            // Voice call signals are real-time only; drop stale historic entries (> 45s) from projection callback
+                            if (signalAgeMs in -15_000L..45_000L) {
+                                db.onVoiceCallSignalReceived?.invoke(callSignal)
+                            } else {
+                                Log.d("MeshDatabase", "Dropping stale voice call signal ${callSignal.signalType} (age: ${signalAgeMs}ms, callId: ${callSignal.callId})")
+                            }
                         }
                     }
                 } catch (e: Exception) {

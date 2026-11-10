@@ -321,6 +321,8 @@ class BleMeshTransport(
                             }
                         } catch (e: Exception) {
                             if (!isRunning.get()) break
+                            Log.w(tag, "BLE L2CAP transport accept error: ${e.message}")
+                            try { Thread.sleep(1000) } catch (_: Exception) {}
                         }
                     }
                 }, "BleL2capServerThread").start()
