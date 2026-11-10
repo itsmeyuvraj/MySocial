@@ -180,3 +180,4 @@ Here is how the main technologies fit together in the Android project:
 * **No Company In The Middle:** You own your data; nobody can ban you, censor your posts, or sell your personal details.
 * **Resilient in Crises:** Posts and messages hop from phone to phone, while Walkie-Talkie and Direction Radar help people locate each other in emergencies.
 * **Self-Updating:** The app can upgrade itself directly from phone to phone without an app store.
+
