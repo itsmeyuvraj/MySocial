@@ -523,7 +523,7 @@ fun FeedScreen(
         if (showCreateStoryDialog) {
             CreateStoryDialog(
                 onDismiss = { showCreateStoryDialog = false },
-                onPublish = { text -> viewModel.publishStory(text) }
+                onPublish = { text, imageUri -> viewModel.publishStory(text, imageUri, context) }
             )
         }
 

@@ -1,8 +1,14 @@
 package com.mysocial.mesh.ui.feed
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -39,10 +46,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,6 +59,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,7 +69,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.mysocial.mesh.data.MediaProcessor
+import com.mysocial.mesh.data.MeshDatabase
 import com.mysocial.mesh.model.StoryEntity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 import com.mysocial.mesh.ui.components.AvatarView
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FbBackground
@@ -199,6 +216,7 @@ fun FullscreenStoryViewerDialog(
 ) {
     if (stories.isEmpty()) return
 
+    val context = LocalContext.current
     var currentIndex by remember { mutableIntStateOf(initialIndex) }
     val currentStory = stories.getOrNull(currentIndex) ?: return
     var progress by remember(currentIndex) { mutableFloatStateOf(0f) }
@@ -223,6 +241,28 @@ fun FullscreenStoryViewerDialog(
         }
     }
 
+    // Load media blob if story has a photo
+    val storyBlobHash = currentStory.mediaBlobHash
+    val db = remember(context) { MeshDatabase.getInstance(context) }
+    val manifest by if (storyBlobHash != null) {
+        db.blobDao().observeManifest(storyBlobHash).collectAsState(initial = null)
+    } else remember { mutableStateOf(null) }
+
+    val isComplete = manifest?.isComplete == true
+    val localFile = remember(manifest?.localFilePath, isComplete, storyBlobHash) {
+        if (storyBlobHash != null) {
+            manifest?.localFilePath?.let { File(it) } ?: MediaProcessor.getBlobFile(context, storyBlobHash)
+        } else null
+    }
+
+    val storyBitmap by produceState<Bitmap?>(initialValue = null, localFile, isComplete) {
+        value = if (localFile != null && localFile.exists()) {
+            withContext(Dispatchers.IO) {
+                MediaProcessor.decodeBlobFile(localFile)
+            }
+        } else null
+    }
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -239,22 +279,57 @@ fun FullscreenStoryViewerDialog(
                     }
                 }
         ) {
-            // Story Text content in center
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = currentStory.text,
-                    color = Color.White,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 30.sp
+            // Full-screen Story Image if present
+            if (storyBitmap != null) {
+                Image(
+                    bitmap = storyBitmap!!.asImageBitmap(),
+                    contentDescription = "Story photo",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
                 )
+            }
+
+            // Story Text Content (Centered if text-only, bottom overlay if photo)
+            if (currentStory.text.isNotBlank()) {
+                if (storyBitmap != null) {
+                    // Bottom Caption Pill on Photo
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 40.dp, start = 20.dp, end = 20.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.Black.copy(alpha = 0.65f))
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = currentStory.text,
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else {
+                    // Text-Only Story Center Canvas
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(32.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = currentStory.text,
+                            color = Color.White,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 30.sp
+                        )
+                    }
+                }
             }
 
             // Top Header: progress bar, avatar, author name, close button
@@ -262,7 +337,12 @@ fun FullscreenStoryViewerDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.TopCenter)
-                    .padding(top = 16.dp, start = 16.dp, end = 16.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent)
+                        )
+                    )
+                    .padding(top = 16.dp, bottom = 24.dp, start = 16.dp, end = 16.dp)
             ) {
                 // Segmented progress bars
                 Row(
@@ -328,9 +408,29 @@ fun FullscreenStoryViewerDialog(
 @Composable
 fun CreateStoryDialog(
     onDismiss: () -> Unit,
-    onPublish: (String) -> Unit
+    onPublish: (text: String, imageUri: Uri?) -> Unit
 ) {
+    val context = LocalContext.current
     var storyText by remember { mutableStateOf("") }
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        selectedImageUri = uri
+    }
+
+    val previewBitmap = remember(selectedImageUri) {
+        selectedImageUri?.let { uri ->
+            try {
+                context.contentResolver.openInputStream(uri)?.use { stream ->
+                    BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                }
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -349,13 +449,101 @@ fun CreateStoryDialog(
                     color = FbTextSecondary
                 )
                 Spacer(modifier = Modifier.height(12.dp))
+
+                // Optional Photo Preview if selected
+                if (previewBitmap != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(0.5.dp, FbBorder, RoundedCornerShape(12.dp))
+                    ) {
+                        Image(
+                            bitmap = previewBitmap,
+                            contentDescription = "Story photo preview",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Color.Black.copy(alpha = 0.65f))
+                                    .clickable { photoPickerLauncher.launch("image/*") }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text("Change", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                            IconButton(
+                                onClick = { selectedImageUri = null },
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Close,
+                                    contentDescription = "Remove photo",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                } else {
+                    // Add Photo Button Strip
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(FbSurface)
+                            .border(0.5.dp, FbBorder, RoundedCornerShape(10.dp))
+                            .clickable { photoPickerLauncher.launch("image/*") }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.AddPhotoAlternate,
+                            contentDescription = "Add Photo",
+                            tint = Color(0xFF45BD62),
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Add Photo to Story",
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = FbTextPrimary
+                            )
+                            Text(
+                                text = "Pick a photo from your gallery",
+                                fontSize = 11.sp,
+                                color = FbTextSecondary
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
                 OutlinedTextField(
                     value = storyText,
                     onValueChange = { storyText = it },
-                    placeholder = { Text("What's happening right now?") },
+                    placeholder = {
+                        Text(
+                            text = if (selectedImageUri != null) "Add a caption (optional)..." else "What's happening right now?",
+                            fontSize = 14.sp
+                        )
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(120.dp),
+                        .height(90.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = FacebookBlue,
@@ -365,14 +553,15 @@ fun CreateStoryDialog(
             }
         },
         confirmButton = {
+            val canShare = storyText.isNotBlank() || selectedImageUri != null
             Button(
                 onClick = {
-                    if (storyText.isNotBlank()) {
-                        onPublish(storyText)
+                    if (canShare) {
+                        onPublish(storyText, selectedImageUri)
                         onDismiss()
                     }
                 },
-                enabled = storyText.isNotBlank(),
+                enabled = canShare,
                 colors = ButtonDefaults.buttonColors(containerColor = FacebookBlue),
                 shape = RoundedCornerShape(8.dp)
             ) {
