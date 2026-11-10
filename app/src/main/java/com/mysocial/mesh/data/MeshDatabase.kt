@@ -967,7 +967,7 @@ data class BatchResult(val acceptedCount: Int, val errors: List<String>)
         GroupMessageEntity::class,
         StoryEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

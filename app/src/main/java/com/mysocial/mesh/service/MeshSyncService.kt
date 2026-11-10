@@ -369,6 +369,9 @@ class MeshSyncService : Service() {
         _isMeshActive.value = false
         periodicSyncJob?.cancel()
         periodicSyncJob = null
+        try {
+            com.mysocial.mesh.lora.LoraCompanionBridge.getInstance(this).onPacketReceived = null
+        } catch (_: Exception) {}
         wifiTransport?.stop()
         wifiTransport = null
         bleTransport?.stop()
@@ -379,6 +382,7 @@ class MeshSyncService : Service() {
         iosBridge = null
         gatewayUplinkManager?.stopMonitoring()
         gatewayUplinkManager = null
+        syncEngine.release()
         com.mysocial.mesh.update.PeerApkUpdateManager.getInstance(this).stopServer()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()

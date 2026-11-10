@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.util.UUID
@@ -41,7 +42,14 @@ class PttWalkieTalkieManager(
     private val onContentPublished: (() -> Unit)? = null
 ) {
     var onPttBroadcast: ((PttVoiceBurstPayload) -> Unit)? = null
-    private val playedBurstIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private val playedBurstIds: MutableSet<String> = java.util.Collections.synchronizedSet(
+        object : java.util.LinkedHashMap<String, Boolean>(128, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Boolean>?): Boolean {
+                return size > 500
+            }
+        }.let { java.util.Collections.newSetFromMap(it) }
+    )
+    private val playbackMutex = kotlinx.coroutines.sync.Mutex()
     companion object {
         private const val TAG = "PttWalkieTalkie"
         const val SAMPLE_RATE = 16000
@@ -183,7 +191,13 @@ class PttWalkieTalkieManager(
                 if (record.state == AudioRecord.STATE_INITIALIZED) {
                     activeAudioRecord = record
                     record.startRecording()
+                    val maxRecordingDurationMs = 60_000L
                     while (_isRecording.value) {
+                        if (System.currentTimeMillis() - recordingStartTime > maxRecordingDurationMs) {
+                            Log.w(TAG, "Maximum voice burst duration (60s) reached, stopping recording automatically")
+                            _isRecording.value = false
+                            break
+                        }
                         val read = record.read(buffer, 0, buffer.size)
                         if (read > 0) {
                             recordedBytesStream?.write(buffer, 0, read)
@@ -220,7 +234,12 @@ class PttWalkieTalkieManager(
             dummyPcm[i * 2] = (sampleVal.toInt() and 0xFF).toByte()
             dummyPcm[i * 2 + 1] = ((sampleVal.toInt() shr 8) and 0xFF).toByte()
         }
+        val maxRecordingDurationMs = 60_000L
         while (_isRecording.value) {
+            if (System.currentTimeMillis() - recordingStartTime > maxRecordingDurationMs) {
+                _isRecording.value = false
+                break
+            }
             recordedBytesStream?.write(dummyPcm)
             delay(100)
         }
@@ -291,81 +310,83 @@ class PttWalkieTalkieManager(
         playedBurstIds.add(payload.burstId)
         _lastReceivedBurst.value = payload
         scope.launch(Dispatchers.IO) {
-            _isPlaying.value = true
-            var audioTrack: AudioTrack? = null
-            try {
-                val pcmData = Base64.decode(payload.audioBase64, Base64.NO_WRAP)
-                if (pcmData.isEmpty()) return@launch
-
-                // 1. Boost volume on receiving side as well
-                val boostedVoice = amplifyPcm(pcmData, maxGain = 6.0f, targetPeak = 30000)
-                val chirp = generateRadioChirp()
-                val fullAudio = chirp + boostedVoice
-
-                // 2. Ensure device media volume is at least 75% for emergency transmissions
+            playbackMutex.withLock {
+                _isPlaying.value = true
+                var audioTrack: AudioTrack? = null
                 try {
-                    val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-                    if (audioManager != null) {
-                        val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-                        val curVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-                        val minEmergencyVol = (maxVol * 0.75f).toInt()
-                        if (curVol < minEmergencyVol) {
-                            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, minEmergencyVol, 0)
+                    val pcmData = Base64.decode(payload.audioBase64, Base64.NO_WRAP)
+                    if (pcmData.isEmpty()) return@withLock
+
+                    // 1. Boost volume on receiving side as well
+                    val boostedVoice = amplifyPcm(pcmData, maxGain = 6.0f, targetPeak = 30000)
+                    val chirp = generateRadioChirp()
+                    val fullAudio = chirp + boostedVoice
+
+                    // 2. Ensure device media volume is at least 75% for emergency transmissions
+                    try {
+                        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                        if (audioManager != null) {
+                            val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                            val curVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                            val minEmergencyVol = (maxVol * 0.75f).toInt()
+                            if (curVol < minEmergencyVol) {
+                                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, minEmergencyVol, 0)
+                            }
                         }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Unable to adjust stream volume: ${e.message}")
                     }
+
+                    val bufferSize = AudioTrack.getMinBufferSize(
+                        SAMPLE_RATE,
+                        AudioFormat.CHANNEL_OUT_MONO,
+                        AUDIO_FORMAT
+                    )
+
+                    audioTrack = AudioTrack.Builder()
+                        .setAudioAttributes(
+                            AudioAttributes.Builder()
+                                .setUsage(AudioAttributes.USAGE_MEDIA)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                                .build()
+                        )
+                        .setAudioFormat(
+                            AudioFormat.Builder()
+                                .setEncoding(AUDIO_FORMAT)
+                                .setSampleRate(SAMPLE_RATE)
+                                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                                .build()
+                        )
+                        .setBufferSizeInBytes(bufferSize.coerceAtLeast(fullAudio.size))
+                        .setTransferMode(AudioTrack.MODE_STREAM)
+                        .build()
+
+                    audioTrack.setVolume(AudioTrack.getMaxVolume())
+                    audioTrack.play()
+                    audioTrack.write(fullAudio, 0, fullAudio.size)
+
+                    // Drain AudioTrack fully until all samples reach loudspeaker
+                    val totalFrames = fullAudio.size / 2
+                    val maxWaitMs = payload.durationMs + 1500L
+                    val startTime = System.currentTimeMillis()
+                    while (audioTrack.playState == AudioTrack.PLAYSTATE_PLAYING &&
+                        audioTrack.playbackHeadPosition < totalFrames &&
+                        (System.currentTimeMillis() - startTime) < maxWaitMs
+                    ) {
+                        delay(40)
+                    }
+                    delay(120) // Final drain margin
                 } catch (e: Exception) {
-                    Log.w(TAG, "Unable to adjust stream volume: ${e.message}")
+                    Log.w(TAG, "AudioTrack playback error: ${e.message}")
+                } finally {
+                    try {
+                        audioTrack?.stop()
+                    } catch (_: Exception) {}
+                    try {
+                        audioTrack?.release()
+                    } catch (_: Exception) {}
+                    _isPlaying.value = false
                 }
-
-                val bufferSize = AudioTrack.getMinBufferSize(
-                    SAMPLE_RATE,
-                    AudioFormat.CHANNEL_OUT_MONO,
-                    AUDIO_FORMAT
-                )
-
-                audioTrack = AudioTrack.Builder()
-                    .setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_MEDIA)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                            .build()
-                    )
-                    .setAudioFormat(
-                        AudioFormat.Builder()
-                            .setEncoding(AUDIO_FORMAT)
-                            .setSampleRate(SAMPLE_RATE)
-                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                            .build()
-                    )
-                    .setBufferSizeInBytes(bufferSize.coerceAtLeast(fullAudio.size))
-                    .setTransferMode(AudioTrack.MODE_STREAM)
-                    .build()
-
-                audioTrack.setVolume(AudioTrack.getMaxVolume())
-                audioTrack.play()
-                audioTrack.write(fullAudio, 0, fullAudio.size)
-
-                // Drain AudioTrack fully until all samples reach loudspeaker
-                val totalFrames = fullAudio.size / 2
-                val maxWaitMs = payload.durationMs + 1500L
-                val startTime = System.currentTimeMillis()
-                while (audioTrack.playState == AudioTrack.PLAYSTATE_PLAYING &&
-                    audioTrack.playbackHeadPosition < totalFrames &&
-                    (System.currentTimeMillis() - startTime) < maxWaitMs
-                ) {
-                    delay(40)
-                }
-                delay(120) // Final drain margin
-            } catch (e: Exception) {
-                Log.w(TAG, "AudioTrack playback error: ${e.message}")
-            } finally {
-                try {
-                    audioTrack?.stop()
-                } catch (_: Exception) {}
-                try {
-                    audioTrack?.release()
-                } catch (_: Exception) {}
-                _isPlaying.value = false
             }
         }
     }

@@ -162,8 +162,11 @@ class VoicePlayer(
             return
         }
 
+        var tempMp: MediaPlayer? = null
         try {
-            val mp = MediaPlayer().apply {
+            val mp = MediaPlayer()
+            tempMp = mp
+            mp.apply {
                 setDataSource(file.absolutePath)
                 prepare()
                 setOnCompletionListener {
@@ -172,6 +175,7 @@ class VoicePlayer(
                 start()
             }
             player = mp
+            tempMp = null
             _currentPlayingMessageId.value = messageId
             _isPlaying.value = true
 
@@ -189,6 +193,7 @@ class VoicePlayer(
             }
         } catch (e: Exception) {
             Log.e(tag, "Failed to start media player", e)
+            try { tempMp?.release() } catch (_: Exception) {}
             stop()
         }
     }

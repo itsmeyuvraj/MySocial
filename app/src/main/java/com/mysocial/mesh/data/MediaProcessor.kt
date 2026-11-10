@@ -251,11 +251,34 @@ object MediaProcessor {
         }
     }
 
+    fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeight: Int): Int {
+        val height = options.outHeight
+        val width = options.outWidth
+        var inSampleSize = 1
+        if (height > reqHeight || width > reqWidth) {
+            val halfHeight = height / 2
+            val halfWidth = width / 2
+            while ((halfHeight / inSampleSize) >= reqHeight && (halfWidth / inSampleSize) >= reqWidth) {
+                inSampleSize *= 2
+            }
+        }
+        return inSampleSize
+    }
+
     /**
      * Decodes bitmap from byte array with EXIF orientation correction.
+     * Bounds are sampled first to prevent OutOfMemory crashes on high-megapixel camera captures.
      */
-    private fun decodeWithOrientation(bytes: ByteArray): Bitmap? {
-        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
+    private fun decodeWithOrientation(bytes: ByteArray, maxDimension: Int = MAX_IMAGE_EDGE * 2): Bitmap? {
+        val boundsOptions = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, boundsOptions)
+
+        val decodeOptions = BitmapFactory.Options().apply {
+            inSampleSize = calculateInSampleSize(boundsOptions, maxDimension, maxDimension)
+        }
+        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decodeOptions) ?: return null
         return try {
             val exif = ExifInterface(bytes.inputStream())
             val orientation = exif.getAttributeInt(

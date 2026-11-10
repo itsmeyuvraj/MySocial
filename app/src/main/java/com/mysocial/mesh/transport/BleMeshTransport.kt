@@ -314,6 +314,9 @@ class BleMeshTransport(
                                     syncEngine.syncWithPeer(connection)
                                 } finally {
                                     try { connection?.close() } catch (_: Exception) {}
+                                    if (connection == null) {
+                                        try { socket.close() } catch (_: Exception) {}
+                                    }
                                 }
                             }
                         } catch (e: Exception) {
@@ -864,8 +867,11 @@ class BleMeshTransport(
             Log.i(tag, "Fast-path: Connecting directly via BLE L2CAP CoC to $address on known PSM $knownPsm (Extended Advertising)")
             scope.launch(Dispatchers.IO) {
                 var conn: BluetoothSocketPeerConnection? = null
+                var rawSocket: android.bluetooth.BluetoothSocket? = null
+                var fallbackNeeded = false
                 try {
                     val l2capSocket = device.createInsecureL2capChannel(knownPsm)
+                    rawSocket = l2capSocket
                     l2capSocket.connect()
                     Log.i(tag, "Successfully connected direct BLE L2CAP channel to $address (bypassed GATT roundtrips)")
                     conn = BluetoothSocketPeerConnection(
@@ -879,13 +885,21 @@ class BleMeshTransport(
                     Log.w(tag, "Direct L2CAP connection failed to $address: ${e.message}. Falling back to GATT discovery.")
                     peerPsmMap.remove(address)
                     peerPsmMap.remove(peerId)
-                    connectViaGattDiscovery(device, address, peerId, peerName)
+                    fallbackNeeded = true
                 } finally {
                     try { conn?.close() } catch (_: Exception) {}
-                    activeSyncDevices.remove(address)
-                    activeSyncDevices.remove(peerId)
-                    updatePeerSyncStatus(address, false)
-                    updatePeerSyncStatus(peerId, false)
+                    if (conn == null) {
+                        try { rawSocket?.close() } catch (_: Exception) {}
+                    }
+                    if (!fallbackNeeded) {
+                        activeSyncDevices.remove(address)
+                        activeSyncDevices.remove(peerId)
+                        updatePeerSyncStatus(address, false)
+                        updatePeerSyncStatus(peerId, false)
+                    }
+                }
+                if (fallbackNeeded) {
+                    connectViaGattDiscovery(device, address, peerId, peerName)
                 }
             }
             return
@@ -1034,8 +1048,10 @@ class BleMeshTransport(
 
                                     scope.launch(Dispatchers.IO) {
                                         var conn: BluetoothSocketPeerConnection? = null
+                                        var rawSocket: android.bluetooth.BluetoothSocket? = null
                                         try {
                                             val l2capSocket = device.createInsecureL2capChannel(remotePsm)
+                                            rawSocket = l2capSocket
                                             l2capSocket.connect()
                                             Log.i(tag, "Successfully connected BLE L2CAP channel to $address")
                                             conn = BluetoothSocketPeerConnection(
@@ -1049,6 +1065,9 @@ class BleMeshTransport(
                                             Log.w(tag, "L2CAP connection failed to $address: ${e.message}")
                                         } finally {
                                             try { conn?.close() } catch (_: Exception) {}
+                                            if (conn == null) {
+                                                try { rawSocket?.close() } catch (_: Exception) {}
+                                            }
                                             activeSyncDevices.remove(address)
                                             activeSyncDevices.remove(peerId)
                                             updatePeerSyncStatus(address, false)

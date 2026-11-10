@@ -73,7 +73,11 @@ class StreamPeerConnection(
             } catch (e: Exception) {
                 // Connection closed or error
             } finally {
+                closed.set(true)
                 incomingChannel.close()
+                try { inputStream.close() } catch (_: Exception) {}
+                try { outputStream.close() } catch (_: Exception) {}
+                try { socket.close() } catch (_: Exception) {}
             }
         }, "StreamPeerReader-$peerId").start()
     }
@@ -94,6 +98,8 @@ class StreamPeerConnection(
     override suspend fun close() = withContext(Dispatchers.IO) {
         if (closed.compareAndSet(false, true)) {
             incomingChannel.close()
+            try { inputStream.close() } catch (_: Exception) {}
+            try { outputStream.close() } catch (_: Exception) {}
             try { socket.close() } catch (_: Exception) {}
         }
     }
@@ -129,7 +135,11 @@ class BluetoothSocketPeerConnection(
                 }
             } catch (_: Exception) {
             } finally {
+                closed.set(true)
                 incomingChannel.close()
+                try { inputStream.close() } catch (_: Exception) {}
+                try { outputStream.close() } catch (_: Exception) {}
+                try { socket.close() } catch (_: Exception) {}
             }
         }, "BluetoothPeerReader-$peerId").start()
     }
@@ -150,6 +160,8 @@ class BluetoothSocketPeerConnection(
     override suspend fun close() = withContext(Dispatchers.IO) {
         if (closed.compareAndSet(false, true)) {
             incomingChannel.close()
+            try { inputStream.close() } catch (_: Exception) {}
+            try { outputStream.close() } catch (_: Exception) {}
             try { socket.close() } catch (_: Exception) {}
         }
     }

@@ -10,7 +10,10 @@ import com.mysocial.mesh.data.MediaProcessor
 import com.mysocial.mesh.data.MeshDatabase
 import com.mysocial.mesh.model.ContentType
 import com.mysocial.mesh.model.LogEntry
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -62,6 +65,7 @@ class GossipSyncEngine(
     var peerApkUpdateManager: com.mysocial.mesh.update.PeerApkUpdateManager? = null
 ) {
     private val tag = "GossipSyncEngine"
+    private val engineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val peerIdentifiedListeners = java.util.concurrent.CopyOnWriteArrayList<(String, String, String) -> Unit>()
 
@@ -907,7 +911,7 @@ class GossipSyncEngine(
         db.onPttVoiceBurstReceived?.invoke(payload)
 
         // 2. Persist to ledger so it appears in recent voice history and can be replayed
-        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+        engineScope.launch {
             try {
                 val entryHash = com.mysocial.mesh.crypto.CryptoManager.sha256Hex(payload.burstId + payload.timestamp)
                 val entity = com.mysocial.mesh.model.LogEntryEntity(
@@ -928,5 +932,10 @@ class GossipSyncEngine(
                 Log.w(tag, "Failed to persist direct PTT burst: ${e.message}")
             }
         }
+    }
+
+    fun release() {
+        engineScope.cancel()
+        activeConnections.clear()
     }
 }

@@ -293,6 +293,7 @@ data class ProfileViewEntity(
         Index(value = ["rootHash"]),
         Index(value = ["expiresAt"]),
         Index(value = ["isSos"]),
+        Index(value = ["mediaBlobHash"]),
         Index(value = ["replyToHash", "isSos", "timestamp"]),
         Index(value = ["authorId", "replyToHash", "timestamp"])
     ]
