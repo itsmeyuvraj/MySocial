@@ -97,6 +97,9 @@ interface LogEntryDao {
     @Query("SELECT COUNT(DISTINCT authorId) FROM log_entries")
     suspend fun getTotalAuthorsCount(): Int
 
+    @Query("SELECT * FROM log_entries WHERE authorId = :authorId AND contentType = 'PROFILE' ORDER BY sequence DESC LIMIT 1")
+    suspend fun getLatestProfileEntryForAuthor(authorId: String): LogEntryEntity?
+
     @Query("SELECT * FROM log_entries WHERE contentType = 'PTT_VOICE_BURST' ORDER BY timestamp DESC LIMIT 50")
     fun observeRecentPttEntries(): Flow<List<LogEntryEntity>>
 
@@ -627,7 +630,7 @@ object LogProjector {
             ContentType.PROFILE -> {
                 val payload = ProfilePayload.fromJson(entry.contentJson)
                 val current = db.profileDao().getProfile(entry.authorId)
-                if (current == null || entry.sequence >= current.updatedAtSeq) {
+                if (current == null || entry.sequence >= current.updatedAtSeq || current.displayName == "User" || current.displayName == "MeshPeer") {
                     db.profileDao().upsert(
                         ProfileViewEntity(
                             authorId = entry.authorId,

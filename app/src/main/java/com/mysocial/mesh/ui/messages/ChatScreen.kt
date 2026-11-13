@@ -202,9 +202,13 @@ fun ChatScreen(
 
                         Spacer(modifier = Modifier.width(4.dp))
 
+                        val resolvedHeaderName = profile?.displayName?.takeIf { it.isNotBlank() && it != "User" && it != "MeshPeer" }
+                            ?: peerDisplayName.takeIf { it.isNotBlank() && it != "User" && it != "MeshPeer" }
+                            ?: "Friend"
+
                         AvatarView(
                             seed = profile?.avatarSeed ?: viewModel.peerAuthorId,
-                            displayName = profile?.displayName ?: peerDisplayName,
+                            displayName = resolvedHeaderName,
                             size = 38.dp,
                             showOnlineBadge = isOnline
                         )
@@ -214,7 +218,7 @@ fun ChatScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = profile?.displayName ?: peerDisplayName,
+                                    text = resolvedHeaderName,
                                     color = FbTextPrimary,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 15.sp,
@@ -477,16 +481,20 @@ fun ChatScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
+                    val resolvedCenterName = profile?.displayName?.takeIf { it.isNotBlank() && it != "User" && it != "MeshPeer" }
+                        ?: peerDisplayName.takeIf { it.isNotBlank() && it != "User" && it != "MeshPeer" }
+                        ?: "Friend"
+
                     AvatarView(
                         seed = profile?.avatarSeed ?: viewModel.peerAuthorId,
-                        displayName = profile?.displayName ?: peerDisplayName,
+                        displayName = resolvedCenterName,
                         size = 64.dp
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = profile?.displayName ?: peerDisplayName,
+                        text = resolvedCenterName,
                         color = FbTextPrimary,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold

@@ -90,12 +90,25 @@ class IdentityViewModel(
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
 
     init {
-        generateQr()
+        viewModelScope.launch {
+            myProfile.collect { profile ->
+                val name = profile?.displayName?.takeIf { it.isNotBlank() && it != "User" && it != "MeshPeer" }
+                    ?: repository.getProfile(authorId)?.displayName?.takeIf { it.isNotBlank() && it != "User" && it != "MeshPeer" }
+                    ?: android.os.Build.MODEL?.takeIf { it.isNotBlank() }
+                    ?: "Neighbor"
+                val qrPayload = TrustQrUtils.createTrustPayload(authorId, name, repository.cryptoManager)
+                val bitmap = QrCodeGenerator.generateQrBitmap(qrPayload, size = 480)
+                _qrBitmap.value = bitmap
+            }
+        }
     }
 
     fun generateQr() {
         viewModelScope.launch(Dispatchers.Default) {
-            val name = myProfile.value?.displayName ?: "User"
+            val name = myProfile.value?.displayName?.takeIf { it.isNotBlank() && it != "User" && it != "MeshPeer" }
+                ?: repository.getProfile(authorId)?.displayName?.takeIf { it.isNotBlank() && it != "User" && it != "MeshPeer" }
+                ?: android.os.Build.MODEL?.takeIf { it.isNotBlank() }
+                ?: "Neighbor"
             val qrPayload = TrustQrUtils.createTrustPayload(authorId, name, repository.cryptoManager)
             val bitmap = QrCodeGenerator.generateQrBitmap(qrPayload, size = 480)
             _qrBitmap.value = bitmap
@@ -117,16 +130,18 @@ class IdentityViewModel(
             if (trustData != null && trustData.isValidSignature) {
                 repository.toggleFollow(trustData.authorId, true)
                 repository.setVerifiedInPerson(trustData.authorId, true)
-                if (trustData.displayName.isNotBlank()) {
-                    repository.upsertFriendProfile(trustData.authorId, trustData.displayName)
+                val cleanFriendName = trustData.displayName.takeIf { it.isNotBlank() && it != "User" && it != "MeshPeer" }
+                if (cleanFriendName != null) {
+                    repository.upsertFriendProfile(trustData.authorId, cleanFriendName)
                 }
-                onResult(true, "Added ${trustData.displayName} as verified friend!")
+                onResult(true, "Added ${cleanFriendName ?: "Friend"} as verified friend!")
             } else if (trustData != null) {
                 repository.toggleFollow(trustData.authorId, true)
-                if (trustData.displayName.isNotBlank()) {
-                    repository.upsertFriendProfile(trustData.authorId, trustData.displayName)
+                val cleanFriendName = trustData.displayName.takeIf { it.isNotBlank() && it != "User" && it != "MeshPeer" }
+                if (cleanFriendName != null) {
+                    repository.upsertFriendProfile(trustData.authorId, cleanFriendName)
                 }
-                onResult(true, "Added ${trustData.displayName} as friend")
+                onResult(true, "Added ${cleanFriendName ?: "Friend"} as friend")
             } else {
                 val raw = scannedText.trim()
                 val id = if (raw.contains("authorId=")) {

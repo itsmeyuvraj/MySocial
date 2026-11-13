@@ -88,6 +88,34 @@ class MeshRepository(
             voiceCallManager?.handleCallSignal(signal)
         }
         startStalePeerPruner()
+        repoScope.launch(Dispatchers.IO) {
+            try {
+                // Sanitize any existing bogus 'User' or 'MeshPeer' display names in profiles_view
+                val profiles = db.profileDao().getAllProfiles()
+                for (p in profiles) {
+                    if (p.displayName == "User" || p.displayName == "MeshPeer" || p.displayName.isBlank()) {
+                        val profileEntry = db.logEntryDao().getLatestProfileEntryForAuthor(p.authorId)
+                        val realNameFromLog = profileEntry?.let { entry ->
+                            try { ProfilePayload.fromJson(entry.contentJson).displayName.takeIf { it.isNotBlank() && it != "User" && it != "MeshPeer" } } catch (_: Exception) { null }
+                        }
+                        val realNameFromStory = if (realNameFromLog == null) {
+                            db.storyDao().getStoriesForAuthor(p.authorId).firstOrNull()?.authorDisplayName?.takeIf { it.isNotBlank() && it != "User" && it != "Me" && it != "Nearby Peer" }
+                        } else null
+                        val realNameFromPeer = if (realNameFromLog == null && realNameFromStory == null) {
+                            _discoveredPeers.value.find { it.peerId == p.authorId }?.peerName?.takeIf { it.isNotBlank() && it != "User" && it != "MeshPeer" && it != "Nearby Device" }
+                        } else null
+
+                        val finalName = realNameFromLog ?: realNameFromStory ?: realNameFromPeer
+                        if (finalName != null) {
+                            db.profileDao().upsert(p.copy(displayName = finalName))
+                            Log.i("MeshRepository", "Sanitized placeholder profile for ${p.authorId} to '$finalName'")
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("MeshRepository", "Failed to sanitize placeholder profiles: ${e.message}")
+            }
+        }
     }
 
     private fun startStalePeerPruner() {
@@ -249,7 +277,7 @@ class MeshRepository(
                                 isVerifiedInPerson = isVerifiedInPerson(newPeerId)
                             )
                         )
-                    } else if (existing.displayName.isBlank() || existing.displayName.startsWith("Neighbor")) {
+                    } else if (existing.displayName.isBlank() || existing.displayName.startsWith("Neighbor") || existing.displayName == "User" || existing.displayName == "MeshPeer") {
                         db.profileDao().upsert(
                             existing.copy(displayName = newPeerName)
                         )
@@ -594,7 +622,7 @@ class MeshRepository(
 
     suspend fun upsertFriendProfile(authorId: String, displayName: String) {
         val cleanName = displayName.trim()
-        if (cleanName.isBlank()) return
+        if (cleanName.isBlank() || cleanName == "User" || cleanName == "MeshPeer") return
         val existing = db.profileDao().getProfile(authorId)
         db.profileDao().upsert(
             ProfileViewEntity(
@@ -619,9 +647,10 @@ class MeshRepository(
             followedIds.map { authorId ->
                 val profile = profileMap[authorId]
                 val peer = peerMap[authorId]
-                val resolvedName = profile?.displayName?.takeIf { it.isNotBlank() && !it.startsWith("Neighbor") }
+                val resolvedName = profile?.displayName?.takeIf { it.isNotBlank() && !it.startsWith("Neighbor") && it != "User" && it != "MeshPeer" }
+                    ?: peer?.peerName?.takeIf { it.isNotBlank() && it != "Nearby Device" && it != "MeshPeer" && !it.startsWith("Host ADB") && it != "User" }
+                    ?: profile?.displayName?.takeIf { it.isNotBlank() && it != "User" && it != "MeshPeer" }
                     ?: peer?.peerName?.takeIf { it.isNotBlank() && it != "Nearby Device" && it != "MeshPeer" && !it.startsWith("Host ADB") }
-                    ?: profile?.displayName?.takeIf { it.isNotBlank() }
                     ?: "Friend @${authorId.take(4).uppercase()}"
 
                 ProfileViewEntity(
@@ -819,9 +848,10 @@ class MeshRepository(
                 val peerId = msg.conversationPeerId
                 val profile = profilesMap[peerId]
                 val peer = peers.find { it.peerId == peerId }
-                val resolvedName = profile?.displayName?.takeIf { it.isNotBlank() && !it.startsWith("Neighbor") }
+                val resolvedName = profile?.displayName?.takeIf { it.isNotBlank() && !it.startsWith("Neighbor") && it != "User" && it != "MeshPeer" }
+                    ?: peer?.peerName?.takeIf { it.isNotBlank() && it != "Nearby Device" && it != "MeshPeer" && !it.startsWith("Host ADB") && it != "User" }
+                    ?: profile?.displayName?.takeIf { it.isNotBlank() && it != "User" && it != "MeshPeer" }
                     ?: peer?.peerName?.takeIf { it.isNotBlank() && it != "Nearby Device" && it != "MeshPeer" && !it.startsWith("Host ADB") }
-                    ?: profile?.displayName?.takeIf { it.isNotBlank() }
                     ?: "Friend @${peerId.take(4).uppercase()}"
 
                 val snippet = when (msg.mediaType) {

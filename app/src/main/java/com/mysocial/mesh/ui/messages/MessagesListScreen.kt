@@ -718,7 +718,7 @@ fun ConversationItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val displayName = conversation.peerDisplayName ?: "Neighbor"
+    val displayName = conversation.peerDisplayName?.takeIf { it.isNotBlank() && it != "User" && it != "MeshPeer" } ?: "Neighbor"
 
     Row(
         modifier = modifier
@@ -867,6 +867,8 @@ fun FriendDirectTrayItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val cleanName = friend.displayName.takeIf { it.isNotBlank() && it != "User" && it != "MeshPeer" } ?: "Friend"
+
     Column(
         modifier = modifier
             .width(62.dp)
@@ -876,7 +878,7 @@ fun FriendDirectTrayItem(
         Box(contentAlignment = Alignment.BottomEnd) {
             AvatarView(
                 seed = friend.avatarSeed,
-                displayName = friend.displayName,
+                displayName = cleanName,
                 size = 52.dp
             )
             if (friend.isVerifiedInPerson) {
@@ -893,7 +895,7 @@ fun FriendDirectTrayItem(
         }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = friend.displayName,
+            text = cleanName,
             color = FbTextPrimary,
             fontSize = 11.5.sp,
             fontWeight = FontWeight.Medium,
