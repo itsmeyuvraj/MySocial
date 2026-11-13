@@ -147,11 +147,17 @@ class FeedViewModel(
     fun publishStory(text: String, imageUri: Uri? = null, context: Context? = null) {
         viewModelScope.launch {
             var mediaBlobHash: String? = null
+            var mediaTotalBytes: Long? = null
+            var mediaChunkCount: Int? = null
+            var mediaMimeType: String? = null
             if (imageUri != null && context != null) {
                 try {
                     val processed = MediaProcessor.processImageUri(context, imageUri)
                     repository.registerCompletedBlob(processed)
                     mediaBlobHash = processed.blobHash
+                    mediaTotalBytes = processed.totalBytes
+                    mediaChunkCount = processed.chunkCount
+                    mediaMimeType = processed.mimeType
                 } catch (e: Exception) {
                     Log.e("FeedViewModel", "Failed to process story image: ${e.message}", e)
                 }
@@ -162,10 +168,15 @@ class FeedViewModel(
                 mediaBlobHash != null -> ""
                 else -> "Story update"
             }
+            val myProfile = repository.getProfile(currentAuthorId)
+            val authorDisplayName = myProfile?.displayName?.takeIf { it.isNotBlank() } ?: "Me"
             repository.storyManager.publishStory(
                 text = storyText,
-                authorDisplayName = "Me",
-                mediaBlobHash = mediaBlobHash
+                authorDisplayName = authorDisplayName,
+                mediaBlobHash = mediaBlobHash,
+                mediaTotalBytes = mediaTotalBytes,
+                mediaChunkCount = mediaChunkCount,
+                mediaMimeType = mediaMimeType
             )
         }
     }

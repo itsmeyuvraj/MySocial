@@ -21,6 +21,12 @@ interface StoryDao {
     @Query("SELECT * FROM stories_view WHERE authorId = :authorId AND expiresAt > :now ORDER BY createdAt ASC")
     suspend fun getStoriesForAuthor(authorId: String, now: Long = System.currentTimeMillis()): List<StoryEntity>
 
+    @Query("SELECT * FROM stories_view WHERE storyId = :storyId LIMIT 1")
+    suspend fun getStoryById(storyId: String): StoryEntity?
+
+    @Query("UPDATE stories_view SET authorDisplayName = :displayName WHERE authorId = :authorId")
+    suspend fun updateAuthorDisplayName(authorId: String, displayName: String)
+
     @Query("UPDATE stories_view SET isViewed = 1 WHERE storyId = :storyId")
     suspend fun markViewed(storyId: String)
 

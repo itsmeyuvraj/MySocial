@@ -36,11 +36,21 @@ class StoryManager(
     suspend fun publishStory(
         text: String,
         authorDisplayName: String = "Me",
-        mediaBlobHash: String? = null
+        mediaBlobHash: String? = null,
+        mediaTotalBytes: Long? = null,
+        mediaChunkCount: Int? = null,
+        mediaMimeType: String? = null
     ): Result<StoryEntity> = withContext(Dispatchers.IO) {
         val trimmed = text.trim()
         if (trimmed.isEmpty() && mediaBlobHash == null) {
             return@withContext Result.failure(IllegalArgumentException("Story cannot be empty"))
+        }
+
+        val profile = db.profileDao().getProfile(cryptoManager.authorId)
+        val resolvedAuthorDisplayName = if (authorDisplayName.isNotBlank() && authorDisplayName != "Me") {
+            authorDisplayName
+        } else {
+            profile?.displayName?.takeIf { it.isNotBlank() } ?: "Me"
         }
 
         val storyId = UUID.randomUUID().toString()
@@ -50,9 +60,12 @@ class StoryManager(
         val payload = StoryPayload(
             storyId = storyId,
             authorId = cryptoManager.authorId,
-            authorDisplayName = authorDisplayName,
+            authorDisplayName = resolvedAuthorDisplayName,
             text = trimmed,
             mediaBlobHash = mediaBlobHash,
+            mediaTotalBytes = mediaTotalBytes,
+            mediaChunkCount = mediaChunkCount,
+            mediaMimeType = mediaMimeType,
             createdAt = now,
             expiresAt = expiresAt
         )
@@ -60,7 +73,7 @@ class StoryManager(
         val entity = StoryEntity(
             storyId = storyId,
             authorId = cryptoManager.authorId,
-            authorDisplayName = authorDisplayName,
+            authorDisplayName = resolvedAuthorDisplayName,
             text = trimmed,
             mediaBlobHash = mediaBlobHash,
             createdAt = now,

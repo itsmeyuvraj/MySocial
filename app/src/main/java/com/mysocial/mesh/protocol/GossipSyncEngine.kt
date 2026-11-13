@@ -795,8 +795,22 @@ class GossipSyncEngine(
      * Builds the current Vector Clock map from the local database.
      */
     suspend fun getLocalVectorClock(): Map<String, Long> {
-        val tuples = db.peerSyncStateDao().getVectorClockTuples()
-        val clock = tuples.associate { it.authorId to it.highestSequence }.toMutableMap()
+        val ledgerTuples = db.logEntryDao().getAllKnownAuthorsWithMaxSeq()
+        val ledgerClock = ledgerTuples.associate { it.authorId to it.highestSequence }
+
+        val syncTuples = db.peerSyncStateDao().getVectorClockTuples()
+        val clock = mutableMapOf<String, Long>()
+
+        // Ground clock in ledger reality: never claim to have a sequence higher than what log_entries contains
+        for (tuple in syncTuples) {
+            val actualMax = ledgerClock[tuple.authorId] ?: 0L
+            clock[tuple.authorId] = minOf(tuple.highestSequence, actualMax)
+        }
+        for ((authorId, maxSeq) in ledgerClock) {
+            if (!clock.containsKey(authorId)) {
+                clock[authorId] = maxSeq
+            }
+        }
 
         if (!clock.containsKey(cryptoManager.authorId)) {
             val latest = db.logEntryDao().getLatestEntryForAuthor(cryptoManager.authorId)

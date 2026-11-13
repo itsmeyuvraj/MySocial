@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -98,6 +99,12 @@ fun StoryCarouselView(
     val groupedByAuthor = remember(stories) {
         stories.groupBy { it.authorId }
     }
+    val myStories = remember(groupedByAuthor, myAuthorId) {
+        groupedByAuthor[myAuthorId] ?: emptyList()
+    }
+    val otherAuthors = remember(groupedByAuthor, myAuthorId) {
+        groupedByAuthor.filter { it.key != myAuthorId }.entries.toList()
+    }
 
     Column(
         modifier = modifier
@@ -114,28 +121,64 @@ fun StoryCarouselView(
         ) {
             // "Your Story" with Instagram-style avatar and + badge
             item {
+                val hasMyStories = myStories.isNotEmpty()
+                val allMyStoriesViewed = hasMyStories && myStories.all { it.isViewed }
+                val myBorder = if (!hasMyStories) {
+                    null
+                } else if (allMyStoriesViewed) {
+                    Brush.linearGradient(listOf(FbBorder, FbBorder))
+                } else {
+                    com.mysocial.mesh.ui.theme.InstagramStoryGradient
+                }
+
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
-                        .clickable { onAddStoryClick() }
+                        .clickable {
+                            if (hasMyStories) {
+                                onStoryClick(myStories, 0)
+                            } else {
+                                onAddStoryClick()
+                            }
+                        }
                         .padding(horizontal = 2.dp)
                 ) {
                     Box(
                         modifier = Modifier.size(68.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        AvatarView(
-                            seed = myAuthorId,
-                            displayName = "You",
-                            size = 62.dp
-                        )
+                        val avatarBoxModifier = if (myBorder != null) {
+                            Modifier
+                                .size(68.dp)
+                                .clip(CircleShape)
+                                .background(myBorder)
+                                .padding(2.5.dp)
+                                .clip(CircleShape)
+                                .background(FbSurface)
+                                .padding(2.5.dp)
+                        } else {
+                            Modifier.size(68.dp)
+                        }
+
+                        Box(
+                            modifier = avatarBoxModifier,
+                            contentAlignment = Alignment.Center
+                        ) {
+                            AvatarView(
+                                seed = myAuthorId,
+                                displayName = "You",
+                                size = if (myBorder != null) 56.dp else 62.dp
+                            )
+                        }
+
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
                                 .size(22.dp)
                                 .clip(CircleShape)
                                 .background(Color(0xFF0095F6))
-                                .border(2.dp, FbSurface, CircleShape),
+                                .border(2.dp, FbSurface, CircleShape)
+                                .clickable { onAddStoryClick() },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -150,7 +193,7 @@ fun StoryCarouselView(
                     Text(
                         text = "Your story",
                         fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Normal,
+                        fontWeight = if (hasMyStories && !allMyStoriesViewed) FontWeight.Medium else FontWeight.Normal,
                         color = FbTextPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -159,7 +202,7 @@ fun StoryCarouselView(
             }
 
             // Other Authors' Stories with iconic Instagram gradient ring
-            items(groupedByAuthor.entries.toList(), key = { it.key }) { (authorId, authorStories) ->
+            items(otherAuthors, key = { it.key }) { (authorId, authorStories) ->
                 val allViewed = authorStories.all { it.isViewed }
                 val latestStory = authorStories.last()
                 val storyBorder = if (allViewed) {
@@ -225,22 +268,6 @@ fun FullscreenStoryViewerDialog(
         onStoryViewed(currentStory.storyId)
     }
 
-    LaunchedEffect(currentIndex) {
-        progress = 0f
-        val stepMs = 50L
-        val totalMs = 5000L
-        val increment = stepMs.toFloat() / totalMs
-        while (progress < 1f) {
-            delay(stepMs)
-            progress += increment
-        }
-        if (currentIndex < stories.size - 1) {
-            currentIndex++
-        } else {
-            onDismiss()
-        }
-    }
-
     // Load media blob if story has a photo
     val storyBlobHash = currentStory.mediaBlobHash
     val db = remember(context) { MeshDatabase.getInstance(context) }
@@ -261,6 +288,35 @@ fun FullscreenStoryViewerDialog(
                 MediaProcessor.decodeBlobFile(localFile)
             }
         } else null
+    }
+
+    LaunchedEffect(storyBlobHash, isComplete) {
+        if (storyBlobHash != null && !isComplete) {
+            db.onBlobDiscovered?.invoke(storyBlobHash)
+        }
+    }
+
+    LaunchedEffect(currentIndex, isComplete, storyBlobHash) {
+        progress = 0f
+        val stepMs = 50L
+        val totalMs = 5000L
+        val increment = stepMs.toFloat() / totalMs
+        var waitPhotoMs = 0L
+        val maxWaitPhotoMs = 15000L
+        while (progress < 1f) {
+            delay(stepMs)
+            val isWaitingForPhoto = storyBlobHash != null && !isComplete && waitPhotoMs < maxWaitPhotoMs
+            if (isWaitingForPhoto) {
+                waitPhotoMs += stepMs
+            } else {
+                progress += increment
+            }
+        }
+        if (currentIndex < stories.size - 1) {
+            currentIndex++
+        } else {
+            onDismiss()
+        }
     }
 
     Dialog(
@@ -287,12 +343,32 @@ fun FullscreenStoryViewerDialog(
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
+            } else if (storyBlobHash != null && !isComplete) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 24.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(36.dp),
+                        strokeWidth = 3.dp
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text(
+                        text = "Downloading story photo...",
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontSize = 14.sp
+                    )
+                }
             }
 
-            // Story Text Content (Centered if text-only, bottom overlay if photo)
+            // Story Text Content (Centered if text-only, bottom overlay if photo/loading)
             if (currentStory.text.isNotBlank()) {
-                if (storyBitmap != null) {
-                    // Bottom Caption Pill on Photo
+                if (storyBitmap != null || (storyBlobHash != null && !isComplete)) {
+                    // Bottom Caption Pill on Photo or loading state
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()

@@ -638,6 +638,9 @@ object LogProjector {
                             isVerifiedInPerson = current?.isVerifiedInPerson ?: false
                         )
                     )
+                    if (payload.displayName.isNotBlank()) {
+                        db.storyDao().updateAuthorDisplayName(entry.authorId, payload.displayName)
+                    }
                 }
             }
 
@@ -922,18 +925,46 @@ object LogProjector {
             ContentType.STORY -> {
                 try {
                     val payload = com.mysocial.mesh.model.StoryPayload.fromJson(entry.contentJson)
+                    val myAuthorId = db.cryptoManager?.authorId
+                    val isOwn = (entry.authorId == myAuthorId)
+                    val existing = db.storyDao().getStoryById(payload.storyId)
+                    val isViewed = existing?.isViewed ?: isOwn
+
+                    val profile = db.profileDao().getProfile(entry.authorId)
+                    val resolvedDisplayName = profile?.displayName?.takeIf { it.isNotBlank() }
+                        ?: payload.authorDisplayName.takeIf { it.isNotBlank() && it != "Me" }
+                        ?: (if (isOwn) "You" else "Nearby Peer")
+
                     db.storyDao().insert(
                         StoryEntity(
                             storyId = payload.storyId,
-                            authorId = payload.authorId,
-                            authorDisplayName = payload.authorDisplayName,
+                            authorId = entry.authorId,
+                            authorDisplayName = resolvedDisplayName,
                             text = payload.text,
                             mediaBlobHash = payload.mediaBlobHash,
                             createdAt = payload.createdAt,
                             expiresAt = payload.expiresAt,
-                            isViewed = false
+                            isViewed = isViewed
                         )
                     )
+
+                    val blobHash = payload.mediaBlobHash
+                    if (!blobHash.isNullOrBlank()) {
+                        val existingManifest = db.blobDao().getManifest(blobHash)
+                        if (existingManifest == null) {
+                            db.blobDao().upsertManifest(
+                                BlobManifestEntity(
+                                    blobHash = blobHash,
+                                    totalBytes = payload.mediaTotalBytes ?: 0L,
+                                    chunkCount = payload.mediaChunkCount ?: 1,
+                                    mimeType = payload.mediaMimeType ?: "image/webp",
+                                    isComplete = false,
+                                    localFilePath = null
+                                )
+                            )
+                        }
+                        db.onBlobDiscovered?.invoke(blobHash)
+                    }
                 } catch (e: Exception) {
                     Log.w("MeshDatabase", "Failed to project story: ${e.message}")
                 }
