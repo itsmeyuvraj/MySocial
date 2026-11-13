@@ -928,7 +928,7 @@ object LogProjector {
                     val myAuthorId = db.cryptoManager?.authorId
                     val isOwn = (entry.authorId == myAuthorId)
                     val existing = db.storyDao().getStoryById(payload.storyId)
-                    val isViewed = existing?.isViewed ?: isOwn
+                    val isViewed = existing?.isViewed ?: false
 
                     val profile = db.profileDao().getProfile(entry.authorId)
                     val resolvedDisplayName = profile?.displayName?.takeIf { it.isNotBlank() }

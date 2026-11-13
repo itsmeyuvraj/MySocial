@@ -78,7 +78,7 @@ class StoryManager(
             mediaBlobHash = mediaBlobHash,
             createdAt = now,
             expiresAt = expiresAt,
-            isViewed = true // Own stories are viewed by default
+            isViewed = false // Own stories start unviewed so user sees active story ring until watched
         )
         db.storyDao().insert(entity)
 

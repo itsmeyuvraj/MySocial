@@ -12,6 +12,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -61,6 +63,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -100,10 +103,12 @@ fun StoryCarouselView(
         stories.groupBy { it.authorId }
     }
     val myStories = remember(groupedByAuthor, myAuthorId) {
-        groupedByAuthor[myAuthorId] ?: emptyList()
+        (groupedByAuthor[myAuthorId] ?: emptyList()).sortedBy { it.createdAt }
     }
     val otherAuthors = remember(groupedByAuthor, myAuthorId) {
-        groupedByAuthor.filter { it.key != myAuthorId }.entries.toList()
+        groupedByAuthor.filter { it.key != myAuthorId }
+            .mapValues { entry -> entry.value.sortedBy { it.createdAt } }
+            .entries.toList()
     }
 
     Column(
@@ -133,15 +138,7 @@ fun StoryCarouselView(
 
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .clickable {
-                            if (hasMyStories) {
-                                onStoryClick(myStories, 0)
-                            } else {
-                                onAddStoryClick()
-                            }
-                        }
-                        .padding(horizontal = 2.dp)
+                    modifier = Modifier.padding(horizontal = 2.dp)
                 ) {
                     Box(
                         modifier = Modifier.size(68.dp),
@@ -160,8 +157,20 @@ fun StoryCarouselView(
                             Modifier.size(68.dp)
                         }
 
+                        // Avatar Circle: Explicit click target for viewing stories
                         Box(
-                            modifier = avatarBoxModifier,
+                            modifier = avatarBoxModifier
+                                .clip(CircleShape)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) {
+                                    if (hasMyStories) {
+                                        onStoryClick(myStories, 0)
+                                    } else {
+                                        onAddStoryClick()
+                                    }
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             AvatarView(
@@ -171,6 +180,7 @@ fun StoryCarouselView(
                             )
                         }
 
+                        // Bottom-End "+" Badge with strict touch bounds (no 48dp ballooning over avatar)
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
@@ -178,7 +188,11 @@ fun StoryCarouselView(
                                 .clip(CircleShape)
                                 .background(Color(0xFF0095F6))
                                 .border(2.dp, FbSurface, CircleShape)
-                                .clickable { onAddStoryClick() },
+                                .pointerInput(Unit) {
+                                    detectTapGestures {
+                                        onAddStoryClick()
+                                    }
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -196,7 +210,17 @@ fun StoryCarouselView(
                         fontWeight = if (hasMyStories && !allMyStoriesViewed) FontWeight.Medium else FontWeight.Normal,
                         color = FbTextPrimary,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            if (hasMyStories) {
+                                onStoryClick(myStories, 0)
+                            } else {
+                                onAddStoryClick()
+                            }
+                        }
                     )
                 }
             }
@@ -254,8 +278,10 @@ fun StoryCarouselView(
 fun FullscreenStoryViewerDialog(
     stories: List<StoryEntity>,
     initialIndex: Int = 0,
+    myAuthorId: String? = null,
     onDismiss: () -> Unit,
-    onStoryViewed: (String) -> Unit
+    onStoryViewed: (String) -> Unit,
+    onAddStoryClick: (() -> Unit)? = null
 ) {
     if (stories.isEmpty()) return
 
@@ -413,6 +439,10 @@ fun FullscreenStoryViewerDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.TopCenter)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { /* absorb header clicks */ }
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent)
@@ -467,6 +497,18 @@ fun FullscreenStoryViewerDialog(
                             color = Color.White.copy(alpha = 0.7f),
                             fontSize = 11.sp
                         )
+                    }
+                    if (myAuthorId != null && currentStory.authorId == myAuthorId && onAddStoryClick != null) {
+                        IconButton(onClick = {
+                            onDismiss()
+                            onAddStoryClick()
+                        }) {
+                            Icon(
+                                imageVector = Icons.Filled.Add,
+                                contentDescription = "Add Story",
+                                tint = Color.White
+                            )
+                        }
                     }
                     IconButton(onClick = onDismiss) {
                         Icon(

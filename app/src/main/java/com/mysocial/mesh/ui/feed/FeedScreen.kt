@@ -530,8 +530,10 @@ fun FeedScreen(
         viewingStoryGroup?.let { storyList ->
             FullscreenStoryViewerDialog(
                 stories = storyList,
+                myAuthorId = viewModel.currentAuthorId,
                 onDismiss = { viewingStoryGroup = null },
-                onStoryViewed = { storyId -> viewModel.markStoryViewed(storyId) }
+                onStoryViewed = { storyId -> viewModel.markStoryViewed(storyId) },
+                onAddStoryClick = { showCreateStoryDialog = true }
             )
         }
 
