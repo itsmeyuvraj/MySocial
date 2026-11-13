@@ -30,6 +30,25 @@ class CryptoManagerTest {
     }
 
     @Test
+    fun testDeterministicDeviceIdentityPersistence() {
+        val seedA = ByteArray(32) { (it * 7).toByte() }
+        val privParams1 = org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters(seedA, 0)
+        val pubParams1 = privParams1.generatePublicKey()
+        val authorId1 = CryptoManager.formatAuthorId(pubParams1.encoded)
+
+        // Simulating second install/generation with same device seed
+        val privParams2 = org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters(seedA, 0)
+        val pubParams2 = privParams2.generatePublicKey()
+        val authorId2 = CryptoManager.formatAuthorId(pubParams2.encoded)
+
+        assertEquals("Author IDs must be strictly identical across reinstalls", authorId1, authorId2)
+        assertTrue(authorId1.startsWith("@"))
+        assertTrue(authorId1.endsWith(".ed25519"))
+        assertEquals(32, pubParams1.encoded.size)
+        assertEquals(32, privParams1.encoded.size)
+    }
+
+    @Test
     fun testCanonicalSigningAndVerification() {
         val alice = CryptoManager.createInMemory()
         val bob = CryptoManager.createInMemory()

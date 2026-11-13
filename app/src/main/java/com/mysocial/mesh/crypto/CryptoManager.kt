@@ -1,6 +1,7 @@
 package com.mysocial.mesh.crypto
 
 import android.content.Context
+import android.provider.Settings
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import org.bouncycastle.crypto.generators.Ed25519KeyPairGenerator
@@ -14,8 +15,10 @@ import java.security.SecureRandom
 import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
+import javax.crypto.Mac
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.SecretKeySpec
 
 /**
  * Manages asymmetric Ed25519 cryptographic identity, Android Keystore hardware-backed
@@ -284,8 +287,30 @@ class CryptoManager private constructor(
         }
 
         /**
+         * Computes a deterministic 32-byte cryptographic seed derived from the device identity (ANDROID_ID).
+         * This seed remains constant across app uninstalls and reinstalls as long as the device is not factory reset.
+         */
+        fun getDeterministicDeviceSeed(context: Context): ByteArray {
+            val androidId = try {
+                Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
+            } catch (_: Exception) { null }
+
+            val rawIdentifier = if (!androidId.isNullOrBlank() && androidId != "9774d56d682e549c") {
+                "device_id:$androidId"
+            } else {
+                "fallback_id:${android.os.Build.FINGERPRINT}:${android.os.Build.HARDWARE}"
+            }
+
+            val salt = "MySocial_Mesh_Ed25519_DeviceIdentity_v1".toByteArray(Charsets.UTF_8)
+            val mac = Mac.getInstance("HmacSHA256")
+            mac.init(SecretKeySpec(salt, "HmacSHA256"))
+            return mac.doFinal(rawIdentifier.toByteArray(Charsets.UTF_8))
+        }
+
+        /**
          * Get or generate the device's cryptographic identity using Android Keystore
          * hardware-backed AES-256-GCM encryption for the Ed25519 private seed.
+         * Identity is deterministically tied to the device, ensuring the User ID remains identical across reinstalls.
          */
         fun getInstance(context: Context): CryptoManager {
             val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -302,16 +327,14 @@ class CryptoManager private constructor(
                     val publicKeyBytes = Base64.getDecoder().decode(existingPublic)
                     return CryptoManager(existingAuthorId, publicKeyBytes, privateKeyBytes)
                 } catch (e: Exception) {
-                    // If decryption fails due to Keystore invalidation, regenerate
+                    // If decryption fails due to Keystore invalidation, regenerate deterministically below
                 }
             }
 
-            // Generate new Ed25519 keypair
-            val generator = Ed25519KeyPairGenerator()
-            generator.init(Ed25519KeyGenerationParameters(secureRandom))
-            val keyPair = generator.generateKeyPair()
-            val privParams = keyPair.private as Ed25519PrivateKeyParameters
-            val pubParams = keyPair.public as Ed25519PublicKeyParameters
+            // Derive deterministic Ed25519 keypair from device seed so user ID persists across reinstalls
+            val seed = getDeterministicDeviceSeed(context)
+            val privParams = Ed25519PrivateKeyParameters(seed, 0)
+            val pubParams = privParams.generatePublicKey()
 
             val privateKeyBytes = privParams.encoded
             val publicKeyBytes = pubParams.encoded
