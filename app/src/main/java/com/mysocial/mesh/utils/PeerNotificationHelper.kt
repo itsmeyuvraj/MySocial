@@ -26,6 +26,15 @@ object PeerNotificationHelper {
     @Volatile
     private var lastNotifiedTimestamp = 0L
 
+    private val notifiedPeersCooldown = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private const val PEER_COOLDOWN_MS = 30 * 60 * 1000L // 30 minutes cooldown per peer
+    private const val MIN_GLOBAL_INTERVAL_MS = 15_000L // 15 seconds global minimum between notifications
+
+    fun resetCooldownsForTesting() {
+        lastNotifiedTimestamp = 0L
+        notifiedPeersCooldown.clear()
+    }
+
     fun notifyPttVoiceBurst(context: Context, senderName: String, durationSec: String) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
             ?: return
@@ -185,13 +194,51 @@ object PeerNotificationHelper {
         }
     }
 
-    fun notifyPeerNearby(context: Context, peerName: String? = null) {
-        val now = System.currentTimeMillis()
-        // Rate-limit notifications to at most once per 60 seconds to prevent alert floods
-        if (now - lastNotifiedTimestamp < 60_000L) {
+    fun notifyPeerNearby(context: Context, peerId: String, peerName: String? = null) {
+        if (peerId.isBlank()) return
+
+        // Check user preferences
+        val settings = com.mysocial.mesh.data.AppSettings.getInstance(context)
+        if (!settings.isNearbyPeerNotificationsEnabled.value) {
             return
         }
+
+        // Filter out non-human, bridge, synthetic, or unverified IDs
+        if (peerId.startsWith("direct_") ||
+            peerId.startsWith("lora_") ||
+            peerId.startsWith("WIFI_AWARE_") ||
+            peerId.startsWith("bridge_") ||
+            isMacAddress(peerId)
+        ) {
+            return
+        }
+
+        if (peerName?.contains("Bridge", ignoreCase = true) == true ||
+            peerName?.contains("ADB", ignoreCase = true) == true
+        ) {
+            return
+        }
+
+        // Must be a genuine cryptographic author ID
+        if (!peerId.startsWith("@")) {
+            return
+        }
+
+        val now = System.currentTimeMillis()
+
+        // Per-peer debounce: at most once every 30 minutes for this specific peer
+        val lastPeerNotified = notifiedPeersCooldown[peerId] ?: 0L
+        if (now - lastPeerNotified < PEER_COOLDOWN_MS) {
+            return
+        }
+
+        // Global debounce: prevent rapid-fire alert floods
+        if (now - lastNotifiedTimestamp < MIN_GLOBAL_INTERVAL_MS) {
+            return
+        }
+
         lastNotifiedTimestamp = now
+        notifiedPeersCooldown[peerId] = now
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
             ?: return
@@ -200,7 +247,7 @@ object PeerNotificationHelper {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "Nearby Friends & People",
-                NotificationManager.IMPORTANCE_HIGH
+                NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
                 description = "Notifications when someone is nearby"
                 enableVibration(true)
@@ -223,33 +270,52 @@ object PeerNotificationHelper {
         }
         val pendingIntent = PendingIntent.getActivity(
             context,
-            0,
+            peerId.hashCode(),
             launchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val message = if (!peerName.isNullOrBlank() && peerName != "Nearby Device" && peerName != "Nearby Friend") {
-            "$peerName is nearby"
+        val cleanName = peerName?.trim()
+        val message = if (!cleanName.isNullOrBlank() &&
+            cleanName != "Nearby Device" &&
+            cleanName != "Nearby Peer" &&
+            cleanName != "Nearby Friend" &&
+            cleanName != "MeshPeer" &&
+            cleanName != "User"
+        ) {
+            "$cleanName is nearby"
         } else {
-            "Someone is nearby"
+            "A friend joined your local mesh"
         }
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setContentTitle("Someone Nearby")
+            .setContentTitle("Friend Nearby")
             .setContentText(message)
             .setSmallIcon(R.drawable.ic_stat_nearby_peer)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
             .build()
 
         try {
-            manager.notify(NOTIFICATION_ID, notification)
-            Log.i(TAG, "Notified user: $message")
+            val notifId = NOTIFICATION_ID + (peerId.hashCode() and 0x7FFF)
+            manager.notify(notifId, notification)
+            Log.i(TAG, "Notified user: $message ($peerId)")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to post notification", e)
         }
+    }
+
+    /**
+     * Legacy backward-compatible signature. Suppressed to prevent ghost notifications without a verified peer ID.
+     */
+    fun notifyPeerNearby(context: Context, peerName: String? = null) {
+        Log.d(TAG, "Legacy notifyPeerNearby called without peerId; suppressing ghost alert")
+    }
+
+    private fun isMacAddress(id: String): Boolean {
+        return id.matches(Regex("^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$"))
     }
 
     fun notifySosEmergency(context: Context, authorName: String, text: String) {

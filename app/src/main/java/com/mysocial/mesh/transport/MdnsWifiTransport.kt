@@ -255,6 +255,12 @@ class MdnsWifiTransport(
 
     fun onPeerIdentified(tempKey: String, realAuthorId: String, realDisplayName: String) {
         Log.i(tag, "MdnsWifiTransport peer identified: tempKey=$tempKey, realAuthorId=$realAuthorId, realDisplayName=$realDisplayName")
+        if (realAuthorId == localAuthorId) {
+            _peersMap.remove(tempKey)
+            _peersMap.remove(realAuthorId)
+            updatePeersState()
+            return
+        }
         val cleanName = if (realDisplayName.isNotBlank() && realDisplayName != "MeshPeer" && realDisplayName != "User") {
             realDisplayName
         } else {
@@ -491,10 +497,10 @@ class MdnsWifiTransport(
             remoteIp == "127.0.0.1" -> ADB_REVERSE_PORT
             else -> DEFAULT_PORT
         }
-        if (remoteIp != "unknown") {
+        if (remoteIp != "unknown" && !isLocalIpAddress(remoteIp)) {
             val peer = DiscoveredPeer(
                 peerId = peerId,
-                peerName = if (remoteIp == "127.0.0.1") "Nearby Peer" else "Nearby Device ($remoteIp)",
+                peerName = "Nearby Device ($remoteIp)",
                 transportType = TransportType.MDNS_WIFI,
                 hostAddress = returnHost,
                 port = returnPort,
@@ -516,9 +522,8 @@ class MdnsWifiTransport(
             Log.e(tag, "Inbound sync failed with $remoteIp: ${e.message}")
         } finally {
             connection.close()
-            val current = _peersMap[peerId]
-            if (current != null) {
-                _peersMap[peerId] = current.copy(isSyncing = false, lastSeenTimestamp = System.currentTimeMillis())
+            if (peerId.startsWith("direct_")) {
+                _peersMap.remove(peerId)
                 updatePeersState()
             }
         }
@@ -574,7 +579,7 @@ class MdnsWifiTransport(
 
             override fun onServiceFound(service: NsdServiceInfo) {
                 Log.i(tag, "NSD Service found: ${service.serviceName} (type: ${service.serviceType})")
-                if (service.serviceName == serviceName) {
+                if (service.serviceName == serviceName || service.serviceName.contains(safeLocalId)) {
                     // Ignore our own advertisement
                     return
                 }
@@ -585,6 +590,10 @@ class MdnsWifiTransport(
 
             override fun onServiceLost(service: NsdServiceInfo) {
                 Log.i(tag, "NSD Service lost: ${service.serviceName}")
+                if (service.serviceName == serviceName || service.serviceName.contains(safeLocalId)) {
+                    // Ignore our own advertisement loss
+                    return
+                }
                 val mappedPeerId = serviceNameToPeerId.remove(service.serviceName)
                 if (mappedPeerId != null) {
                     removePeer(mappedPeerId)
@@ -669,6 +678,12 @@ class MdnsWifiTransport(
         val host: InetAddress = resolved.host ?: return
         val hostAddress = host.hostAddress ?: return
         val port = resolved.port
+
+        if (isLocalIpAddress(hostAddress)) {
+            Log.d(tag, "Ignoring self mDNS resolution for local host: $hostAddress:$port")
+            return
+        }
+
         val rawAuthorId = resolved.attributes["authorId"]?.let { String(it, Charsets.UTF_8) }
         val peerId = rawAuthorId ?: resolved.serviceName
         val rawDisplayName = resolved.attributes["displayName"]?.let { String(it, Charsets.UTF_8) }
@@ -779,5 +794,30 @@ class MdnsWifiTransport(
 
     private fun updatePeersState() {
         _discoveredPeers.value = _peersMap.values.toList().sortedByDescending { it.lastSeenTimestamp }
+    }
+
+    private fun isLocalIpAddress(host: String): Boolean {
+        if (host == "127.0.0.1" || host == "::1" || host.equals("localhost", ignoreCase = true) || host == "10.0.2.2") {
+            return true
+        }
+        return try {
+            val interfaces = java.net.NetworkInterface.getNetworkInterfaces() ?: return false
+            var isLocal = false
+            for (intf in interfaces) {
+                val addrs = intf.inetAddresses ?: continue
+                for (addr in addrs) {
+                    val addrHost = addr.hostAddress ?: continue
+                    val cleanHost = addrHost.split("%")[0]
+                    if (cleanHost.equals(host, ignoreCase = true)) {
+                        isLocal = true
+                        break
+                    }
+                }
+                if (isLocal) break
+            }
+            isLocal
+        } catch (_: Exception) {
+            false
+        }
     }
 }

@@ -196,15 +196,30 @@ class BleVoiceCallManager(
                 Log.i(tag, "BleVoiceCallManager L2CAP listener ready on PSM $localL2capPsm")
 
                 scope.launch(Dispatchers.IO) {
+                    var currentServer = server
                     while (isActive) {
                         try {
-                            val socket = server.accept() ?: break
+                            val socket = currentServer.accept() ?: break
                             Log.i(tag, "Accepted incoming L2CAP audio socket connection from ${socket.remoteDevice?.address}")
                             handleIncomingL2capSocket(socket)
                         } catch (e: Exception) {
                             if (!isActive) break
-                            Log.w(tag, "L2CAP audio server accept error: ${e.message}")
-                            delay(1000)
+                            Log.d(tag, "L2CAP audio server socket closed or error: ${e.message}")
+                            try { currentServer.close() } catch (_: Exception) {}
+                            delay(5000)
+                            if (!isActive) break
+                            try {
+                                if (bluetoothAdapter?.isEnabled == true) {
+                                    val newServer = bluetoothAdapter!!.listenUsingInsecureL2capChannel()
+                                    l2capServerSocket = newServer
+                                    localL2capPsm = newServer.psm
+                                    currentServer = newServer
+                                } else {
+                                    delay(5000)
+                                }
+                            } catch (_: Exception) {
+                                delay(5000)
+                            }
                         }
                     }
                 }

@@ -103,6 +103,18 @@ class BleMeshTransport(
     @Volatile private var currentLatestSequence: Long = 0L
     @Volatile private var currentBroadcastData: ByteArray? = null
 
+    private val localAuthorHashPrefix: ByteArray by lazy {
+        CryptoManager.sha256Hex(localAuthorId).take(8).chunked(2)
+            .map { it.toInt(16).toByte() }.toByteArray()
+    }
+    private val localPublicKeyBytes: ByteArray? by lazy {
+        try {
+            CryptoManager.extractPublicKeyBytes(localAuthorId)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private val _broadcastDataFlow = MutableSharedFlow<Pair<String, ByteArray>>(extraBufferCapacity = 64)
     val broadcastDataFlow: SharedFlow<Pair<String, ByteArray>> = _broadcastDataFlow.asSharedFlow()
 
@@ -674,17 +686,31 @@ class BleMeshTransport(
         }
 
         // Decode service data payload
-        val serviceData = result.scanRecord?.getServiceData(ParcelUuid(SERVICE_UUID))
-        val extPayload = serviceData?.let { BleExtendedPayload.decode(it) }
+        val serviceData = result.scanRecord?.getServiceData(ParcelUuid(SERVICE_UUID)) ?: return
+        val extPayload = BleExtendedPayload.decode(serviceData) ?: return
 
-        // Loopback protection: ignore self advertisements
-        if (extPayload?.authorId == localAuthorId) {
+        // Loopback protection: ignore all forms of self advertisements
+        if (extPayload.authorId == localAuthorId) {
+            return
+        }
+        if (extPayload.legacyAuthorHashPrefix != null &&
+            extPayload.legacyAuthorHashPrefix.contentEquals(localAuthorHashPrefix)
+        ) {
+            return
+        }
+        if (extPayload.authorPublicKey != null &&
+            localPublicKeyBytes != null &&
+            extPayload.authorPublicKey.contentEquals(localPublicKeyBytes)
+        ) {
             return
         }
 
         // Resolved identity
-        val resolvedAuthorId = extPayload?.authorId ?: address
-        val resolvedDisplayName = extPayload?.displayName?.takeIf { it.isNotBlank() } ?: deviceName
+        val resolvedAuthorId = extPayload.authorId ?: address
+        val defaultName = if (extPayload.authorId != null) "Nearby Friend" else "Nearby BLE Device"
+        val resolvedDisplayName = extPayload.displayName?.takeIf { it.isNotBlank() }
+            ?: device.name?.takeIf { it.isNotBlank() }
+            ?: defaultName
 
         // Cache remote capabilities & fast-path port
         extPayload?.l2capPsm?.let { psm ->
@@ -1130,6 +1156,12 @@ class BleMeshTransport(
      * Updates internal peer mapping when real Ed25519 authorId and displayName are resolved during handshake.
      */
     fun onPeerIdentified(tempKey: String, realAuthorId: String, realDisplayName: String) {
+        if (realAuthorId == localAuthorId) {
+            _peersMap.remove(tempKey)
+            _peersMap.remove(realAuthorId)
+            updatePeersState()
+            return
+        }
         val cleanName = if (realDisplayName.isNotBlank() && realDisplayName != "MeshPeer" && realDisplayName != "User") {
             realDisplayName
         } else {

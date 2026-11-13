@@ -50,6 +50,19 @@ class AppSettings private constructor(context: Context) {
     }
 
     // -------------------------------------------------------------
+    // NEARBY PEER DISCOVERY NOTIFICATIONS
+    // -------------------------------------------------------------
+    private val _isNearbyPeerNotificationsEnabled = MutableStateFlow(
+        prefs.getBoolean(KEY_NEARBY_PEER_NOTIFICATIONS, true)
+    )
+    val isNearbyPeerNotificationsEnabled: StateFlow<Boolean> = _isNearbyPeerNotificationsEnabled.asStateFlow()
+
+    fun setNearbyPeerNotificationsEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_NEARBY_PEER_NOTIFICATIONS, enabled).apply()
+        _isNearbyPeerNotificationsEnabled.value = enabled
+    }
+
+    // -------------------------------------------------------------
     // THEME & APPEARANCE PREFERENCES
     // -------------------------------------------------------------
     private val _themeMode = MutableStateFlow(
@@ -243,6 +256,7 @@ class AppSettings private constructor(context: Context) {
         const val KEY_MUTED_HASHTAGS = "muted_hashtags"
         const val KEY_MAX_STRANGER_MEDIA_CACHE_MB = "max_stranger_media_cache_mb"
         const val DEFAULT_MAX_STRANGER_MEDIA_CACHE_MB = 100
+        const val KEY_NEARBY_PEER_NOTIFICATIONS = "nearby_peer_notifications_enabled"
 
         @Volatile
         private var instance: AppSettings? = null

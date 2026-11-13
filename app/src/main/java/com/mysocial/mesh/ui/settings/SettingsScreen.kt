@@ -521,6 +521,7 @@ fun MeshSyncScreen(
     val dbStats by viewModel.dbStats.collectAsState()
     val syncIntervalSeconds by viewModel.syncIntervalSeconds.collectAsState()
     val blockedAuthors by viewModel.blockedAuthors.collectAsState()
+    val isNearbyPeerNotificationsEnabled by viewModel.isNearbyPeerNotificationsEnabled.collectAsState()
 
     val loraBridge = remember { com.mysocial.mesh.lora.LoraCompanionBridge.getInstance(context) }
     val loraState by loraBridge.connectionState.collectAsState()
@@ -629,6 +630,71 @@ fun MeshSyncScreen(
                             )
                         }
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Nearby Friend Alerts Card
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .border(0.5.dp, FbBorder, RoundedCornerShape(12.dp)),
+                colors = CardDefaults.cardColors(containerColor = FbSurface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(FacebookBlueLight),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Person,
+                                contentDescription = null,
+                                tint = FacebookBlue,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Nearby Friend Alerts",
+                                color = FbTextPrimary,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 15.sp
+                            )
+                            Text(
+                                text = "Notify when a friend is discovered nearby",
+                                color = FbTextSecondary,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = isNearbyPeerNotificationsEnabled,
+                        onCheckedChange = { viewModel.setNearbyPeerNotificationsEnabled(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = FacebookBlue,
+                            uncheckedThumbColor = FbTextSecondary,
+                            uncheckedTrackColor = FbSurfaceElevated
+                        )
+                    )
                 }
             }
 

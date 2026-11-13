@@ -303,10 +303,25 @@ class MeshSyncService : Service() {
             }.collect { combined ->
                 _allDiscoveredPeers.value = combined
                 syncEngine.updatePeerDensity(combined.size)
-                if (combined.isNotEmpty() && wasPeersEmpty) {
-                    PeerNotificationHelper.notifyPeerNearby(this@MeshSyncService, combined.firstOrNull()?.peerName)
+                // Identify genuine external peers (distinct from self, authenticated author identity, not bridges/simulations)
+                val genuinePeers = combined.filter { peer ->
+                    peer.peerId != cryptoManager.authorId &&
+                    peer.peerId.startsWith("@") &&
+                    !peer.peerId.startsWith("direct_") &&
+                    !peer.peerId.startsWith("lora_") &&
+                    !peer.peerId.startsWith("WIFI_AWARE_") &&
+                    !peer.peerName.contains("Bridge", ignoreCase = true) &&
+                    !peer.peerName.contains("ADB", ignoreCase = true)
                 }
-                wasPeersEmpty = combined.isEmpty()
+
+                for (peer in genuinePeers) {
+                    PeerNotificationHelper.notifyPeerNearby(
+                        context = this@MeshSyncService,
+                        peerId = peer.peerId,
+                        peerName = peer.peerName
+                    )
+                }
+                wasPeersEmpty = genuinePeers.isEmpty()
                 val now = System.currentTimeMillis()
                 if (cachedPostCount == -1 || now - lastPostCountQueryTime > 30_000L) {
                     cachedPostCount = kotlinx.coroutines.withContext(Dispatchers.IO) {
