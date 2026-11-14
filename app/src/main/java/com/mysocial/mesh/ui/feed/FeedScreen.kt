@@ -188,27 +188,18 @@ fun FeedScreen(
             ) {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    contentPadding = PaddingValues(bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
                     if (!isSearchActive) {
-                        // Ephemeral Disappearing 24-Hour Stories Carousel in distinct box
+                        // Ephemeral Disappearing 24-Hour Stories Carousel
                         item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 3.dp)
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(FbSurface)
-                                    .border(1.dp, FbBorder, RoundedCornerShape(16.dp))
-                            ) {
-                                StoryCarouselView(
-                                    stories = activeStories,
-                                    myAuthorId = viewModel.currentAuthorId,
-                                    onAddStoryClick = { showCreateStoryDialog = true },
-                                    onStoryClick = { stories, _ -> viewingStoryGroup = stories }
-                                )
-                            }
+                            StoryCarouselView(
+                                stories = activeStories,
+                                myAuthorId = viewModel.currentAuthorId,
+                                onAddStoryClick = { showCreateStoryDialog = true },
+                                onStoryClick = { stories, _ -> viewingStoryGroup = stories }
+                            )
                         }
 
                         // Modern Instagram Feed Filter Tabs (Nearby vs Friends)
@@ -220,63 +211,55 @@ fun FeedScreen(
                             )
                         }
 
-                        // Pinned Hashtag Radio Channels in distinct box
+                        // Pinned Hashtag Radio Channels
                         if (pinnedHashtags.isNotEmpty()) {
                             item {
-                                Box(
+                                LazyRow(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 2.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(FbSurface)
-                                        .border(1.dp, FbBorder, RoundedCornerShape(12.dp))
-                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                        .padding(horizontal = 14.dp, vertical = 2.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    LazyRow(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        item {
-                                            Text(
-                                                text = "Channels:",
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = FbTextSecondary
-                                            )
-                                        }
-                                        items(pinnedHashtags.toList()) { tag ->
-                                            val isTagActive = searchQuery.equals("#$tag", ignoreCase = true) || searchQuery.equals(tag, ignoreCase = true)
-                                            FilterChip(
-                                                selected = isTagActive,
-                                                onClick = {
-                                                    if (isTagActive) {
-                                                        viewModel.closeSearch()
-                                                    } else {
-                                                        viewModel.openSearch()
-                                                        viewModel.setSearchQuery("#$tag")
-                                                    }
-                                                },
-                                                label = {
-                                                    Text(
-                                                        text = "📌 #$tag",
-                                                        fontSize = 11.sp,
-                                                        fontWeight = if (isTagActive) FontWeight.Bold else FontWeight.Medium
-                                                    )
-                                                },
-                                                colors = FilterChipDefaults.filterChipColors(
-                                                    containerColor = FbSurfaceElevated,
-                                                    labelColor = FacebookBlue,
-                                                    selectedContainerColor = FacebookBlueLight,
-                                                    selectedLabelColor = FacebookBlue
-                                                ),
-                                                border = FilterChipDefaults.filterChipBorder(
-                                                    borderColor = if (isTagActive) FacebookBlue else FbBorder,
-                                                    enabled = true,
-                                                    selected = isTagActive
+                                    item {
+                                        Text(
+                                            text = "Channels:",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = FbTextSecondary
+                                        )
+                                    }
+                                    items(pinnedHashtags.toList()) { tag ->
+                                        val isTagActive = searchQuery.equals("#$tag", ignoreCase = true) || searchQuery.equals(tag, ignoreCase = true)
+                                        FilterChip(
+                                            selected = isTagActive,
+                                            onClick = {
+                                                if (isTagActive) {
+                                                    viewModel.closeSearch()
+                                                } else {
+                                                    viewModel.openSearch()
+                                                    viewModel.setSearchQuery("#$tag")
+                                                }
+                                            },
+                                            label = {
+                                                Text(
+                                                    text = "📌 #$tag",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = if (isTagActive) FontWeight.Bold else FontWeight.Medium
                                                 )
+                                            },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                containerColor = FbSurfaceElevated,
+                                                labelColor = FacebookBlue,
+                                                selectedContainerColor = FacebookBlueLight,
+                                                selectedLabelColor = FacebookBlue
+                                            ),
+                                            border = FilterChipDefaults.filterChipBorder(
+                                                borderColor = if (isTagActive) FacebookBlue else FbBorder,
+                                                enabled = true,
+                                                selected = isTagActive
                                             )
-                                        }
+                                        )
                                     }
                                 }
                             }
@@ -309,63 +292,55 @@ fun FeedScreen(
                             )
                         }
 
-                        // Pinned Hashtag Radio Channels in distinct box
+                        // Pinned Hashtag Radio Channels
                         if (pinnedHashtags.isNotEmpty()) {
                             item {
-                                Box(
+                                LazyRow(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 2.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(FbSurface)
-                                        .border(1.dp, FbBorder, RoundedCornerShape(12.dp))
-                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                        .padding(horizontal = 14.dp, vertical = 2.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    LazyRow(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        item {
-                                            Text(
-                                                text = "Channels:",
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = FbTextSecondary
-                                            )
-                                        }
-                                        items(pinnedHashtags.toList()) { tag ->
-                                            val isTagActive = searchQuery.equals("#$tag", ignoreCase = true) || searchQuery.equals(tag, ignoreCase = true)
-                                            FilterChip(
-                                                selected = isTagActive,
-                                                onClick = {
-                                                    if (isTagActive) {
-                                                        viewModel.closeSearch()
-                                                    } else {
-                                                        viewModel.openSearch()
-                                                        viewModel.setSearchQuery("#$tag")
-                                                    }
-                                                },
-                                                label = {
-                                                    Text(
-                                                        text = "📌 #$tag",
-                                                        fontSize = 11.sp,
-                                                        fontWeight = if (isTagActive) FontWeight.Bold else FontWeight.Medium
-                                                    )
-                                                },
-                                                colors = FilterChipDefaults.filterChipColors(
-                                                    containerColor = FbSurfaceElevated,
-                                                    labelColor = FacebookBlue,
-                                                    selectedContainerColor = FacebookBlueLight,
-                                                    selectedLabelColor = FacebookBlue
-                                                ),
-                                                border = FilterChipDefaults.filterChipBorder(
-                                                    borderColor = if (isTagActive) FacebookBlue else FbBorder,
-                                                    enabled = true,
-                                                    selected = isTagActive
+                                    item {
+                                        Text(
+                                            text = "Channels:",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = FbTextSecondary
+                                        )
+                                    }
+                                    items(pinnedHashtags.toList()) { tag ->
+                                        val isTagActive = searchQuery.equals("#$tag", ignoreCase = true) || searchQuery.equals(tag, ignoreCase = true)
+                                        FilterChip(
+                                            selected = isTagActive,
+                                            onClick = {
+                                                if (isTagActive) {
+                                                    viewModel.closeSearch()
+                                                } else {
+                                                    viewModel.openSearch()
+                                                    viewModel.setSearchQuery("#$tag")
+                                                }
+                                            },
+                                            label = {
+                                                Text(
+                                                    text = "📌 #$tag",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = if (isTagActive) FontWeight.Bold else FontWeight.Medium
                                                 )
+                                            },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                containerColor = FbSurfaceElevated,
+                                                labelColor = FacebookBlue,
+                                                selectedContainerColor = FacebookBlueLight,
+                                                selectedLabelColor = FacebookBlue
+                                            ),
+                                            border = FilterChipDefaults.filterChipBorder(
+                                                borderColor = if (isTagActive) FacebookBlue else FbBorder,
+                                                enabled = true,
+                                                selected = isTagActive
                                             )
-                                        }
+                                        )
                                     }
                                 }
                             }
@@ -647,7 +622,7 @@ fun InstagramTopBar(
                     )
                 }
             }
-            HorizontalDivider(color = FbBorder, thickness = 1.dp)
+            HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
         }
     }
 }
@@ -668,15 +643,14 @@ fun FeedSearchTopBar(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = FbSurface,
-        shadowElevation = 0.dp
+        shadowElevation = 2.dp
     ) {
-        Column {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             IconButton(
                 onClick = {
                     focusManager.clearFocus()
@@ -760,8 +734,6 @@ fun FeedSearchTopBar(
             )
 
             Spacer(modifier = Modifier.width(6.dp))
-        }
-        HorizontalDivider(color = FbBorder, thickness = 1.dp)
         }
     }
 }
@@ -911,82 +883,56 @@ fun InstagramFeedTabs(
     activePeersCount: Int = 0,
     modifier: Modifier = Modifier
 ) {
-    Box(
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 3.dp)
+            .background(FbSurface)
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(FbSurface)
-                .border(1.dp, FbBorder, RoundedCornerShape(12.dp))
-                .padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically
+        // Nearby / For You Tab
+        Column(
+            modifier = Modifier.clickable { onSelectFilter(true) },
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Nearby / Open Mesh Tab
+            Text(
+                text = "Nearby",
+                fontSize = 15.sp,
+                fontWeight = if (isNearbyFilter) FontWeight.Bold else FontWeight.Medium,
+                color = if (isNearbyFilter) FbTextPrimary else FbTextSecondary,
+                fontFamily = FontFamily.SansSerif,
+                modifier = Modifier.padding(vertical = 4.dp)
+            )
             Box(
                 modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(if (isNearbyFilter) FbSurfaceElevated else Color.Transparent)
-                    .then(
-                        if (isNearbyFilter) Modifier.border(1.dp, FbBorder, RoundedCornerShape(9.dp))
-                        else Modifier
-                    )
-                    .clickable { onSelectFilter(true) }
-                    .padding(vertical = 8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Nearby",
-                        fontSize = 14.sp,
-                        fontWeight = if (isNearbyFilter) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isNearbyFilter) FacebookBlue else FbTextSecondary
-                    )
-                    if (activePeersCount > 0) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (isNearbyFilter) FacebookBlue.copy(alpha = 0.15f) else FbSurfaceElevated)
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "$activePeersCount",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isNearbyFilter) FacebookBlue else FbTextSecondary
-                            )
-                        }
-                    }
-                }
-            }
+                    .width(42.dp)
+                    .height(2.dp)
+                    .clip(RoundedCornerShape(1.dp))
+                    .background(if (isNearbyFilter) FbTextPrimary else Color.Transparent)
+            )
+        }
 
-            // Friends Tab
+        // Friends Tab
+        Column(
+            modifier = Modifier.clickable { onSelectFilter(false) },
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Friends",
+                fontSize = 15.sp,
+                fontWeight = if (!isNearbyFilter) FontWeight.Bold else FontWeight.Medium,
+                color = if (!isNearbyFilter) FbTextPrimary else FbTextSecondary,
+                fontFamily = FontFamily.SansSerif,
+                modifier = Modifier.padding(vertical = 4.dp)
+            )
             Box(
                 modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(if (!isNearbyFilter) FbSurfaceElevated else Color.Transparent)
-                    .then(
-                        if (!isNearbyFilter) Modifier.border(1.dp, FbBorder, RoundedCornerShape(9.dp))
-                        else Modifier
-                    )
-                    .clickable { onSelectFilter(false) }
-                    .padding(vertical = 8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Friends",
-                    fontSize = 14.sp,
-                    fontWeight = if (!isNearbyFilter) FontWeight.Bold else FontWeight.Medium,
-                    color = if (!isNearbyFilter) FacebookBlue else FbTextSecondary
-                )
-            }
+                    .width(42.dp)
+                    .height(2.dp)
+                    .clip(RoundedCornerShape(1.dp))
+                    .background(if (!isNearbyFilter) FbTextPrimary else Color.Transparent)
+            )
         }
     }
 }

@@ -69,26 +69,23 @@ fun PeerCard(
     onProfileClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    val cardShape = RoundedCornerShape(14.dp)
-    Box(
+    Surface(
+        color = FbSurface,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp)
-            .clip(cardShape)
-            .background(FbSurface)
-            .border(1.dp, FbBorder, cardShape)
             .then(
                 if (onProfileClick != null) Modifier.clickable { onProfileClick() }
                 else Modifier
             )
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
                 // Left info with Avatar
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -221,5 +218,7 @@ fun PeerCard(
                     }
                 }
             }
+            HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
         }
     }
+}

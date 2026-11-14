@@ -179,30 +179,22 @@ fun PostCard(
 
     val cardCornerRadius = if (compactMode) 12.dp else 16.dp
     val cardHorizontalPadding = if (compactMode) 8.dp else 12.dp
-    val cardVerticalPadding = if (compactMode) 3.dp else 5.dp
+    val cardVerticalPadding = if (compactMode) 2.dp else 4.dp
     val cardTopPadding = if (post.isSos) 0.dp else (if (compactMode) 8.dp else 12.dp)
-    val cardBottomPadding = if (compactMode) 8.dp else 12.dp
+    val cardBottomPadding = if (compactMode) 4.dp else 6.dp
     val avatarSize = if (compactMode) 36.dp else 42.dp
-    val cardShape = RoundedCornerShape(cardCornerRadius)
 
-    Box(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = cardHorizontalPadding, vertical = cardVerticalPadding)
-            .clip(cardShape)
             .background(FbSurface)
-            .border(1.dp, FbBorder, cardShape)
             .then(
                 if (onPostClick != null) {
                     Modifier.clickable { onPostClick() }
                 } else Modifier
             )
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = cardTopPadding, bottom = cardBottomPadding)
-        ) {
+        Column(modifier = Modifier.padding(top = cardTopPadding)) {
             // SOS High-Priority Alert Banner with Collapsible Radar
             if (post.isSos) {
                 Row(
@@ -428,21 +420,13 @@ fun PostCard(
             // Media attachment first if available (Instagram signature layout)
             if (post.mediaBlobHash != null) {
                 Spacer(modifier = Modifier.height(6.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .border(0.5.dp, FbBorder, RoundedCornerShape(10.dp))
-                ) {
-                    PostMediaAttachmentView(
-                        blobHash = post.mediaBlobHash,
-                        chunkCount = post.mediaChunkCount ?: 1,
-                        microPreviewBase64 = post.microPreviewBase64,
-                        onPrioritizeDownload = { onPrioritizeDownload?.invoke(post.mediaBlobHash) },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+                PostMediaAttachmentView(
+                    blobHash = post.mediaBlobHash,
+                    chunkCount = post.mediaChunkCount ?: 1,
+                    microPreviewBase64 = post.microPreviewBase64,
+                    onPrioritizeDownload = { onPrioritizeDownload?.invoke(post.mediaBlobHash) },
+                    modifier = Modifier.fillMaxWidth()
+                )
             } else {
                 // Text-only post
                 Spacer(modifier = Modifier.height(4.dp))
@@ -555,13 +539,7 @@ fun PostCard(
                 }
             }
 
-            HorizontalDivider(
-                color = FbDivider.copy(alpha = 0.5f),
-                thickness = 0.5.dp,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-            )
-
-            // Modern Action Bar (Heart, Comment Bubble, Share Paper Plane, Bookmark)
+            // Modern Instagram Action Bar (Heart, Comment Bubble, Share Paper Plane, Bookmark)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -692,6 +670,13 @@ fun PostCard(
                 fontWeight = FontWeight.Medium,
                 letterSpacing = 0.4.sp,
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
+            )
+
+            // Bottom hairline divider between posts
+            HorizontalDivider(
+                color = FbDivider,
+                thickness = 0.5.dp,
+                modifier = Modifier.padding(top = 10.dp)
             )
         }
     }

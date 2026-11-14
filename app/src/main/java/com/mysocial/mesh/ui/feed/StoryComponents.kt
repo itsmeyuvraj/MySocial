@@ -270,6 +270,7 @@ fun StoryCarouselView(
                 }
             }
         }
+        HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
     }
 }
 
