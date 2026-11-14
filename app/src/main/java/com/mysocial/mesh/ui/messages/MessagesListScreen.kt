@@ -298,7 +298,7 @@ fun MessagesListScreen(
                             )
                         }
                     }
-                    HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
+                    HorizontalDivider(color = FbBorder, thickness = 1.dp)
                 }
             }
         },
@@ -407,7 +407,7 @@ fun MessagesListScreen(
                                         }
                                     }
                                 }
-                                HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
+                                HorizontalDivider(color = FbBorder, thickness = 1.dp)
                             }
                         }
 
@@ -428,11 +428,6 @@ fun MessagesListScreen(
                                     onClick = {
                                         onOpenChat(conversation.peerId, conversation.peerDisplayName ?: "Neighbor")
                                     }
-                                )
-                                HorizontalDivider(
-                                    color = FbDivider,
-                                    thickness = 0.5.dp,
-                                    modifier = Modifier.padding(start = 76.dp)
                                 )
                             }
                         }
@@ -455,11 +450,6 @@ fun MessagesListScreen(
                                     onClick = {
                                         onOpenChat(friend.authorId, friend.displayName)
                                     }
-                                )
-                                HorizontalDivider(
-                                    color = FbDivider,
-                                    thickness = 0.5.dp,
-                                    modifier = Modifier.padding(start = 76.dp)
                                 )
                             }
                         }
@@ -719,14 +709,23 @@ fun ConversationItem(
     modifier: Modifier = Modifier
 ) {
     val displayName = conversation.peerDisplayName?.takeIf { it.isNotBlank() && it != "User" && it != "MeshPeer" } ?: "Neighbor"
+    val cardShape = RoundedCornerShape(12.dp)
 
-    Row(
+    Box(
         modifier = modifier
             .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 3.dp)
+            .clip(cardShape)
+            .background(FbSurface)
+            .border(1.dp, FbBorder, cardShape)
             .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
     ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
         AvatarView(
             seed = conversation.peerAvatarSeed ?: conversation.peerId,
             displayName = displayName,
@@ -805,6 +804,7 @@ fun ConversationItem(
         }
     }
 }
+}
 
 @Composable
 fun FriendListItem(
@@ -812,13 +812,23 @@ fun FriendListItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
+    val cardShape = RoundedCornerShape(12.dp)
+
+    Box(
         modifier = modifier
             .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 3.dp)
+            .clip(cardShape)
+            .background(FbSurface)
+            .border(1.dp, FbBorder, cardShape)
             .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically
     ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
         AvatarView(
             seed = friend.avatarSeed,
             displayName = friend.displayName,
@@ -859,6 +869,7 @@ fun FriendListItem(
             modifier = Modifier.size(20.dp)
         )
     }
+}
 }
 
 @Composable

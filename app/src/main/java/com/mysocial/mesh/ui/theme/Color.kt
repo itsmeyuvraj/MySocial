@@ -26,20 +26,20 @@ data class FbColorScheme(
 )
 
 val LightFbColorScheme = FbColorScheme(
-    background = Color(0xFFFFFFFF),       // Modern Instagram Pure Crisp White Canvas
-    surface = Color(0xFFFFFFFF),          // Clean Flat Surface
-    surfaceElevated = Color(0xFFF7F7F7),  // Ultra-subtle neutral elevated surface
-    border = Color(0xFFEFEFEF),           // Modern Hairline Micro-Border
-    divider = Color(0xFFF0F0F0),          // Clean Separator
-    textPrimary = Color(0xFF000000),      // Pure Sharp Black
-    textSecondary = Color(0xFF737373),    // Balanced Instagram Subtitle Grey
-    textTertiary = Color(0xFF8E8E8E),     // Light Metadata Grey
-    blue = Color(0xFF0095F6),             // Instagram Signature Action Blue
+    background = Color(0xFFF0F2F5),       // Soft, distinct modern canvas (Facebook/Material 3 style)
+    surface = Color(0xFFFFFFFF),          // Crisp Pure White Box/Card Surface
+    surfaceElevated = Color(0xFFE4E6EB),  // Refined Interactive Elevated Surface / Chip
+    border = Color(0xFFD8DADF),           // Clear, defined, crisp 1.dp borders
+    divider = Color(0xFFE4E6EB),          // Clean, visible hairline separator
+    textPrimary = Color(0xFF050505),      // Pure Sharp Near-Black
+    textSecondary = Color(0xFF65676B),    // Balanced Subtitle Grey
+    textTertiary = Color(0xFF8A8D91),     // Light Metadata Grey
+    blue = Color(0xFF0095F6),             // Signature Action Blue
     blueHover = Color(0xFF1877F2),
     blueLight = Color(0xFFEBF5FF),        // Soft Ice Tint
     green = Color(0xFF00BA88),            // Crisp Emerald
     greenLight = Color(0xFFE6F9F3),
-    red = Color(0xFFED4956),              // Iconic Instagram Heart Red
+    red = Color(0xFFED4956),              // Iconic Heart Red
     redLight = Color(0xFFFDE8E9),
     amber = Color(0xFFF77737),            // Warm Sunset Amber
     amberLight = Color(0xFFFFF1EB),
@@ -47,11 +47,11 @@ val LightFbColorScheme = FbColorScheme(
 )
 
 val DarkFbColorScheme = FbColorScheme(
-    background = Color(0xFF18191A),       // Deep Dark Charcoal Canvas
-    surface = Color(0xFF242526),          // Distinct Elevated Surface
-    surfaceElevated = Color(0xFF3A3B3C),  // Interactive Dark Action Chip / Pill
-    border = Color(0xFF393A3B),           // Refined Soft Dark Border
-    divider = Color(0xFF2E2F30),          // Subtle Hairline Separator
+    background = Color(0xFF141517),       // Deep Dark Charcoal Canvas
+    surface = Color(0xFF222426),          // Distinct Elevated Box Surface
+    surfaceElevated = Color(0xFF323438),  // Interactive Dark Action Chip / Pill
+    border = Color(0xFF3C3F43),           // Refined, visible dark box border
+    divider = Color(0xFF323438),          // Subtle Hairline Separator
     textPrimary = Color(0xFFE4E6EB),      // Crisp Balanced Off-White
     textSecondary = Color(0xFFB0B3B8),    // Soft Secondary Grey
     textTertiary = Color(0xFF8A8D91),     // Slate Metadata Grey
@@ -68,11 +68,11 @@ val DarkFbColorScheme = FbColorScheme(
 )
 
 val AmoledFbColorScheme = FbColorScheme(
-    background = Color(0xFF000000),       // Pure Pitch Black (OLED Zero Power)
-    surface = Color(0xFF000000),          // Pure Flat Pitch Black
-    surfaceElevated = Color(0xFF161616),  // Deep Pitch Dark Action Chip / Pill
-    border = Color(0xFF262626),           // Crisp Hairline Border
-    divider = Color(0xFF1A1A1A),          // Deep Hairline Separator
+    background = Color(0xFF000000),       // Pure Pitch Black Canvas
+    surface = Color(0xFF121214),          // Distinct Elevated Pitch-Dark Box Surface
+    surfaceElevated = Color(0xFF1E1F22),  // Deep Pitch Dark Action Chip / Pill
+    border = Color(0xFF2D2F33),           // Crisp Hairline Border defining each box
+    divider = Color(0xFF222426),          // Deep Hairline Separator
     textPrimary = Color(0xFFFFFFFF),      // High-Contrast Pure White
     textSecondary = Color(0xFFA8A8A8),    // Cool Light Grey
     textTertiary = Color(0xFF737373),     // Slate-500 Metadata

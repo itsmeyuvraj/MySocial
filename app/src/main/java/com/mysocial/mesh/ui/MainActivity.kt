@@ -472,7 +472,7 @@ class MainActivity : ComponentActivity() {
                         shadowElevation = 0.dp
                     ) {
                         Column {
-                            HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
+                            HorizontalDivider(color = FbBorder, thickness = 1.dp)
                             NavigationBar(
                                 containerColor = FbSurface,
                                 contentColor = FbTextPrimary,
