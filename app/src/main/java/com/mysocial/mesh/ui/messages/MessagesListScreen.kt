@@ -45,6 +45,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -89,6 +90,8 @@ fun MessagesListScreen(
     onNavigateBack: () -> Unit,
     onOpenChat: (peerAuthorId: String, peerDisplayName: String) -> Unit,
     showBackButton: Boolean = false,
+    initialGroupId: String? = null,
+    onClearInitialGroupId: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val conversations by viewModel.conversations.collectAsState()
@@ -96,8 +99,21 @@ fun MessagesListScreen(
     val groups by viewModel.groups.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
 
-    var selectedTab by remember { mutableIntStateOf(0) } // 0 = Direct, 1 = Groups
+    var selectedTab by remember { mutableIntStateOf(if (initialGroupId != null) 1 else 0) } // 0 = Direct, 1 = Groups
     var viewingGroup by remember { mutableStateOf<GroupEntity?>(null) }
+
+    LaunchedEffect(initialGroupId) {
+        if (!initialGroupId.isNullOrBlank()) {
+            selectedTab = 1
+            val directGroup: GroupEntity? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                viewModel.meshRepository.database.groupDao().getGroup(initialGroupId)
+            }
+            if (directGroup != null) {
+                viewingGroup = directGroup
+                onClearInitialGroupId?.invoke()
+            }
+        }
+    }
     var showCreateGroupDialog by remember { mutableStateOf(false) }
     var showJoinGroupDialog by remember { mutableStateOf(false) }
     var newGroupName by remember { mutableStateOf("") }

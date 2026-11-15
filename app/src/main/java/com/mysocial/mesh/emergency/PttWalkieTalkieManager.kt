@@ -2,6 +2,7 @@ package com.mysocial.mesh.emergency
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioManager
@@ -50,6 +51,54 @@ class PttWalkieTalkieManager(
         }.let { java.util.Collections.newSetFromMap(it) }
     )
     private val playbackMutex = kotlinx.coroutines.sync.Mutex()
+    private var recordingFocusRequest: Any? = null
+    private var playbackFocusRequest: Any? = null
+
+    private fun requestTransientFocus(isRecording: Boolean): Boolean {
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return true
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val usage = if (isRecording) AudioAttributes.USAGE_VOICE_COMMUNICATION else AudioAttributes.USAGE_MEDIA
+                val contentType = AudioAttributes.CONTENT_TYPE_SPEECH
+                val req = android.media.AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(usage)
+                            .setContentType(contentType)
+                            .build()
+                    )
+                    .build()
+                if (isRecording) recordingFocusRequest = req else playbackFocusRequest = req
+                audioManager.requestAudioFocus(req) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager.requestAudioFocus(
+                    null,
+                    AudioManager.STREAM_MUSIC,
+                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
+                ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            }
+        } catch (_: Exception) {
+            true
+        }
+    }
+
+    private fun abandonTransientFocus(isRecording: Boolean) {
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val req = if (isRecording) recordingFocusRequest as? android.media.AudioFocusRequest else playbackFocusRequest as? android.media.AudioFocusRequest
+                if (req != null) {
+                    audioManager.abandonAudioFocusRequest(req)
+                    if (isRecording) recordingFocusRequest = null else playbackFocusRequest = null
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager.abandonAudioFocus(null)
+            }
+        } catch (_: Exception) {}
+    }
+
     companion object {
         private const val TAG = "PttWalkieTalkie"
         const val SAMPLE_RATE = 16000
@@ -142,6 +191,7 @@ class PttWalkieTalkieManager(
      */
     fun startRecording() {
         if (_isRecording.value) return
+        requestTransientFocus(isRecording = true)
         _isRecording.value = true
         recordingStartTime = System.currentTimeMillis()
         recordedBytesStream = ByteArrayOutputStream()
@@ -218,6 +268,7 @@ class PttWalkieTalkieManager(
                     activeAudioRecord?.release()
                 } catch (_: Exception) {}
                 activeAudioRecord = null
+                abandonTransientFocus(isRecording = true)
             }
         }
     }
@@ -312,6 +363,7 @@ class PttWalkieTalkieManager(
         scope.launch(Dispatchers.IO) {
             playbackMutex.withLock {
                 _isPlaying.value = true
+                requestTransientFocus(isRecording = false)
                 var audioTrack: AudioTrack? = null
                 try {
                     val pcmData = Base64.decode(payload.audioBase64, Base64.NO_WRAP)
@@ -385,6 +437,7 @@ class PttWalkieTalkieManager(
                     try {
                         audioTrack?.release()
                     } catch (_: Exception) {}
+                    abandonTransientFocus(isRecording = false)
                     _isPlaying.value = false
                 }
             }

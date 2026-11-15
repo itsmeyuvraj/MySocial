@@ -73,6 +73,10 @@ class GossipSyncEngine(
         peerIdentifiedListeners.add(listener)
     }
 
+    fun removePeerIdentifiedListener(listener: (connectionPeerId: String, remoteAuthorId: String, remoteDisplayName: String) -> Unit) {
+        peerIdentifiedListeners.remove(listener)
+    }
+
     var onPeerIdentified: ((connectionPeerId: String, remoteAuthorId: String, remoteDisplayName: String) -> Unit)?
         get() = peerIdentifiedListeners.firstOrNull()
         set(value) {
@@ -551,6 +555,10 @@ class GossipSyncEngine(
      * Handles peer's BLOB_REQ: streams requested 16 KB chunks sequentially.
      */
     private suspend fun handleBlobReq(connection: PeerConnection, req: GossipMessage.BlobReq) {
+        if (!MediaProcessor.isValidBlobHash(req.blobHash)) {
+            Log.w(tag, "Rejecting BlobReq with invalid/malformed blobHash from ${connection.peerId}: ${req.blobHash}")
+            return
+        }
         val manifest = db.blobDao().getManifest(req.blobHash) ?: return
         val totalChunks = manifest.chunkCount
 
@@ -586,6 +594,10 @@ class GossipSyncEngine(
      * Handles incoming BLOB_CHUNK: stores chunk in Room, verifies SHA-256 upon completion.
      */
     private suspend fun handleBlobChunk(peerId: String, chunk: GossipMessage.BlobChunk) {
+        if (!MediaProcessor.isValidBlobHash(chunk.blobHash)) {
+            Log.w(tag, "Rejecting BlobChunk with invalid/malformed blobHash from $peerId: ${chunk.blobHash}")
+            return
+        }
         val bytes = Base64.decode(chunk.bytesBase64, Base64.DEFAULT)
         db.blobDao().upsertChunk(
             BlobChunkEntity(
@@ -615,6 +627,10 @@ class GossipSyncEngine(
      * writes to files/blobs/<blobHash>.blob, and marks manifest isComplete = true.
      */
     private suspend fun assembleAndVerifyBlob(peerId: String, blobHash: String, totalChunks: Int) {
+        if (!MediaProcessor.isValidBlobHash(blobHash)) {
+            Log.e(tag, "Refusing to assemble blob with invalid/malformed hash: $blobHash")
+            return
+        }
         val allChunks = db.blobDao().getAllChunksForBlob(blobHash)
         if (allChunks.size < totalChunks) return
 
@@ -772,6 +788,7 @@ class GossipSyncEngine(
      * Triggered when the user taps "Tap to prioritize download".
      */
     suspend fun prioritizeBlob(blobHash: String) = withContext(Dispatchers.IO) {
+        if (!MediaProcessor.isValidBlobHash(blobHash)) return@withContext
         val manifest = db.blobDao().getManifest(blobHash) ?: return@withContext
         if (manifest.isComplete) return@withContext
 

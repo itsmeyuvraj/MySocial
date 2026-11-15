@@ -221,4 +221,17 @@ class Phase2GroupAndEmergencyTest {
         val chirp = com.mysocial.mesh.emergency.PttWalkieTalkieManager.generateRadioChirp()
         assertTrue("Chirp must have audio bytes", chirp.isNotEmpty())
     }
+
+    @Test
+    fun testCompassDirectionFinderSingletonAndRefCounting() {
+        val finder1 = CompassDirectionFinder.getInstance(context)
+        val finder2 = CompassDirectionFinder.getInstance(context)
+        assertEquals("getInstance should return the same singleton instance", finder1, finder2)
+
+        // Verify ref-counted start and stop without crashing
+        finder1.start()
+        finder2.start()
+        finder1.stop()
+        finder2.stop()
+    }
 }

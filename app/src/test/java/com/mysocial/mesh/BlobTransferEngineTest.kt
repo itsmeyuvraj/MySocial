@@ -229,4 +229,57 @@ class BlobTransferEngineTest {
         assertTrue(receivedFile.exists())
         assertEquals(processed.totalBytes, receivedFile.length())
     }
+
+    @Test
+    fun testBlobHashValidationAndPathTraversalDefense() {
+        // Valid 64-char sha256 hex
+        val validSha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        assertTrue(MediaProcessor.isValidBlobHash(validSha256))
+
+        // Valid 32-char hex
+        val valid32Hex = "0123456789abcdef0123456789abcdef"
+        assertTrue(MediaProcessor.isValidBlobHash(valid32Hex))
+
+        // Invalid: path traversal characters
+        assertFalse(MediaProcessor.isValidBlobHash("../../databases/mesh.db"))
+        assertFalse(MediaProcessor.isValidBlobHash("../secret.txt"))
+        assertFalse(MediaProcessor.isValidBlobHash("/etc/passwd"))
+        assertFalse(MediaProcessor.isValidBlobHash("abc/def"))
+        assertFalse(MediaProcessor.isValidBlobHash("abc\\def"))
+        assertFalse(MediaProcessor.isValidBlobHash(""))
+        assertFalse(MediaProcessor.isValidBlobHash(null))
+        assertFalse(MediaProcessor.isValidBlobHash("not_hex_chars_!!!"))
+
+        // Verify getBlobFile rejects path traversal attempts
+        var securityExceptionThrown = false
+        try {
+            MediaProcessor.getBlobFile(context, "../../malicious.blob")
+        } catch (e: IllegalArgumentException) {
+            securityExceptionThrown = true
+        } catch (e: SecurityException) {
+            securityExceptionThrown = true
+        }
+        assertTrue("Expected exception for path traversal blobHash", securityExceptionThrown)
+
+        // Verify getBlobFile succeeds for valid hex hash
+        val blobFile = MediaProcessor.getBlobFile(context, validSha256)
+        assertNotNull(blobFile)
+        assertTrue(blobFile.name.endsWith(".blob"))
+    }
+
+    @Test
+    fun testPeerIdentifiedListenerAddAndRemove() {
+        var callCount = 0
+        val listener: (String, String, String) -> Unit = { _, _, _ ->
+            callCount++
+        }
+
+        engineA.addPeerIdentifiedListener(listener)
+        engineA.notifyPeerIdentified("conn1", "author1", "Alice")
+        assertEquals(1, callCount)
+
+        engineA.removePeerIdentifiedListener(listener)
+        engineA.notifyPeerIdentified("conn2", "author2", "Bob")
+        assertEquals("Listener should not be invoked after removal", 1, callCount)
+    }
 }

@@ -167,6 +167,7 @@ object PeerNotificationHelper {
 
         val launchIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("open_tab", 3)
             putExtra("open_group_id", groupId)
         }
         val pendingIntent = PendingIntent.getActivity(

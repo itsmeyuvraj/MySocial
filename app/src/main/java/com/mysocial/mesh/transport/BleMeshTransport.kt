@@ -1086,10 +1086,17 @@ class BleMeshTransport(
                                     scope.launch(Dispatchers.IO) {
                                         var conn: BluetoothSocketPeerConnection? = null
                                         var rawSocket: android.bluetooth.BluetoothSocket? = null
+                                        var connectTimeoutJob: Job? = null
                                         try {
                                             val l2capSocket = device.createInsecureL2capChannel(remotePsm)
                                             rawSocket = l2capSocket
+                                            connectTimeoutJob = scope.launch {
+                                                delay(10_000L)
+                                                Log.w(tag, "GATT discovered L2CAP connect to $address timed out after 10s, aborting socket")
+                                                try { rawSocket?.close() } catch (_: Exception) {}
+                                            }
                                             l2capSocket.connect()
+                                            connectTimeoutJob.cancel()
                                             Log.i(tag, "Successfully connected BLE L2CAP channel to $address")
                                             conn = BluetoothSocketPeerConnection(
                                                 peerId = peerId,
@@ -1099,8 +1106,10 @@ class BleMeshTransport(
                                             )
                                             syncEngine.syncWithPeer(conn)
                                         } catch (e: Exception) {
+                                            connectTimeoutJob?.cancel()
                                             Log.w(tag, "L2CAP connection failed to $address: ${e.message}")
                                         } finally {
+                                            connectTimeoutJob?.cancel()
                                             try { conn?.close() } catch (_: Exception) {}
                                             if (conn == null) {
                                                 try { rawSocket?.close() } catch (_: Exception) {}

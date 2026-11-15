@@ -136,6 +136,16 @@ object MediaProcessor {
         }
     }
 
+    private val BLOB_HASH_REGEX = Regex("^[a-fA-F0-9]{32,64}$")
+
+    /**
+     * Validates that a blobHash strictly conforms to a 32-to-64 hex character content address.
+     */
+    fun isValidBlobHash(blobHash: String?): Boolean {
+        if (blobHash.isNullOrBlank()) return false
+        return BLOB_HASH_REGEX.matches(blobHash)
+    }
+
     /**
      * Gets the blobs storage directory under files/blobs.
      */
@@ -148,10 +158,18 @@ object MediaProcessor {
     }
 
     /**
-     * Gets the file for a specific blobHash if it exists locally.
+     * Gets the file for a specific blobHash if it exists locally, with strict path traversal defense.
      */
     fun getBlobFile(context: Context, blobHash: String): File {
-        return File(getBlobsDirectory(context), "$blobHash.blob")
+        require(isValidBlobHash(blobHash)) { "Invalid blobHash format: $blobHash" }
+        val blobsDir = getBlobsDirectory(context)
+        val file = File(blobsDir, "$blobHash.blob")
+        val canonicalBlobsDir = blobsDir.canonicalPath
+        val canonicalFile = file.canonicalPath
+        if (!canonicalFile.startsWith(canonicalBlobsDir)) {
+            throw SecurityException("Path traversal attempt detected in blobHash: $blobHash")
+        }
+        return file
     }
 
     /**

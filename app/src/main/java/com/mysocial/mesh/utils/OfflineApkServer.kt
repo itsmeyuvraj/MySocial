@@ -69,8 +69,26 @@ class OfflineApkServer(private val context: Context) {
         while (isRunning.get() && !server.isClosed) {
             try {
                 val client = server.accept()
+                client.soTimeout = SOCKET_TIMEOUT_MS
+                val current = activeClients.incrementAndGet()
+                if (current > MAX_CONCURRENT_CLIENTS) {
+                    activeClients.decrementAndGet()
+                    try {
+                        client.use { s ->
+                            val out = s.getOutputStream()
+                            val err503 = "HTTP/1.1 503 Service Unavailable\r\nRetry-After: 5\r\nConnection: close\r\n\r\n"
+                            out.write(err503.toByteArray(Charsets.UTF_8))
+                            out.flush()
+                        }
+                    } catch (_: Exception) {}
+                    continue
+                }
                 Thread({
-                    handleClient(client, apkFile)
+                    try {
+                        handleClient(client, apkFile)
+                    } finally {
+                        activeClients.decrementAndGet()
+                    }
                 }, "ApkClientHandler").start()
             } catch (_: Exception) {
                 break
@@ -135,7 +153,12 @@ class OfflineApkServer(private val context: Context) {
         }
     }
 
+    private val activeClients = java.util.concurrent.atomic.AtomicInteger(0)
+
     companion object {
+        const val MAX_CONCURRENT_CLIENTS = 4
+        const val SOCKET_TIMEOUT_MS = 15_000
+
         fun findLocalIpAddress(): String? {
             try {
                 val interfaces = NetworkInterface.getNetworkInterfaces() ?: return null

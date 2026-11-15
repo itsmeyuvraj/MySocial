@@ -263,53 +263,53 @@ class PeerApkUpdateManager(
         targetFile: File,
         onProgress: (Float) -> Unit
     ) {
-        val socket = Socket()
-        socket.tcpNoDelay = true
-        socket.connect(InetSocketAddress(host, port), 10_000)
-        socket.soTimeout = 60_000
+        Socket().use { socket ->
+            socket.tcpNoDelay = true
+            socket.connect(InetSocketAddress(host, port), 10_000)
+            socket.soTimeout = 60_000
 
-        val out = socket.getOutputStream()
-        val request = "GET /mysocial.apk HTTP/1.1\r\nHost: $host:$port\r\nConnection: close\r\n\r\n"
-        out.write(request.toByteArray(Charsets.US_ASCII))
-        out.flush()
+            val out = socket.getOutputStream()
+            val request = "GET /mysocial.apk HTTP/1.1\r\nHost: $host:$port\r\nConnection: close\r\n\r\n"
+            out.write(request.toByteArray(Charsets.US_ASCII))
+            out.flush()
 
-        val rawIn = socket.getInputStream()
-        val inStream = BufferedInputStream(rawIn)
+            val rawIn = socket.getInputStream()
+            val inStream = BufferedInputStream(rawIn)
 
-        var contentLength: Long = 10_000_000L
-        val headerBytes = ByteArrayOutputStream()
-        var matchState = 0
-        while (true) {
-            val b = inStream.read()
-            if (b == -1) break
-            headerBytes.write(b)
-            if (matchState == 0 && b == '\r'.code) matchState = 1
-            else if (matchState == 1 && b == '\n'.code) matchState = 2
-            else if (matchState == 2 && b == '\r'.code) matchState = 3
-            else if (matchState == 3 && b == '\n'.code) break
-            else matchState = if (b == '\r'.code) 1 else 0
-        }
-
-        val headerStr = headerBytes.toString("US-ASCII")
-        for (line in headerStr.lines()) {
-            if (line.startsWith("Content-Length:", ignoreCase = true)) {
-                contentLength = line.substringAfter(":").trim().toLongOrNull() ?: contentLength
+            var contentLength: Long = 10_000_000L
+            val headerBytes = ByteArrayOutputStream()
+            var matchState = 0
+            while (true) {
+                val b = inStream.read()
+                if (b == -1) break
+                headerBytes.write(b)
+                if (matchState == 0 && b == '\r'.code) matchState = 1
+                else if (matchState == 1 && b == '\n'.code) matchState = 2
+                else if (matchState == 2 && b == '\r'.code) matchState = 3
+                else if (matchState == 3 && b == '\n'.code) break
+                else matchState = if (b == '\r'.code) 1 else 0
             }
-        }
 
-        var bytesReadTotal = 0L
-        FileOutputStream(targetFile).use { fileOut ->
-            val buffer = ByteArray(32768)
-            var read: Int
-            while (inStream.read(buffer).also { read = it } != -1) {
-                fileOut.write(buffer, 0, read)
-                bytesReadTotal += read
-                onProgress((bytesReadTotal.toFloat() / contentLength.toFloat()).coerceIn(0f, 1f))
+            val headerStr = headerBytes.toString("US-ASCII")
+            for (line in headerStr.lines()) {
+                if (line.startsWith("Content-Length:", ignoreCase = true)) {
+                    contentLength = line.substringAfter(":").trim().toLongOrNull() ?: contentLength
+                }
             }
-            fileOut.flush()
+
+            var bytesReadTotal = 0L
+            FileOutputStream(targetFile).use { fileOut ->
+                val buffer = ByteArray(32768)
+                var read: Int
+                while (inStream.read(buffer).also { read = it } != -1) {
+                    fileOut.write(buffer, 0, read)
+                    bytesReadTotal += read
+                    onProgress((bytesReadTotal.toFloat() / contentLength.toFloat()).coerceIn(0f, 1f))
+                }
+                fileOut.flush()
+            }
+            Log.i(tag, "Direct TCP socket stream successfully downloaded $bytesReadTotal bytes")
         }
-        socket.close()
-        Log.i(tag, "Direct TCP socket stream successfully downloaded $bytesReadTotal bytes")
     }
 
     /**

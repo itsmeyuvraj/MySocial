@@ -1,6 +1,9 @@
 package com.mysocial.mesh.utils
 
 import android.content.Context
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.os.Build
@@ -122,14 +125,64 @@ class VoiceRecorder(
 }
 
 /**
- * Manages playback of voice notes with position tracking and auto-cleanup.
+ * Manages playback of voice notes with position tracking, audio focus management, and auto-cleanup.
  */
 class VoicePlayer(
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    context: Context? = null
 ) {
     private val tag = "VoicePlayer"
+    private val audioManager = context?.applicationContext?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+    private var audioFocusRequest: AudioFocusRequest? = null
+
     private var player: MediaPlayer? = null
     private var tickerJob: Job? = null
+
+    private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_LOSS,
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                pause()
+            }
+        }
+    }
+
+    private fun requestAudioFocus(): Boolean {
+        val am = audioManager ?: return true
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
+                .setOnAudioFocusChangeListener(audioFocusChangeListener)
+                .build()
+            audioFocusRequest = req
+            am.requestAudioFocus(req) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        } else {
+            @Suppress("DEPRECATION")
+            am.requestAudioFocus(
+                audioFocusChangeListener,
+                AudioManager.STREAM_MUSIC,
+                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
+            ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        }
+    }
+
+    private fun abandonAudioFocus() {
+        val am = audioManager ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest?.let {
+                am.abandonAudioFocusRequest(it)
+                audioFocusRequest = null
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            am.abandonAudioFocus(audioFocusChangeListener)
+        }
+    }
 
     private val _currentPlayingMessageId = MutableStateFlow<String?>(null)
     val currentPlayingMessageId: StateFlow<String?> = _currentPlayingMessageId.asStateFlow()
@@ -161,6 +214,8 @@ class VoicePlayer(
             Log.w(tag, "Audio file does not exist: ${file.absolutePath}")
             return
         }
+
+        requestAudioFocus()
 
         var tempMp: MediaPlayer? = null
         try {
@@ -204,10 +259,12 @@ class VoicePlayer(
         } catch (_: Exception) {}
         _isPlaying.value = false
         tickerJob?.cancel()
+        abandonAudioFocus()
     }
 
     fun resume() {
         try {
+            requestAudioFocus()
             player?.start()
             _isPlaying.value = true
             val totalDuration = (player?.duration ?: 1).toFloat().coerceAtLeast(1f)
@@ -230,6 +287,7 @@ class VoicePlayer(
     fun stop() {
         tickerJob?.cancel()
         tickerJob = null
+        abandonAudioFocus()
         try {
             player?.stop()
             player?.release()

@@ -54,6 +54,7 @@ class MeshRepository(
     val syncEngine: GossipSyncEngine,
     val appSettings: AppSettings? = null
 ) {
+    val database: MeshDatabase get() = db
     private val repoScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val _discoveredPeers = MutableStateFlow<List<DiscoveredPeer>>(emptyList())
     val discoveredPeers: StateFlow<List<DiscoveredPeer>> = _discoveredPeers.asStateFlow()

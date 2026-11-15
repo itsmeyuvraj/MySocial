@@ -239,6 +239,11 @@ class LoraCompanionBridge private constructor(private val context: Context) {
             while (isActive && _connectionState.value == LoraConnectionState.CONNECTED) {
                 try {
                     val bytesRead = inStream.read(buffer)
+                    if (bytesRead == -1) {
+                        Log.i(tag, "LoRa stream reached EOF, disconnecting cleanly")
+                        disconnect()
+                        break
+                    }
                     if (bytesRead > 0) {
                         val frame = ByteArray(bytesRead)
                         System.arraycopy(buffer, 0, frame, 0, bytesRead)
