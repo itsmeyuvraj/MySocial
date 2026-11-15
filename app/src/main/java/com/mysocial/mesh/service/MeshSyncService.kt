@@ -421,6 +421,11 @@ class MeshSyncService : Service() {
         wifiTransport?.broadcastVoiceCallSignal(signal)
     }
 
+    fun forceSyncPeer(peerId: String) {
+        wifiTransport?.forceSync(peerId)
+        bleTransport?.forceSync(peerId)
+    }
+
     fun forceSyncAll() {
         wifiTransport?.discoveredPeers?.value?.forEach { peer ->
             wifiTransport?.forceSync(peer.peerId)
