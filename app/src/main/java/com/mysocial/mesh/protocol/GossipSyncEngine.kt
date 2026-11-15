@@ -598,7 +598,20 @@ class GossipSyncEngine(
             Log.w(tag, "Rejecting BlobChunk with invalid/malformed blobHash from $peerId: ${chunk.blobHash}")
             return
         }
-        val bytes = Base64.decode(chunk.bytesBase64, Base64.DEFAULT)
+        if (chunk.chunkIndex < 0 || chunk.totalChunks <= 0 || chunk.chunkIndex >= chunk.totalChunks || chunk.totalChunks > 10_000) {
+            Log.w(tag, "Rejecting BlobChunk with out-of-bounds index (${chunk.chunkIndex}/${chunk.totalChunks}) from $peerId")
+            return
+        }
+        val bytes = try {
+            Base64.decode(chunk.bytesBase64, Base64.DEFAULT)
+        } catch (e: Exception) {
+            Log.w(tag, "Failed to decode base64 for BlobChunk from $peerId: ${e.message}")
+            return
+        }
+        if (bytes.size > MediaProcessor.CHUNK_SIZE * 2) {
+            Log.w(tag, "Rejecting oversized BlobChunk payload (${bytes.size} bytes) from $peerId")
+            return
+        }
         db.blobDao().upsertChunk(
             BlobChunkEntity(
                 blobHash = chunk.blobHash,
@@ -632,7 +645,7 @@ class GossipSyncEngine(
             return
         }
         val allChunks = db.blobDao().getAllChunksForBlob(blobHash)
-        if (allChunks.size < totalChunks) return
+        if (allChunks.size != totalChunks || !allChunks.withIndex().all { (idx, c) -> c.chunkIndex == idx }) return
 
         val blobsDir = if (context != null) {
             MediaProcessor.getBlobsDirectory(context)
@@ -770,6 +783,11 @@ class GossipSyncEngine(
         }
         for (blobHash in expiredBlobHashes) {
             val file = File(blobsDir, "$blobHash.blob")
+            try {
+                if (!file.canonicalPath.startsWith(blobsDir.canonicalPath)) continue
+            } catch (_: Exception) {
+                continue
+            }
             if (file.exists()) {
                 file.delete()
             }

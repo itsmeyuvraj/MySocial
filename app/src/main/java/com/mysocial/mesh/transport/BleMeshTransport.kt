@@ -161,7 +161,7 @@ class BleMeshTransport(
     private var isScanningExtended: Boolean = false
 
     val isAvailable: Boolean
-        get() = bluetoothAdapter != null && bluetoothAdapter!!.isEnabled
+        get() = bluetoothAdapter?.isEnabled == true
 
     val isExtendedAdvertisingSupported: Boolean
         get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
@@ -176,8 +176,8 @@ class BleMeshTransport(
                 bluetoothAdapter?.isLeCodedPhySupported == true
 
     val maxAdvertisingDataLength: Int
-        get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && bluetoothAdapter != null) {
-            bluetoothAdapter!!.leMaximumAdvertisingDataLength
+        get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            bluetoothAdapter?.leMaximumAdvertisingDataLength ?: 31
         } else {
             31
         }
@@ -188,7 +188,8 @@ class BleMeshTransport(
     @SuppressLint("MissingPermission")
     fun start() {
         if (!isRunning.compareAndSet(false, true)) return
-        if (bluetoothAdapter == null || !bluetoothAdapter!!.isEnabled) {
+        val adapter = bluetoothAdapter
+        if (adapter == null || !adapter.isEnabled) {
             Log.w(tag, "Bluetooth is disabled or unavailable on this device")
             return
         }
@@ -296,9 +297,10 @@ class BleMeshTransport(
      */
     @SuppressLint("MissingPermission")
     private fun startL2capServer() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && bluetoothAdapter != null) {
+        val adapter = bluetoothAdapter
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && adapter != null) {
             try {
-                val server = bluetoothAdapter!!.listenUsingInsecureL2capChannel()
+                val server = adapter.listenUsingInsecureL2capChannel()
                 l2capServerSocket = server
                 localL2capPsm = server.psm
                 Log.i(tag, "BLE L2CAP CoC Server listening on dynamic PSM $localL2capPsm")

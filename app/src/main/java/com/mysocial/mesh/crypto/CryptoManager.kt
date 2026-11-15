@@ -281,7 +281,7 @@ class CryptoManager private constructor(
          * SHA-256 hex string calculation using reusable ThreadLocal MessageDigest.
          */
         fun sha256Hex(data: ByteArray): String {
-            val digest = threadLocalSha256.get()!!
+            val digest = threadLocalSha256.get() ?: java.security.MessageDigest.getInstance("SHA-256")
             digest.reset()
             val hash = digest.digest(data)
             val hexChars = CharArray(hash.size * 2)

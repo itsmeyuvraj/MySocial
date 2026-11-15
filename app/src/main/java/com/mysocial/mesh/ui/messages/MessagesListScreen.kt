@@ -120,9 +120,10 @@ fun MessagesListScreen(
     var newGroupDesc by remember { mutableStateOf("") }
     var joinInviteUri by remember { mutableStateOf("") }
 
-    if (viewingGroup != null) {
+    val currentViewingGroup = viewingGroup
+    if (currentViewingGroup != null) {
         GroupChatScreen(
-            group = viewingGroup!!,
+            group = currentViewingGroup,
             repository = viewModel.meshRepository,
             onNavigateBack = { viewingGroup = null }
         )

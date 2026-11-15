@@ -214,7 +214,7 @@ object E2eeManager {
     }
 
     private fun deriveAesKey(sharedSecret: ByteArray): ByteArray {
-        val md = threadLocalSha256.get()!!
+        val md = threadLocalSha256.get() ?: java.security.MessageDigest.getInstance("SHA-256")
         md.reset()
         md.update(sharedSecret)
         md.update(DOMAIN_SEPARATOR_BYTES)

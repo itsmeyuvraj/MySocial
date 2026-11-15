@@ -362,9 +362,10 @@ fun FullscreenStoryViewerDialog(
                 }
         ) {
             // Full-screen Story Image if present
-            if (storyBitmap != null) {
+            val currentStoryBitmap = storyBitmap
+            if (currentStoryBitmap != null) {
                 Image(
-                    bitmap = storyBitmap!!.asImageBitmap(),
+                    bitmap = currentStoryBitmap.asImageBitmap(),
                     contentDescription = "Story photo",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop

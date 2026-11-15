@@ -498,8 +498,9 @@ fun IdentityScreen(
         }
 
         // Instagram-style Post Details & Comments Bottom Sheet
-        if (selectedPostForComments != null) {
-            val targetPost = selectedPostForComments!!
+        val postForComments = selectedPostForComments
+        if (postForComments != null) {
+            val targetPost = postForComments
             val comments by viewModel.observeReplies(targetPost.post.entryHash).collectAsState(initial = emptyList())
 
             com.mysocial.mesh.ui.components.PostCommentsSheet(

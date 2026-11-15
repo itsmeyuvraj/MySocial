@@ -121,15 +121,15 @@ data class BleExtendedPayload(
         if ((flags and FLAG_HAS_PSM) != 0) totalSize += 4
         if ((flags and FLAG_HAS_PUBKEY) != 0) totalSize += 32
         if ((flags and FLAG_HAS_SEQUENCE) != 0) totalSize += 8
-        if ((flags and FLAG_HAS_NAME) != 0) totalSize += 1 + nameBytes!!.size
-        if ((flags and FLAG_HAS_BROADCAST_DATA) != 0) totalSize += 2 + bData!!.size
+        if ((flags and FLAG_HAS_NAME) != 0) totalSize += 1 + (nameBytes?.size ?: 0)
+        if ((flags and FLAG_HAS_BROADCAST_DATA) != 0) totalSize += 2 + (bData?.size ?: 0)
 
         // If totalSize exceeds maxBytes, gracefully trim broadcastData first
-        if (totalSize > maxBytes && (flags and FLAG_HAS_BROADCAST_DATA) != 0) {
-            val sizeWithoutBData = totalSize - (2 + bData!!.size)
+        if (totalSize > maxBytes && (flags and FLAG_HAS_BROADCAST_DATA) != 0 && bData != null) {
+            val sizeWithoutBData = totalSize - (2 + bData.size)
             val allowedBData = maxBytes - sizeWithoutBData - 2
             if (allowedBData > 0) {
-                bData = bData!!.copyOf(allowedBData)
+                bData = bData.copyOf(allowedBData)
                 totalSize = sizeWithoutBData + 2 + bData.size
             } else {
                 bData = null
@@ -139,11 +139,11 @@ data class BleExtendedPayload(
         }
 
         // If still exceeds maxBytes, trim display name
-        if (totalSize > maxBytes && (flags and FLAG_HAS_NAME) != 0) {
-            val sizeWithoutName = totalSize - (1 + nameBytes!!.size)
+        if (totalSize > maxBytes && (flags and FLAG_HAS_NAME) != 0 && nameBytes != null) {
+            val sizeWithoutName = totalSize - (1 + nameBytes.size)
             val allowedName = maxBytes - sizeWithoutName - 1
             if (allowedName > 0) {
-                nameBytes = nameBytes!!.copyOf(allowedName)
+                nameBytes = nameBytes.copyOf(allowedName)
                 totalSize = sizeWithoutName + 1 + nameBytes.size
             } else {
                 nameBytes = null
@@ -158,21 +158,21 @@ data class BleExtendedPayload(
         buffer.put(PROTOCOL_VERSION)
         buffer.put(flags.toByte())
 
-        if ((flags and FLAG_HAS_PSM) != 0) {
-            buffer.putInt(l2capPsm!!)
+        if ((flags and FLAG_HAS_PSM) != 0 && l2capPsm != null) {
+            buffer.putInt(l2capPsm)
         }
-        if ((flags and FLAG_HAS_PUBKEY) != 0) {
-            buffer.put(pubKey!!)
+        if ((flags and FLAG_HAS_PUBKEY) != 0 && pubKey != null) {
+            buffer.put(pubKey)
         }
-        if ((flags and FLAG_HAS_SEQUENCE) != 0) {
-            buffer.putLong(latestSequence!!)
+        if ((flags and FLAG_HAS_SEQUENCE) != 0 && latestSequence != null) {
+            buffer.putLong(latestSequence)
         }
-        if ((flags and FLAG_HAS_NAME) != 0) {
-            buffer.put(nameBytes!!.size.toByte())
+        if ((flags and FLAG_HAS_NAME) != 0 && nameBytes != null) {
+            buffer.put(nameBytes.size.toByte())
             buffer.put(nameBytes)
         }
-        if ((flags and FLAG_HAS_BROADCAST_DATA) != 0) {
-            buffer.putShort(bData!!.size.toShort())
+        if ((flags and FLAG_HAS_BROADCAST_DATA) != 0 && bData != null) {
+            buffer.putShort(bData.size.toShort())
             buffer.put(bData)
         }
 

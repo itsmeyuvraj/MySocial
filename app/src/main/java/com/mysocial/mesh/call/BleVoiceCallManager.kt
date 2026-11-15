@@ -188,9 +188,10 @@ class BleVoiceCallManager(
      */
     @SuppressLint("MissingPermission")
     private fun startL2capServer() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && bluetoothAdapter != null) {
+        val adapter = bluetoothAdapter
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && adapter != null) {
             try {
-                val server = bluetoothAdapter!!.listenUsingInsecureL2capChannel()
+                val server = adapter.listenUsingInsecureL2capChannel()
                 l2capServerSocket = server
                 localL2capPsm = server.psm
                 Log.i(tag, "BleVoiceCallManager L2CAP listener ready on PSM $localL2capPsm")
@@ -209,8 +210,9 @@ class BleVoiceCallManager(
                             delay(5000)
                             if (!isActive) break
                             try {
-                                if (bluetoothAdapter?.isEnabled == true) {
-                                    val newServer = bluetoothAdapter!!.listenUsingInsecureL2capChannel()
+                                val currentAdapter = bluetoothAdapter
+                                if (currentAdapter?.isEnabled == true) {
+                                    val newServer = currentAdapter.listenUsingInsecureL2capChannel()
                                     l2capServerSocket = newServer
                                     localL2capPsm = newServer.psm
                                     currentServer = newServer

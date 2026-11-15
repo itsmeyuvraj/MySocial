@@ -176,7 +176,7 @@ object MediaProcessor {
      * Reads a specific 16 KB chunk from a blob file.
      */
     fun readChunkFromFile(file: File, chunkIndex: Int, chunkSize: Int = CHUNK_SIZE): ByteArray? {
-        if (!file.exists() || !file.canRead()) return null
+        if (chunkIndex < 0 || !file.exists() || !file.canRead()) return null
         val offset = chunkIndex.toLong() * chunkSize
         val totalLength = file.length()
         if (offset >= totalLength) return null

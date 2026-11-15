@@ -320,7 +320,8 @@ class PeerApkUpdateManager(
             val pm = context.packageManager
 
             val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                PackageManager.GET_SIGNING_CERTIFICATES
+                @Suppress("DEPRECATION")
+                PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_SIGNATURES
             } else {
                 @Suppress("DEPRECATION")
                 PackageManager.GET_SIGNATURES
@@ -349,24 +350,39 @@ class PeerApkUpdateManager(
                 return false
             }
 
-            // Verify developer signing signatures match the currently installed app
-            val currentSignatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            // Verify developer signing signatures match the currently installed app using SHA-256 certificate digest
+            val md = java.security.MessageDigest.getInstance("SHA-256")
+            val currentSignatures: List<ByteArray> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 val pInfo = pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
-                pInfo.signingInfo?.apkContentsSigners?.map { it.toByteArray().contentHashCode() }
+                val signers = pInfo.signingInfo?.apkContentsSigners ?: pInfo.signingInfo?.signingCertificateHistory
+                if (signers != null) {
+                    signers.map { md.digest(it.toByteArray()) }
+                } else {
+                    @Suppress("DEPRECATION")
+                    pInfo.signatures?.map { md.digest(it.toByteArray()) }
+                }
             } else {
                 @Suppress("DEPRECATION")
                 val pInfo = pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES)
-                pInfo.signatures?.map { it.toByteArray().contentHashCode() }
+                pInfo.signatures?.map { md.digest(it.toByteArray()) }
             } ?: return false
 
-            val archiveSignatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                archiveInfo.signingInfo?.apkContentsSigners?.map { it.toByteArray().contentHashCode() }
+            val archiveSignatures: List<ByteArray> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val signers = archiveInfo.signingInfo?.apkContentsSigners ?: archiveInfo.signingInfo?.signingCertificateHistory
+                if (signers != null) {
+                    signers.map { md.digest(it.toByteArray()) }
+                } else {
+                    @Suppress("DEPRECATION")
+                    archiveInfo.signatures?.map { md.digest(it.toByteArray()) }
+                }
             } else {
                 @Suppress("DEPRECATION")
-                archiveInfo.signatures?.map { it.toByteArray().contentHashCode() }
+                archiveInfo.signatures?.map { md.digest(it.toByteArray()) }
             } ?: return false
 
-            val matches = currentSignatures.any { it in archiveSignatures }
+            val matches = currentSignatures.any { cur ->
+                archiveSignatures.any { arch -> cur.contentEquals(arch) }
+            }
             if (!matches) {
                 Log.w(tag, "Signatures do not match installed app! Rejecting untrusted APK.")
             }

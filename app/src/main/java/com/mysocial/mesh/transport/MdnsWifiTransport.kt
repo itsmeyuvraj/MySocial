@@ -357,8 +357,11 @@ class MdnsWifiTransport(
      * Broadcasts an urgent real-time PTT voice burst immediately to all known peers over TCP.
      */
     fun broadcastPttBurst(burst: com.mysocial.mesh.model.PttVoiceBurstPayload) {
-        val targets = _peersMap.values.filter { it.hostAddress != null && it.port != null }.toList()
-        val allHosts = targets.map { Pair(it.hostAddress!!, it.port!!) }.toMutableSet()
+        val allHosts = _peersMap.values.mapNotNull { peer ->
+            val host = peer.hostAddress
+            val port = peer.port
+            if (host != null && port != null) Pair(host, port) else null
+        }.toMutableSet()
 
         if (isEmulator) {
             allHosts.add(Pair("10.0.2.2", ADB_EMULATOR_TO_PHONE_PORT))
@@ -417,8 +420,11 @@ class MdnsWifiTransport(
      * Broadcasts an urgent real-time Voice Call signal (INVITE, ACCEPT, REJECT, HANGUP) immediately to all reachable peers over TCP.
      */
     fun broadcastVoiceCallSignal(signal: com.mysocial.mesh.model.VoiceCallSignalPayload) {
-        val targets = _peersMap.values.filter { it.hostAddress != null && it.port != null }.toList()
-        val allHosts = targets.map { Pair(it.hostAddress!!, it.port!!) }.toMutableSet()
+        val allHosts = _peersMap.values.mapNotNull { peer ->
+            val host = peer.hostAddress
+            val port = peer.port
+            if (host != null && port != null) Pair(host, port) else null
+        }.toMutableSet()
 
         if (isEmulator) {
             allHosts.add(Pair("10.0.2.2", ADB_EMULATOR_TO_PHONE_PORT))

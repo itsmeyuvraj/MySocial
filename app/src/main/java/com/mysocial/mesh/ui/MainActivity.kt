@@ -453,9 +453,10 @@ class MainActivity : ComponentActivity() {
         val isCallMuted by (voiceCallMgr?.isMuted?.collectAsState() ?: remember { mutableStateOf(false) })
         val isCallSpeakerphone by (voiceCallMgr?.isSpeakerphone?.collectAsState() ?: remember { mutableStateOf(false) })
 
-        if (pendingUpdateInfo != null) {
+        val update = pendingUpdateInfo
+        if (update != null) {
             UpdateDialog(
-                updateInfo = pendingUpdateInfo!!,
+                updateInfo = update,
                 downloadProgress = downloadProgress,
                 isDownloading = isDownloadingUpdate,
                 onConfirmUpdate = {
@@ -553,8 +554,10 @@ class MainActivity : ComponentActivity() {
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
-                if (activeChatPeer != null) {
-                    val peer = activeChatPeer!!
+                val chatPeer = activeChatPeer
+                val profilePeer = activeProfilePeer
+                if (chatPeer != null) {
+                    val peer = chatPeer
                     val chatViewModel = remember(peer.first) {
                         ChatViewModel(peer.first, repository)
                     }
@@ -563,8 +566,8 @@ class MainActivity : ComponentActivity() {
                         peerDisplayName = peer.second,
                         onNavigateBack = { activeChatPeer = null }
                     )
-                } else if (activeProfilePeer != null) {
-                    val peer = activeProfilePeer!!
+                } else if (profilePeer != null) {
+                    val peer = profilePeer
                     BackHandler { activeProfilePeer = null }
                     PeerProfileScreen(
                         peerAuthorId = peer.first,

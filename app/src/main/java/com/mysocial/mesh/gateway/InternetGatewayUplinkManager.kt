@@ -57,7 +57,7 @@ class InternetGatewayUplinkManager(
             .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
             .build()
 
-        networkCallback = object : ConnectivityManager.NetworkCallback() {
+        val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 _isInternetAvailable.value = true
                 Log.i(TAG, "Internet connection detected. Checking for pending SOS alerts to relay...")
@@ -68,9 +68,10 @@ class InternetGatewayUplinkManager(
                 _isInternetAvailable.value = checkCurrentInternet()
             }
         }
+        networkCallback = callback
 
         try {
-            connectivityManager.registerNetworkCallback(request, networkCallback!!)
+            connectivityManager.registerNetworkCallback(request, callback)
             _isInternetAvailable.value = checkCurrentInternet()
             if (_isInternetAvailable.value) {
                 scope.launch { relayPendingSosAlerts() }
