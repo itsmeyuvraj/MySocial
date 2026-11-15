@@ -45,7 +45,6 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.WifiTethering
-import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.automirrored.outlined.Send
@@ -595,16 +594,6 @@ fun PostCard(
                         modifier = Modifier.size(22.dp)
                     )
                 }
-
-                Spacer(modifier = Modifier.weight(1f))
-
-                // Right Bookmark / Save Icon
-                Icon(
-                    imageVector = Icons.Outlined.BookmarkBorder,
-                    contentDescription = "Save",
-                    tint = FbTextPrimary,
-                    modifier = Modifier.size(25.dp)
-                )
             }
 
             // Likes Counter (Instagram style: "15 likes")
