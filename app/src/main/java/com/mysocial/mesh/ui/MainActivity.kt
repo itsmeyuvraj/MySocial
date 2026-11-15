@@ -326,6 +326,9 @@ class MainActivity : ComponentActivity() {
                                 appSettings.setAcceptedTerms(true)
                                 appSettings.setCompletedOnboarding(true)
                             }
+                            if (!com.mysocial.mesh.utils.BatteryOptimizationHelper.isIgnoringBatteryOptimizations(this@MainActivity)) {
+                                com.mysocial.mesh.utils.BatteryOptimizationHelper.requestIgnoreBatteryOptimizations(this@MainActivity)
+                            }
                             if (!hasPermissions) {
                                 requestMeshPermissions()
                             } else {
