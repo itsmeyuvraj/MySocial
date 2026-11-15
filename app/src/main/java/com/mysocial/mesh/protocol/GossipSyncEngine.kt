@@ -10,7 +10,10 @@ import com.mysocial.mesh.data.MediaProcessor
 import com.mysocial.mesh.data.MeshDatabase
 import com.mysocial.mesh.model.ContentType
 import com.mysocial.mesh.model.LogEntry
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -54,7 +57,7 @@ class GossipSyncEngine(
     private val db: MeshDatabase,
     private val cryptoManager: CryptoManager,
     var myDisplayName: String = "User",
-    private val openMeshMode: Boolean = true,
+    val openMeshMode: Boolean = true,
     private val batchSize: Int = 50,
     private val handshakeTimeoutMs: Long = 10_000L,
     private val context: Context? = null,
@@ -62,6 +65,7 @@ class GossipSyncEngine(
     var peerApkUpdateManager: com.mysocial.mesh.update.PeerApkUpdateManager? = null
 ) {
     private val tag = "GossipSyncEngine"
+    private val engineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val peerIdentifiedListeners = java.util.concurrent.CopyOnWriteArrayList<(String, String, String) -> Unit>()
 
@@ -172,6 +176,17 @@ class GossipSyncEngine(
             val remoteHelloMsg = withTimeoutOrNull(handshakeTimeoutMs) {
                 connection.receiveMessage()
             } ?: throw IllegalStateException("Timeout waiting for HELLO_VECTOR from $peerId")
+
+            if (remoteHelloMsg is GossipMessage.VoiceCallSignal) {
+                Log.i(tag, "Received real-time VoiceCallSignal during handshake from $peerId")
+                handleDirectVoiceCallSignal(remoteHelloMsg, connection.remoteAddress)
+                try {
+                    val s = com.mysocial.mesh.model.VoiceCallSignalPayload.fromJson(remoteHelloMsg.payloadJson)
+                    connection.send(GossipMessage.VoiceCallSignalAck(s.callId, s.signalType))
+                    kotlinx.coroutines.delay(100)
+                } catch (_: Exception) {}
+                return@withContext Result.success(1)
+            }
 
             if (remoteHelloMsg is GossipMessage.PttBurst) {
                 Log.i(tag, "Received real-time PTT burst during handshake from $peerId")
@@ -319,6 +334,13 @@ class GossipSyncEngine(
                                 for (err in batchResult.errors) {
                                     Log.w(tag, "Rejecting invalid incoming log entry from $peerId: $err")
                                 }
+                            }
+                            is GossipMessage.VoiceCallSignal -> {
+                                handleDirectVoiceCallSignal(msg, connection.remoteAddress)
+                                try {
+                                    val s = com.mysocial.mesh.model.VoiceCallSignalPayload.fromJson(msg.payloadJson)
+                                    connection.send(GossipMessage.VoiceCallSignalAck(s.callId, s.signalType))
+                                } catch (_: Exception) {}
                             }
                             is GossipMessage.PttBurst -> {
                                 handleDirectPttBurst(msg)
@@ -773,8 +795,22 @@ class GossipSyncEngine(
      * Builds the current Vector Clock map from the local database.
      */
     suspend fun getLocalVectorClock(): Map<String, Long> {
-        val tuples = db.peerSyncStateDao().getVectorClockTuples()
-        val clock = tuples.associate { it.authorId to it.highestSequence }.toMutableMap()
+        val ledgerTuples = db.logEntryDao().getAllKnownAuthorsWithMaxSeq()
+        val ledgerClock = ledgerTuples.associate { it.authorId to it.highestSequence }
+
+        val syncTuples = db.peerSyncStateDao().getVectorClockTuples()
+        val clock = mutableMapOf<String, Long>()
+
+        // Ground clock in ledger reality: never claim to have a sequence higher than what log_entries contains
+        for (tuple in syncTuples) {
+            val actualMax = ledgerClock[tuple.authorId] ?: 0L
+            clock[tuple.authorId] = minOf(tuple.highestSequence, actualMax)
+        }
+        for ((authorId, maxSeq) in ledgerClock) {
+            if (!clock.containsKey(authorId)) {
+                clock[authorId] = maxSeq
+            }
+        }
 
         if (!clock.containsKey(cryptoManager.authorId)) {
             val latest = db.logEntryDao().getLatestEntryForAuthor(cryptoManager.authorId)
@@ -889,6 +925,25 @@ class GossipSyncEngine(
     }
 
     /**
+     * Handles an incoming real-time Voice Call Signal (INVITE, ACCEPT, REJECT, HANGUP) received directly over mesh connection.
+     */
+    fun handleDirectVoiceCallSignal(signalMsg: GossipMessage.VoiceCallSignal, remoteAddress: String? = null) {
+        try {
+            var signal = com.mysocial.mesh.model.VoiceCallSignalPayload.fromJson(signalMsg.payloadJson)
+            if ((signal.hostAddress.isBlank() || signal.hostAddress == "127.0.0.1" || signal.hostAddress.startsWith("10.0.2.")) && !remoteAddress.isNullOrBlank()) {
+                signal = signal.copy(hostAddress = remoteAddress)
+            }
+            val myAuthorId = cryptoManager.authorId
+            if (signal.recipientAuthorId == myAuthorId || signal.callerAuthorId == myAuthorId) {
+                Log.i(tag, "Dispatched incoming real-time VoiceCallSignal: ${signal.signalType} (callId: ${signal.callId}, remoteHost: ${signal.hostAddress})")
+                db.onVoiceCallSignalReceived?.invoke(signal)
+            }
+        } catch (e: Exception) {
+            Log.w(tag, "Failed to handle direct VoiceCallSignal: ${e.message}")
+        }
+    }
+
+    /**
      * Handles an incoming real-time Push-to-Talk voice burst received over the active mesh connection.
      */
     fun handleDirectPttBurst(burst: GossipMessage.PttBurst) {
@@ -907,7 +962,7 @@ class GossipSyncEngine(
         db.onPttVoiceBurstReceived?.invoke(payload)
 
         // 2. Persist to ledger so it appears in recent voice history and can be replayed
-        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+        engineScope.launch {
             try {
                 val entryHash = com.mysocial.mesh.crypto.CryptoManager.sha256Hex(payload.burstId + payload.timestamp)
                 val entity = com.mysocial.mesh.model.LogEntryEntity(
@@ -928,5 +983,10 @@ class GossipSyncEngine(
                 Log.w(tag, "Failed to persist direct PTT burst: ${e.message}")
             }
         }
+    }
+
+    fun release() {
+        engineScope.cancel()
+        activeConnections.clear()
     }
 }

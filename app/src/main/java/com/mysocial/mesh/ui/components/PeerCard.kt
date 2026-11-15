@@ -30,6 +30,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -48,12 +49,14 @@ import com.mysocial.mesh.utils.toFormattedBbid
 import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FacebookBlueLight
 import com.mysocial.mesh.ui.theme.FbBorder
+import com.mysocial.mesh.ui.theme.FbDivider
 import com.mysocial.mesh.ui.theme.FbGreen
 import com.mysocial.mesh.ui.theme.FbSurface
 import com.mysocial.mesh.ui.theme.FbSurfaceElevated
 import com.mysocial.mesh.ui.theme.FbTextPrimary
 import com.mysocial.mesh.ui.theme.FbTextSecondary
 import com.mysocial.mesh.ui.theme.FbTextTertiary
+import androidx.compose.material3.HorizontalDivider
 
 @Composable
 fun PeerCard(
@@ -66,180 +69,156 @@ fun PeerCard(
     onProfileClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    Surface(
+        color = FbSurface,
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp))
             .then(
                 if (onProfileClick != null) Modifier.clickable { onProfileClick() }
                 else Modifier
-            ),
-        colors = CardDefaults.cardColors(containerColor = FbSurface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            )
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            // Left info with Avatar
+        Column(modifier = Modifier.fillMaxWidth()) {
             Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                AvatarView(
-                    seed = peer.peerId,
-                    displayName = peer.peerName,
-                    size = 46.dp,
-                    showOnlineBadge = (System.currentTimeMillis() - peer.lastSeenTimestamp) < 30_000L
-                )
+                // Left info with Avatar
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    AvatarView(
+                        seed = peer.peerId,
+                        displayName = peer.peerName,
+                        size = 48.dp,
+                        showOnlineBadge = (System.currentTimeMillis() - peer.lastSeenTimestamp) < 30_000L
+                    )
 
-                Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
 
-                Column(modifier = Modifier.weight(1f, fill = false)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = peer.peerName,
-                            color = FbTextPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-                        if (isFriend || isVerifiedInPerson) {
-                            VerifiedBadge(size = 15.dp)
+                    Column(modifier = Modifier.weight(1f, fill = false)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = peer.peerName,
+                                color = FbTextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            if (isFriend || isVerifiedInPerson) {
+                                VerifiedBadge(size = 14.dp)
+                            }
                         }
-                        Text(
-                            text = peer.peerId.toFormattedBbid(),
-                            color = FbTextSecondary,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium,
+
+                        Spacer(modifier = Modifier.height(2.dp))
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (peer.transportType == TransportType.MDNS_WIFI) Icons.Filled.Wifi else Icons.Filled.Bluetooth,
+                                contentDescription = null,
+                                tint = FacebookBlue,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            val transportLabel = when {
+                                peer.transportType == TransportType.LORA -> "LoRa 915MHz"
+                                peer.transportType == TransportType.WIFI_AWARE -> "Wi-Fi Aware"
+                                peer.transportType == TransportType.IOS_COMPANION -> "iOS L2CAP"
+                                peer.transportType == TransportType.MDNS_WIFI -> "Local Wi-Fi"
+                                peer.isExtendedAdvertising -> "Bluetooth"
+                                else -> "Bluetooth"
+                            }
+                            Text(
+                                text = transportLabel,
+                                color = FbTextSecondary,
+                                fontSize = 12.sp
+                            )
+
+                            if (peer.rssi != null) {
+                                Text(text = "•", color = FbTextTertiary, fontSize = 10.sp)
+                                Text(
+                                    text = "Nearby",
+                                    color = FbGreen,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Right Action Row (Instagram Style)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (isFriend) {
+                        Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
+                                .clip(RoundedCornerShape(8.dp))
                                 .background(FbSurfaceElevated)
-                                .padding(horizontal = 4.dp, vertical = 1.dp)
-                        )
+                                .border(0.5.dp, FbBorder, RoundedCornerShape(8.dp))
+                                .then(
+                                    if (onToggleFriend != null) Modifier.clickable { onToggleFriend() }
+                                    else Modifier
+                                )
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = "Following",
+                                color = FbTextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    } else if (onToggleFriend != null) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(FacebookBlue)
+                                .clickable { onToggleFriend() }
+                                .padding(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = "Follow",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (peer.transportType == TransportType.MDNS_WIFI) Icons.Filled.Wifi else Icons.Filled.Bluetooth,
-                            contentDescription = null,
-                            tint = FacebookBlue,
-                            modifier = Modifier.size(12.dp)
-                        )
-                        val transportLabel = when {
-                            peer.transportType == TransportType.LORA -> "LoRa Sub-GHz (868/915 MHz)"
-                            peer.transportType == TransportType.WIFI_AWARE -> "Wi-Fi Aware (NAN)"
-                            peer.transportType == TransportType.IOS_COMPANION -> "iOS L2CAP CoC"
-                            peer.transportType == TransportType.MDNS_WIFI -> "Local Wi-Fi"
-                            peer.isExtendedAdvertising -> "Bluetooth"
-                            else -> "Bluetooth Nearby"
-                        }
-                        Text(
-                            text = transportLabel,
-                            color = FbTextSecondary,
-                            fontSize = 12.sp
-                        )
-
-                        if (peer.rssi != null) {
-                            Text(text = "•", color = FbTextTertiary, fontSize = 10.sp)
+                    if (onMessageClick != null) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(FbSurfaceElevated)
+                                .border(0.5.dp, FbBorder, RoundedCornerShape(8.dp))
+                                .clickable { onMessageClick() }
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
                             Text(
-                                text = "Close by",
-                                color = FbGreen,
+                                text = "Message",
+                                color = FbTextPrimary,
                                 fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
                 }
             }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (isFriend) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(FacebookBlueLight)
-                            .padding(horizontal = 9.dp, vertical = 5.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Check,
-                            contentDescription = null,
-                            tint = FacebookBlue,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Friend",
-                            color = FacebookBlue,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
-                // Status Badge (Automatic offline mesh sync - no manual sync button)
-                if (peer.isSyncing) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(FacebookBlueLight)
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(12.dp),
-                            color = FacebookBlue,
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Updating...",
-                            color = FacebookBlue,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                } else {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(FbGreen.copy(alpha = 0.1f))
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(7.dp)
-                                .clip(CircleShape)
-                                .background(FbGreen)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Connected",
-                            color = FbGreen,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
+            HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
         }
     }
 }

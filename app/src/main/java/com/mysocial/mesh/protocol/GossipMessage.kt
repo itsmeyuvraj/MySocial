@@ -91,6 +91,25 @@ sealed interface GossipMessage {
         val burstId: String
     ) : GossipMessage
 
+    /**
+     * Real-time Voice Call Signaling (INVITE, ACCEPT, REJECT, HANGUP) between peers.
+     */
+    @Serializable
+    @SerialName("VOICE_CALL_SIGNAL")
+    data class VoiceCallSignal(
+        val payloadJson: String
+    ) : GossipMessage
+
+    /**
+     * Direct acknowledgment for real-time Voice Call Signaling.
+     */
+    @Serializable
+    @SerialName("VOICE_CALL_SIGNAL_ACK")
+    data class VoiceCallSignalAck(
+        val callId: String,
+        val signalType: String
+    ) : GossipMessage
+
     // -------------------------------------------------------------
     // PRIORITY 1: CONTENT-ADDRESSED CHUNKED BLOB TRANSFER
     // -------------------------------------------------------------

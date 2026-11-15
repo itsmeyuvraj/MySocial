@@ -97,6 +97,9 @@ interface LogEntryDao {
     @Query("SELECT COUNT(DISTINCT authorId) FROM log_entries")
     suspend fun getTotalAuthorsCount(): Int
 
+    @Query("SELECT * FROM log_entries WHERE authorId = :authorId AND contentType = 'PROFILE' ORDER BY sequence DESC LIMIT 1")
+    suspend fun getLatestProfileEntryForAuthor(authorId: String): LogEntryEntity?
+
     @Query("SELECT * FROM log_entries WHERE contentType = 'PTT_VOICE_BURST' ORDER BY timestamp DESC LIMIT 50")
     fun observeRecentPttEntries(): Flow<List<LogEntryEntity>>
 
@@ -368,6 +371,9 @@ interface DirectMessageDao {
     @Query("SELECT * FROM direct_messages WHERE conversationPeerId = :peerId AND isOutgoing = 0 AND isRead = 0")
     suspend fun getUnreadIncomingMessagesForPeer(peerId: String): List<DirectMessageEntity>
 
+    @Query("SELECT COUNT(*) FROM direct_messages WHERE conversationPeerId = :peerId")
+    suspend fun hasConversationWith(peerId: String): Int
+
     @Query("SELECT COUNT(*) FROM direct_messages WHERE mediaBlobHash = :blobHash")
     suspend fun isDirectMessageBlob(blobHash: String): Int
 }
@@ -555,6 +561,10 @@ object LogValidator {
                     val s = com.mysocial.mesh.model.StoryPayload.fromJson(json)
                     s.storyId.isNotBlank() && s.authorId.isNotBlank()
                 }
+                ContentType.VOICE_CALL_SIGNAL -> {
+                    val cs = com.mysocial.mesh.model.VoiceCallSignalPayload.fromJson(json)
+                    cs.callId.isNotBlank() && cs.signalType.isNotBlank() && cs.callerAuthorId.isNotBlank() && cs.recipientAuthorId.isNotBlank()
+                }
             }
         } catch (e: Exception) {
             false
@@ -620,7 +630,7 @@ object LogProjector {
             ContentType.PROFILE -> {
                 val payload = ProfilePayload.fromJson(entry.contentJson)
                 val current = db.profileDao().getProfile(entry.authorId)
-                if (current == null || entry.sequence >= current.updatedAtSeq) {
+                if (current == null || entry.sequence >= current.updatedAtSeq || current.displayName == "User" || current.displayName == "MeshPeer") {
                     db.profileDao().upsert(
                         ProfileViewEntity(
                             authorId = entry.authorId,
@@ -631,6 +641,9 @@ object LogProjector {
                             isVerifiedInPerson = current?.isVerifiedInPerson ?: false
                         )
                     )
+                    if (payload.displayName.isNotBlank()) {
+                        db.storyDao().updateAuthorDisplayName(entry.authorId, payload.displayName)
+                    }
                 }
             }
 
@@ -915,18 +928,46 @@ object LogProjector {
             ContentType.STORY -> {
                 try {
                     val payload = com.mysocial.mesh.model.StoryPayload.fromJson(entry.contentJson)
+                    val myAuthorId = db.cryptoManager?.authorId
+                    val isOwn = (entry.authorId == myAuthorId)
+                    val existing = db.storyDao().getStoryById(payload.storyId)
+                    val isViewed = existing?.isViewed ?: false
+
+                    val profile = db.profileDao().getProfile(entry.authorId)
+                    val resolvedDisplayName = profile?.displayName?.takeIf { it.isNotBlank() }
+                        ?: payload.authorDisplayName.takeIf { it.isNotBlank() && it != "Me" }
+                        ?: (if (isOwn) "You" else "Nearby Peer")
+
                     db.storyDao().insert(
                         StoryEntity(
                             storyId = payload.storyId,
-                            authorId = payload.authorId,
-                            authorDisplayName = payload.authorDisplayName,
+                            authorId = entry.authorId,
+                            authorDisplayName = resolvedDisplayName,
                             text = payload.text,
                             mediaBlobHash = payload.mediaBlobHash,
                             createdAt = payload.createdAt,
                             expiresAt = payload.expiresAt,
-                            isViewed = false
+                            isViewed = isViewed
                         )
                     )
+
+                    val blobHash = payload.mediaBlobHash
+                    if (!blobHash.isNullOrBlank()) {
+                        val existingManifest = db.blobDao().getManifest(blobHash)
+                        if (existingManifest == null) {
+                            db.blobDao().upsertManifest(
+                                BlobManifestEntity(
+                                    blobHash = blobHash,
+                                    totalBytes = payload.mediaTotalBytes ?: 0L,
+                                    chunkCount = payload.mediaChunkCount ?: 1,
+                                    mimeType = payload.mediaMimeType ?: "image/webp",
+                                    isComplete = false,
+                                    localFilePath = null
+                                )
+                            )
+                        }
+                        db.onBlobDiscovered?.invoke(blobHash)
+                    }
                 } catch (e: Exception) {
                     Log.w("MeshDatabase", "Failed to project story: ${e.message}")
                 }
@@ -938,6 +979,27 @@ object LogProjector {
                     db.onPttVoiceBurstReceived?.invoke(pttPayload)
                 } catch (e: Exception) {
                     Log.w("MeshDatabase", "Failed to project PTT voice burst: ${e.message}")
+                }
+            }
+
+            ContentType.VOICE_CALL_SIGNAL -> {
+                try {
+                    val myAuthorId = db.cryptoManager?.authorId
+                    if (myAuthorId != null && entry.authorId != myAuthorId) {
+                        val callSignal = com.mysocial.mesh.model.VoiceCallSignalPayload.fromJson(entry.contentJson)
+                        if (callSignal.recipientAuthorId == myAuthorId || callSignal.callerAuthorId == myAuthorId) {
+                            val now = System.currentTimeMillis()
+                            val signalAgeMs = now - callSignal.timestamp
+                            // Voice call signals are real-time only; drop stale historic entries (> 45s) from projection callback
+                            if (signalAgeMs in -15_000L..45_000L) {
+                                db.onVoiceCallSignalReceived?.invoke(callSignal)
+                            } else {
+                                Log.d("MeshDatabase", "Dropping stale voice call signal ${callSignal.signalType} (age: ${signalAgeMs}ms, callId: ${callSignal.callId})")
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w("MeshDatabase", "Failed to project voice call signal: ${e.message}")
                 }
             }
         }
@@ -967,7 +1029,7 @@ data class BatchResult(val acceptedCount: Int, val errors: List<String>)
         GroupMessageEntity::class,
         StoryEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -987,6 +1049,9 @@ abstract class MeshDatabase : RoomDatabase() {
 
     @Volatile
     var onPttVoiceBurstReceived: ((com.mysocial.mesh.model.PttVoiceBurstPayload) -> Unit)? = null
+
+    @Volatile
+    var onVoiceCallSignalReceived: ((com.mysocial.mesh.model.VoiceCallSignalPayload) -> Unit)? = null
 
     abstract fun logEntryDao(): LogEntryDao
     abstract fun profileDao(): ProfileDao
@@ -1240,6 +1305,7 @@ abstract class MeshDatabase : RoomDatabase() {
             )
                 .allowMainThreadQueries()
                 .build()
+                .also { it.appContext = context.applicationContext }
         }
     }
 }

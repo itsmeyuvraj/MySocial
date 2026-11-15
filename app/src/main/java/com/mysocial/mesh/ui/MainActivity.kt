@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -76,6 +77,7 @@ import com.mysocial.mesh.data.MeshDatabase
 import com.mysocial.mesh.data.MeshRepository
 import com.mysocial.mesh.protocol.GossipSyncEngine
 import com.mysocial.mesh.service.MeshSyncService
+import com.mysocial.mesh.ui.call.VoiceCallOverlay
 import com.mysocial.mesh.ui.composer.ComposerScreen
 import com.mysocial.mesh.ui.composer.ComposerViewModel
 import com.mysocial.mesh.ui.feed.FeedScreen
@@ -108,6 +110,7 @@ import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FacebookBlueLight
 import com.mysocial.mesh.ui.theme.FbBackground
 import com.mysocial.mesh.ui.theme.FbBorder
+import com.mysocial.mesh.ui.theme.FbDivider
 import com.mysocial.mesh.ui.theme.FbRed
 import com.mysocial.mesh.ui.theme.FbSurface
 import com.mysocial.mesh.ui.theme.FbTextPrimary
@@ -188,6 +191,9 @@ class MainActivity : ComponentActivity() {
                 }
                 repository.onPttBroadcast = { burst ->
                     s.broadcastPttBurst(burst)
+                }
+                repository.onVoiceCallBroadcast = { signal ->
+                    s.broadcastVoiceCallSignal(signal)
                 }
                 s.getSyncEngine().addPeerIdentifiedListener { connectionPeerId, remoteAuthorId, remoteDisplayName ->
                     repository.updatePeerNameAndId(connectionPeerId, remoteAuthorId, remoteDisplayName)
@@ -421,6 +427,14 @@ class MainActivity : ComponentActivity() {
         var downloadProgress by remember { mutableStateOf<Float?>(null) }
         val totalUnreadCount by repository.observeTotalUnreadMessagesCount().collectAsState(initial = 0)
 
+        // Voice Call State
+        val voiceCallMgr = repository.voiceCallManager
+        val activeCallSession by (voiceCallMgr?.activeSession?.collectAsState() ?: remember { mutableStateOf(null) })
+        val incomingCallSession by (voiceCallMgr?.incomingSession?.collectAsState() ?: remember { mutableStateOf(null) })
+        val callDurationSec by (voiceCallMgr?.callDurationSec?.collectAsState() ?: remember { mutableIntStateOf(0) })
+        val isCallMuted by (voiceCallMgr?.isMuted?.collectAsState() ?: remember { mutableStateOf(false) })
+        val isCallSpeakerphone by (voiceCallMgr?.isSpeakerphone?.collectAsState() ?: remember { mutableStateOf(false) })
+
         if (pendingUpdateInfo != null) {
             UpdateDialog(
                 updateInfo = pendingUpdateInfo!!,
@@ -455,20 +469,22 @@ class MainActivity : ComponentActivity() {
                 if (currentSettingsSubScreen == null && activeChatPeer == null && activeProfilePeer == null) {
                     Surface(
                         color = FbSurface,
-                        shadowElevation = 6.dp
+                        shadowElevation = 0.dp
                     ) {
                         Column {
-                            HorizontalDivider(color = FbBorder, thickness = 0.5.dp)
+                            HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
                             NavigationBar(
                                 containerColor = FbSurface,
                                 contentColor = FbTextPrimary,
-                                tonalElevation = 0.dp
+                                tonalElevation = 0.dp,
+                                modifier = Modifier.height(54.dp)
                             ) {
                                 NavigationTab.values().forEachIndexed { index, tab ->
                                     val isSelected = selectedTab == index
                                     NavigationBarItem(
                                         selected = isSelected,
                                         onClick = { selectedTab = index },
+                                        alwaysShowLabel = false,
                                         icon = {
                                             if (tab == NavigationTab.CHATS && totalUnreadCount > 0) {
                                                 BadgedBox(
@@ -479,7 +495,7 @@ class MainActivity : ComponentActivity() {
                                                         ) {
                                                             Text(
                                                                 text = if (totalUnreadCount > 99) "99+" else "$totalUnreadCount",
-                                                                fontSize = 10.sp,
+                                                                fontSize = 9.sp,
                                                                 fontWeight = FontWeight.Bold
                                                             )
                                                         }
@@ -488,28 +504,21 @@ class MainActivity : ComponentActivity() {
                                                     Icon(
                                                         imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
                                                         contentDescription = tab.title,
-                                                        modifier = Modifier.size(24.dp)
+                                                        modifier = Modifier.size(26.dp)
                                                     )
                                                 }
                                             } else {
                                                 Icon(
                                                     imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
                                                     contentDescription = tab.title,
-                                                    modifier = Modifier.size(24.dp)
+                                                    modifier = Modifier.size(26.dp)
                                                 )
                                             }
                                         },
-                                        label = {
-                                            Text(
-                                                text = tab.title,
-                                                fontSize = 11.sp,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                            )
-                                        },
                                         colors = NavigationBarItemDefaults.colors(
-                                            selectedIconColor = FacebookBlue,
-                                            selectedTextColor = FacebookBlue,
-                                            indicatorColor = FacebookBlueLight,
+                                            selectedIconColor = FbTextPrimary,
+                                            selectedTextColor = FbTextPrimary,
+                                            indicatorColor = Color.Transparent,
                                             unselectedIconColor = FbTextSecondary,
                                             unselectedTextColor = FbTextSecondary
                                         )
@@ -657,6 +666,21 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+
+                // Global Direct BLE Voice Call Overlay (Incoming Ringing dialog & Active In-Call sheet)
+                VoiceCallOverlay(
+                    activeSession = activeCallSession,
+                    incomingSession = incomingCallSession,
+                    durationSec = callDurationSec,
+                    isMuted = isCallMuted,
+                    isSpeakerphone = isCallSpeakerphone,
+                    onAccept = { repository.voiceCallManager?.acceptCall() },
+                    onDecline = { repository.voiceCallManager?.declineCall() },
+                    onEndCall = { repository.voiceCallManager?.endCall() },
+                    onToggleMute = { repository.voiceCallManager?.toggleMute() },
+                    onToggleSpeaker = { repository.voiceCallManager?.toggleSpeakerphone() },
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                )
             }
         }
     }

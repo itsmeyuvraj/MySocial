@@ -129,6 +129,7 @@ fun MySocialTheme(
     CompositionLocalProvider(LocalFbColors provides fbColors) {
         MaterialTheme(
             colorScheme = colorScheme,
+            typography = MySocialTypography,
             content = content
         )
     }

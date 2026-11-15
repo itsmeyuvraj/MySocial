@@ -108,6 +108,8 @@ class MdnsWifiTransport(
     companion object {
         const val DEFAULT_PORT = 42530
         const val ADB_REVERSE_PORT = 42535
+        const val ADB_EMULATOR_TO_PHONE_PORT = 42540
+        const val ADB_EMULATOR_TO_PHONE_AUDIO_PORT = 42541
         private const val MAX_CONCURRENT_WIFI_SYNC = 4
     }
 
@@ -253,6 +255,12 @@ class MdnsWifiTransport(
 
     fun onPeerIdentified(tempKey: String, realAuthorId: String, realDisplayName: String) {
         Log.i(tag, "MdnsWifiTransport peer identified: tempKey=$tempKey, realAuthorId=$realAuthorId, realDisplayName=$realDisplayName")
+        if (realAuthorId == localAuthorId) {
+            _peersMap.remove(tempKey)
+            _peersMap.remove(realAuthorId)
+            updatePeersState()
+            return
+        }
         val cleanName = if (realDisplayName.isNotBlank() && realDisplayName != "MeshPeer" && realDisplayName != "User") {
             realDisplayName
         } else {
@@ -352,6 +360,7 @@ class MdnsWifiTransport(
         val allHosts = targets.map { Pair(it.hostAddress!!, it.port!!) }.toMutableSet()
 
         if (isEmulator) {
+            allHosts.add(Pair("10.0.2.2", ADB_EMULATOR_TO_PHONE_PORT))
             allHosts.add(Pair("10.0.2.2", DEFAULT_PORT))
         } else {
             allHosts.add(Pair("127.0.0.1", ADB_REVERSE_PORT))
@@ -403,6 +412,64 @@ class MdnsWifiTransport(
         }
     }
 
+    /**
+     * Broadcasts an urgent real-time Voice Call signal (INVITE, ACCEPT, REJECT, HANGUP) immediately to all reachable peers over TCP.
+     */
+    fun broadcastVoiceCallSignal(signal: com.mysocial.mesh.model.VoiceCallSignalPayload) {
+        val targets = _peersMap.values.filter { it.hostAddress != null && it.port != null }.toList()
+        val allHosts = targets.map { Pair(it.hostAddress!!, it.port!!) }.toMutableSet()
+
+        if (isEmulator) {
+            allHosts.add(Pair("10.0.2.2", ADB_EMULATOR_TO_PHONE_PORT))
+            allHosts.add(Pair("10.0.2.2", DEFAULT_PORT))
+        } else {
+            allHosts.add(Pair("127.0.0.1", ADB_REVERSE_PORT))
+        }
+
+        if (signal.hostAddress.isNotBlank()) {
+            allHosts.add(Pair(signal.hostAddress, DEFAULT_PORT))
+        }
+
+        scope.launch(Dispatchers.IO) {
+            val msg = com.mysocial.mesh.protocol.GossipMessage.VoiceCallSignal(
+                payloadJson = signal.toJson()
+            )
+            for ((host, p) in allHosts) {
+                launch {
+                    try {
+                        val s = Socket()
+                        s.tcpNoDelay = true
+                        s.soTimeout = 4000
+                        s.connect(java.net.InetSocketAddress(host, p), 3000)
+                        val conn = com.mysocial.mesh.protocol.StreamPeerConnection(
+                            peerId = "call_signal_${host}_$p",
+                            peerName = "Peer ($host)",
+                            transportType = TransportType.MDNS_WIFI,
+                            socket = s
+                        )
+                        conn.send(msg)
+                        // Read reply/ACK so we don't abort before receiver reads the payload
+                        try {
+                            kotlinx.coroutines.withTimeoutOrNull(3000) {
+                                while (conn.isConnected) {
+                                    val reply = conn.receiveMessage()
+                                    if (reply is com.mysocial.mesh.protocol.GossipMessage.VoiceCallSignalAck && reply.callId == signal.callId) {
+                                        Log.i(tag, "VoiceCallSignal ${signal.signalType} acknowledged by $host:$p")
+                                        break
+                                    }
+                                }
+                            }
+                        } catch (_: Exception) {}
+                        conn.close()
+                        Log.i(tag, "Successfully transmitted real-time VoiceCallSignal ${signal.signalType} to $host:$p")
+                    } catch (e: Exception) {
+                        Log.d(tag, "Target $host:$p not reachable for direct VoiceCallSignal: ${e.message}")
+                    }
+                }
+            }
+        }
+    }
+
     private fun startServerAcceptLoop() {
         serverJob = scope.launch(Dispatchers.IO) {
             val server = serverSocket ?: return@launch
@@ -424,13 +491,18 @@ class MdnsWifiTransport(
         Log.i(tag, "Accepted inbound TCP connection from $remoteIp:${socket.port}")
         val safeIpKey = remoteIp.replace(".", "_")
         val peerId = "direct_$safeIpKey"
-        val returnPort = if (remoteIp == "127.0.0.1") ADB_REVERSE_PORT else DEFAULT_PORT
-        if (remoteIp != "unknown") {
+        val returnHost = if (isEmulator && remoteIp == "127.0.0.1") "10.0.2.2" else remoteIp
+        val returnPort = when {
+            isEmulator && remoteIp == "127.0.0.1" -> ADB_EMULATOR_TO_PHONE_PORT
+            remoteIp == "127.0.0.1" -> ADB_REVERSE_PORT
+            else -> DEFAULT_PORT
+        }
+        if (remoteIp != "unknown" && !isLocalIpAddress(remoteIp)) {
             val peer = DiscoveredPeer(
                 peerId = peerId,
-                peerName = if (remoteIp == "127.0.0.1") "Nearby Peer" else "Nearby Device ($remoteIp)",
+                peerName = "Nearby Device ($remoteIp)",
                 transportType = TransportType.MDNS_WIFI,
-                hostAddress = remoteIp,
+                hostAddress = returnHost,
                 port = returnPort,
                 lastSeenTimestamp = System.currentTimeMillis(),
                 isSyncing = true
@@ -450,9 +522,8 @@ class MdnsWifiTransport(
             Log.e(tag, "Inbound sync failed with $remoteIp: ${e.message}")
         } finally {
             connection.close()
-            val current = _peersMap[peerId]
-            if (current != null) {
-                _peersMap[peerId] = current.copy(isSyncing = false, lastSeenTimestamp = System.currentTimeMillis())
+            if (peerId.startsWith("direct_")) {
+                _peersMap.remove(peerId)
                 updatePeersState()
             }
         }
@@ -508,7 +579,7 @@ class MdnsWifiTransport(
 
             override fun onServiceFound(service: NsdServiceInfo) {
                 Log.i(tag, "NSD Service found: ${service.serviceName} (type: ${service.serviceType})")
-                if (service.serviceName == serviceName) {
+                if (service.serviceName == serviceName || service.serviceName.contains(safeLocalId)) {
                     // Ignore our own advertisement
                     return
                 }
@@ -519,6 +590,10 @@ class MdnsWifiTransport(
 
             override fun onServiceLost(service: NsdServiceInfo) {
                 Log.i(tag, "NSD Service lost: ${service.serviceName}")
+                if (service.serviceName == serviceName || service.serviceName.contains(safeLocalId)) {
+                    // Ignore our own advertisement loss
+                    return
+                }
                 val mappedPeerId = serviceNameToPeerId.remove(service.serviceName)
                 if (mappedPeerId != null) {
                     removePeer(mappedPeerId)
@@ -603,6 +678,12 @@ class MdnsWifiTransport(
         val host: InetAddress = resolved.host ?: return
         val hostAddress = host.hostAddress ?: return
         val port = resolved.port
+
+        if (isLocalIpAddress(hostAddress)) {
+            Log.d(tag, "Ignoring self mDNS resolution for local host: $hostAddress:$port")
+            return
+        }
+
         val rawAuthorId = resolved.attributes["authorId"]?.let { String(it, Charsets.UTF_8) }
         val peerId = rawAuthorId ?: resolved.serviceName
         val rawDisplayName = resolved.attributes["displayName"]?.let { String(it, Charsets.UTF_8) }
@@ -713,5 +794,30 @@ class MdnsWifiTransport(
 
     private fun updatePeersState() {
         _discoveredPeers.value = _peersMap.values.toList().sortedByDescending { it.lastSeenTimestamp }
+    }
+
+    private fun isLocalIpAddress(host: String): Boolean {
+        if (host == "127.0.0.1" || host == "::1" || host.equals("localhost", ignoreCase = true) || host == "10.0.2.2") {
+            return true
+        }
+        return try {
+            val interfaces = java.net.NetworkInterface.getNetworkInterfaces() ?: return false
+            var isLocal = false
+            for (intf in interfaces) {
+                val addrs = intf.inetAddresses ?: continue
+                for (addr in addrs) {
+                    val addrHost = addr.hostAddress ?: continue
+                    val cleanHost = addrHost.split("%")[0]
+                    if (cleanHost.equals(host, ignoreCase = true)) {
+                        isLocal = true
+                        break
+                    }
+                }
+                if (isLocal) break
+            }
+            isLocal
+        } catch (_: Exception) {
+            false
+        }
     }
 }

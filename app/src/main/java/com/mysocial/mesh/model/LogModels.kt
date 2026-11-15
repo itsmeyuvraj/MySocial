@@ -35,7 +35,8 @@ enum class ContentType {
     GROUP_MESSAGE,
     PTT_VOICE_BURST,
     GATEWAY_DELIVERY_RECEIPT,
-    STORY
+    STORY,
+    VOICE_CALL_SIGNAL
 }
 
 // -----------------------------------------------------------------------------------------
@@ -188,6 +189,26 @@ data class PttVoiceBurstPayload(
     }
 }
 
+@Serializable
+data class VoiceCallSignalPayload(
+    val callId: String,
+    val signalType: String, // "INVITE", "ACCEPT", "REJECT", "HANGUP"
+    val callerAuthorId: String,
+    val callerDisplayName: String,
+    val recipientAuthorId: String,
+    val l2capPsm: Int = 0,
+    val ephemeralPublicKeyBase64: String = "",
+    val timestamp: Long = System.currentTimeMillis(),
+    val audioPort: Int = 0,
+    val hostAddress: String = ""
+) {
+    fun toJson(): String = CanonicalJson.encodeToString(this)
+
+    companion object {
+        fun fromJson(json: String): VoiceCallSignalPayload = CanonicalJson.decodeFromString(json)
+    }
+}
+
 // -----------------------------------------------------------------------------------------
 // IMMUTABLE RAW LOG ENTRY (Domain & Network Model)
 // -----------------------------------------------------------------------------------------
@@ -293,6 +314,7 @@ data class ProfileViewEntity(
         Index(value = ["rootHash"]),
         Index(value = ["expiresAt"]),
         Index(value = ["isSos"]),
+        Index(value = ["mediaBlobHash"]),
         Index(value = ["replyToHash", "isSos", "timestamp"]),
         Index(value = ["authorId", "replyToHash", "timestamp"])
     ]

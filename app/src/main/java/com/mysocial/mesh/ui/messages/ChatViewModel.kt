@@ -48,6 +48,14 @@ class ChatViewModel(
     val voiceRecorder = VoiceRecorder(viewModelScope)
     val voicePlayer = VoicePlayer(viewModelScope)
     val isRecording: StateFlow<Boolean> = voiceRecorder.isRecording
+
+    fun startVoiceCall() {
+        val name = peerProfile.value?.displayName?.takeIf { it.isNotBlank() && !it.startsWith("Neighbor") }
+            ?: repository.discoveredPeers.value.find { it.peerId == peerAuthorId }?.peerName?.takeIf { it.isNotBlank() && it != "Nearby Device" && it != "MeshPeer" && !it.startsWith("Host ADB") }
+            ?: peerProfile.value?.displayName?.takeIf { it.isNotBlank() }
+            ?: "Friend"
+        repository.voiceCallManager?.startCall(peerAuthorId, name)
+    }
     val recordingDurationMs: StateFlow<Long> = voiceRecorder.recordingDurationMs
 
     init {

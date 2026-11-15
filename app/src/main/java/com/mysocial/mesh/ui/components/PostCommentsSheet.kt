@@ -69,6 +69,7 @@ import com.mysocial.mesh.ui.theme.FacebookBlue
 import com.mysocial.mesh.ui.theme.FacebookBlueLight
 import com.mysocial.mesh.ui.theme.FbBackground
 import com.mysocial.mesh.ui.theme.FbBorder
+import com.mysocial.mesh.ui.theme.FbDivider
 import com.mysocial.mesh.ui.theme.FbSurface
 import com.mysocial.mesh.ui.theme.FbTextPrimary
 import com.mysocial.mesh.ui.theme.FbTextSecondary
@@ -190,7 +191,7 @@ fun PostCommentsSheet(
                 }
             }
 
-            HorizontalDivider(color = FbBorder, thickness = 0.8.dp)
+            HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
 
             // Scrollable Content: Post Context Preview + Comments Thread
             LazyColumn(
@@ -267,7 +268,7 @@ fun PostCommentsSheet(
                 }
             }
 
-            HorizontalDivider(color = FbBorder, thickness = 0.8.dp)
+            HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
 
             // Sticky Bottom Comment Input Bar
             Surface(

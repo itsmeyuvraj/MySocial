@@ -509,7 +509,7 @@ private fun StepPermissionsAndTerms(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = FbSurfaceElevated),
             shape = RoundedCornerShape(12.dp),
-            border = androidx.compose.foundation.BorderStroke(0.6.dp, FbBorder)
+            border = androidx.compose.foundation.BorderStroke(0.5.dp, FbBorder)
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -546,7 +546,7 @@ private fun StepPermissionsAndTerms(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = FbSurface),
             shape = RoundedCornerShape(12.dp),
-            border = androidx.compose.foundation.BorderStroke(0.8.dp, FbBorder)
+            border = androidx.compose.foundation.BorderStroke(0.5.dp, FbBorder)
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

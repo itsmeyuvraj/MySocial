@@ -37,10 +37,13 @@ data class StoryPayload(
     val authorDisplayName: String,
     val text: String,
     val mediaBlobHash: String? = null,
+    val mediaTotalBytes: Long? = null,
+    val mediaChunkCount: Int? = null,
+    val mediaMimeType: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val expiresAt: Long = System.currentTimeMillis() + 24 * 60 * 60 * 1000L
 ) {
-    fun toJson(): String = Json.encodeToString(this)
+    fun toJson(): String = CanonicalJson.encodeToString(this)
 
     companion object {
         fun fromJson(json: String): StoryPayload =

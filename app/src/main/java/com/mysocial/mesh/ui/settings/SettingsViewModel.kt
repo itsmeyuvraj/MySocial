@@ -78,6 +78,14 @@ class SettingsViewModel(
         repository.appSettings?.setShowHopBadges(show)
     }
 
+    val isNearbyPeerNotificationsEnabled: StateFlow<Boolean> =
+        repository.appSettings?.isNearbyPeerNotificationsEnabled
+            ?: MutableStateFlow(true).asStateFlow()
+
+    fun setNearbyPeerNotificationsEnabled(enabled: Boolean) {
+        repository.appSettings?.setNearbyPeerNotificationsEnabled(enabled)
+    }
+
     val maxStrangerMediaCacheMb: StateFlow<Int> = (repository.appSettings?.maxStrangerMediaCacheMb ?: flowOf(AppSettings.DEFAULT_MAX_STRANGER_MEDIA_CACHE_MB))
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings.DEFAULT_MAX_STRANGER_MEDIA_CACHE_MB)
 

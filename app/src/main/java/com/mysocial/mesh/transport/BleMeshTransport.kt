@@ -103,6 +103,18 @@ class BleMeshTransport(
     @Volatile private var currentLatestSequence: Long = 0L
     @Volatile private var currentBroadcastData: ByteArray? = null
 
+    private val localAuthorHashPrefix: ByteArray by lazy {
+        CryptoManager.sha256Hex(localAuthorId).take(8).chunked(2)
+            .map { it.toInt(16).toByte() }.toByteArray()
+    }
+    private val localPublicKeyBytes: ByteArray? by lazy {
+        try {
+            CryptoManager.extractPublicKeyBytes(localAuthorId)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private val _broadcastDataFlow = MutableSharedFlow<Pair<String, ByteArray>>(extraBufferCapacity = 64)
     val broadcastDataFlow: SharedFlow<Pair<String, ByteArray>> = _broadcastDataFlow.asSharedFlow()
 
@@ -314,10 +326,15 @@ class BleMeshTransport(
                                     syncEngine.syncWithPeer(connection)
                                 } finally {
                                     try { connection?.close() } catch (_: Exception) {}
+                                    if (connection == null) {
+                                        try { socket.close() } catch (_: Exception) {}
+                                    }
                                 }
                             }
                         } catch (e: Exception) {
                             if (!isRunning.get()) break
+                            Log.w(tag, "BLE L2CAP transport accept error: ${e.message}")
+                            try { Thread.sleep(1000) } catch (_: Exception) {}
                         }
                     }
                 }, "BleL2capServerThread").start()
@@ -669,17 +686,31 @@ class BleMeshTransport(
         }
 
         // Decode service data payload
-        val serviceData = result.scanRecord?.getServiceData(ParcelUuid(SERVICE_UUID))
-        val extPayload = serviceData?.let { BleExtendedPayload.decode(it) }
+        val serviceData = result.scanRecord?.getServiceData(ParcelUuid(SERVICE_UUID)) ?: return
+        val extPayload = BleExtendedPayload.decode(serviceData) ?: return
 
-        // Loopback protection: ignore self advertisements
-        if (extPayload?.authorId == localAuthorId) {
+        // Loopback protection: ignore all forms of self advertisements
+        if (extPayload.authorId == localAuthorId) {
+            return
+        }
+        if (extPayload.legacyAuthorHashPrefix != null &&
+            extPayload.legacyAuthorHashPrefix.contentEquals(localAuthorHashPrefix)
+        ) {
+            return
+        }
+        if (extPayload.authorPublicKey != null &&
+            localPublicKeyBytes != null &&
+            extPayload.authorPublicKey.contentEquals(localPublicKeyBytes)
+        ) {
             return
         }
 
         // Resolved identity
-        val resolvedAuthorId = extPayload?.authorId ?: address
-        val resolvedDisplayName = extPayload?.displayName?.takeIf { it.isNotBlank() } ?: deviceName
+        val resolvedAuthorId = extPayload.authorId ?: address
+        val defaultName = if (extPayload.authorId != null) "Nearby Friend" else "Nearby BLE Device"
+        val resolvedDisplayName = extPayload.displayName?.takeIf { it.isNotBlank() }
+            ?: device.name?.takeIf { it.isNotBlank() }
+            ?: defaultName
 
         // Cache remote capabilities & fast-path port
         extPayload?.l2capPsm?.let { psm ->
@@ -864,8 +895,11 @@ class BleMeshTransport(
             Log.i(tag, "Fast-path: Connecting directly via BLE L2CAP CoC to $address on known PSM $knownPsm (Extended Advertising)")
             scope.launch(Dispatchers.IO) {
                 var conn: BluetoothSocketPeerConnection? = null
+                var rawSocket: android.bluetooth.BluetoothSocket? = null
+                var fallbackNeeded = false
                 try {
                     val l2capSocket = device.createInsecureL2capChannel(knownPsm)
+                    rawSocket = l2capSocket
                     l2capSocket.connect()
                     Log.i(tag, "Successfully connected direct BLE L2CAP channel to $address (bypassed GATT roundtrips)")
                     conn = BluetoothSocketPeerConnection(
@@ -879,13 +913,21 @@ class BleMeshTransport(
                     Log.w(tag, "Direct L2CAP connection failed to $address: ${e.message}. Falling back to GATT discovery.")
                     peerPsmMap.remove(address)
                     peerPsmMap.remove(peerId)
-                    connectViaGattDiscovery(device, address, peerId, peerName)
+                    fallbackNeeded = true
                 } finally {
                     try { conn?.close() } catch (_: Exception) {}
-                    activeSyncDevices.remove(address)
-                    activeSyncDevices.remove(peerId)
-                    updatePeerSyncStatus(address, false)
-                    updatePeerSyncStatus(peerId, false)
+                    if (conn == null) {
+                        try { rawSocket?.close() } catch (_: Exception) {}
+                    }
+                    if (!fallbackNeeded) {
+                        activeSyncDevices.remove(address)
+                        activeSyncDevices.remove(peerId)
+                        updatePeerSyncStatus(address, false)
+                        updatePeerSyncStatus(peerId, false)
+                    }
+                }
+                if (fallbackNeeded) {
+                    connectViaGattDiscovery(device, address, peerId, peerName)
                 }
             }
             return
@@ -1034,8 +1076,10 @@ class BleMeshTransport(
 
                                     scope.launch(Dispatchers.IO) {
                                         var conn: BluetoothSocketPeerConnection? = null
+                                        var rawSocket: android.bluetooth.BluetoothSocket? = null
                                         try {
                                             val l2capSocket = device.createInsecureL2capChannel(remotePsm)
+                                            rawSocket = l2capSocket
                                             l2capSocket.connect()
                                             Log.i(tag, "Successfully connected BLE L2CAP channel to $address")
                                             conn = BluetoothSocketPeerConnection(
@@ -1049,6 +1093,9 @@ class BleMeshTransport(
                                             Log.w(tag, "L2CAP connection failed to $address: ${e.message}")
                                         } finally {
                                             try { conn?.close() } catch (_: Exception) {}
+                                            if (conn == null) {
+                                                try { rawSocket?.close() } catch (_: Exception) {}
+                                            }
                                             activeSyncDevices.remove(address)
                                             activeSyncDevices.remove(peerId)
                                             updatePeerSyncStatus(address, false)
@@ -1109,6 +1156,12 @@ class BleMeshTransport(
      * Updates internal peer mapping when real Ed25519 authorId and displayName are resolved during handshake.
      */
     fun onPeerIdentified(tempKey: String, realAuthorId: String, realDisplayName: String) {
+        if (realAuthorId == localAuthorId) {
+            _peersMap.remove(tempKey)
+            _peersMap.remove(realAuthorId)
+            updatePeersState()
+            return
+        }
         val cleanName = if (realDisplayName.isNotBlank() && realDisplayName != "MeshPeer" && realDisplayName != "User") {
             realDisplayName
         } else {

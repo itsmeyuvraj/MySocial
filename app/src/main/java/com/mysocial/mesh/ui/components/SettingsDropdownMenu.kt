@@ -65,13 +65,13 @@ fun SettingsMenuButton(
             )
         }
 
-        DropdownMenu(
+            DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
             modifier = Modifier
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(12.dp))
                 .background(FbSurface)
-                .border(1.dp, FbBorder, RoundedCornerShape(16.dp))
+                .border(0.5.dp, FbBorder, RoundedCornerShape(12.dp))
         ) {
             DropdownMenuItem(
                 text = {

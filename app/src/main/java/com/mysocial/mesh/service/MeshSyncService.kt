@@ -303,10 +303,25 @@ class MeshSyncService : Service() {
             }.collect { combined ->
                 _allDiscoveredPeers.value = combined
                 syncEngine.updatePeerDensity(combined.size)
-                if (combined.isNotEmpty() && wasPeersEmpty) {
-                    PeerNotificationHelper.notifyPeerNearby(this@MeshSyncService, combined.firstOrNull()?.peerName)
+                // Identify genuine external peers (distinct from self, authenticated author identity, not bridges/simulations)
+                val genuinePeers = combined.filter { peer ->
+                    peer.peerId != cryptoManager.authorId &&
+                    peer.peerId.startsWith("@") &&
+                    !peer.peerId.startsWith("direct_") &&
+                    !peer.peerId.startsWith("lora_") &&
+                    !peer.peerId.startsWith("WIFI_AWARE_") &&
+                    !peer.peerName.contains("Bridge", ignoreCase = true) &&
+                    !peer.peerName.contains("ADB", ignoreCase = true)
                 }
-                wasPeersEmpty = combined.isEmpty()
+
+                for (peer in genuinePeers) {
+                    PeerNotificationHelper.notifyPeerNearby(
+                        context = this@MeshSyncService,
+                        peerId = peer.peerId,
+                        peerName = peer.peerName
+                    )
+                }
+                wasPeersEmpty = genuinePeers.isEmpty()
                 val now = System.currentTimeMillis()
                 if (cachedPostCount == -1 || now - lastPostCountQueryTime > 30_000L) {
                     cachedPostCount = kotlinx.coroutines.withContext(Dispatchers.IO) {
@@ -369,6 +384,9 @@ class MeshSyncService : Service() {
         _isMeshActive.value = false
         periodicSyncJob?.cancel()
         periodicSyncJob = null
+        try {
+            com.mysocial.mesh.lora.LoraCompanionBridge.getInstance(this).onPacketReceived = null
+        } catch (_: Exception) {}
         wifiTransport?.stop()
         wifiTransport = null
         bleTransport?.stop()
@@ -379,6 +397,7 @@ class MeshSyncService : Service() {
         iosBridge = null
         gatewayUplinkManager?.stopMonitoring()
         gatewayUplinkManager = null
+        syncEngine.release()
         com.mysocial.mesh.update.PeerApkUpdateManager.getInstance(this).stopServer()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -389,6 +408,10 @@ class MeshSyncService : Service() {
         forceSyncAll()
     }
 
+    fun broadcastVoiceCallSignal(signal: com.mysocial.mesh.model.VoiceCallSignalPayload) {
+        wifiTransport?.broadcastVoiceCallSignal(signal)
+    }
+
     fun forceSyncAll() {
         wifiTransport?.discoveredPeers?.value?.forEach { peer ->
             wifiTransport?.forceSync(peer.peerId)
@@ -397,7 +420,7 @@ class MeshSyncService : Service() {
             bleTransport?.forceSync(peer.peerId)
         }
         if (wifiTransport?.isEmulator == true) {
-            wifiTransport?.syncWithDirectIp("10.0.2.2", com.mysocial.mesh.transport.MdnsWifiTransport.DEFAULT_PORT, "Host ADB Bridge")
+            wifiTransport?.syncWithDirectIp("10.0.2.2", com.mysocial.mesh.transport.MdnsWifiTransport.ADB_EMULATOR_TO_PHONE_PORT, "Phone ADB Bridge")
         }
     }
 

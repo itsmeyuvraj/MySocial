@@ -126,11 +126,11 @@ fun AppearanceScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp)
-                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
+                    .padding(horizontal = 16.dp)
+                    .border(0.5.dp, FbBorder, RoundedCornerShape(12.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(16.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
@@ -249,11 +249,11 @@ fun AppearanceScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp)
-                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
+                    .padding(horizontal = 16.dp)
+                    .border(0.5.dp, FbBorder, RoundedCornerShape(12.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(16.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     val themes = listOf(
@@ -337,11 +337,11 @@ fun AppearanceScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp)
-                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
+                    .padding(horizontal = 16.dp)
+                    .border(0.5.dp, FbBorder, RoundedCornerShape(12.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(16.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
@@ -429,11 +429,11 @@ fun AppearanceScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp)
-                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
+                    .padding(horizontal = 16.dp)
+                    .border(0.5.dp, FbBorder, RoundedCornerShape(12.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(16.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     // Compact Mode Switch
@@ -521,6 +521,7 @@ fun MeshSyncScreen(
     val dbStats by viewModel.dbStats.collectAsState()
     val syncIntervalSeconds by viewModel.syncIntervalSeconds.collectAsState()
     val blockedAuthors by viewModel.blockedAuthors.collectAsState()
+    val isNearbyPeerNotificationsEnabled by viewModel.isNearbyPeerNotificationsEnabled.collectAsState()
 
     val loraBridge = remember { com.mysocial.mesh.lora.LoraCompanionBridge.getInstance(context) }
     val loraState by loraBridge.connectionState.collectAsState()
@@ -544,11 +545,11 @@ fun MeshSyncScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp)
-                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
+                    .padding(horizontal = 16.dp)
+                    .border(0.5.dp, FbBorder, RoundedCornerShape(12.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(16.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -634,15 +635,80 @@ fun MeshSyncScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
+            // Nearby Friend Alerts Card
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .border(0.5.dp, FbBorder, RoundedCornerShape(12.dp)),
+                colors = CardDefaults.cardColors(containerColor = FbSurface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(FacebookBlueLight),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Person,
+                                contentDescription = null,
+                                tint = FacebookBlue,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Nearby Friend Alerts",
+                                color = FbTextPrimary,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 15.sp
+                            )
+                            Text(
+                                text = "Notify when a friend is discovered nearby",
+                                color = FbTextSecondary,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = isNearbyPeerNotificationsEnabled,
+                        onCheckedChange = { viewModel.setNearbyPeerNotificationsEnabled(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = FacebookBlue,
+                            uncheckedThumbColor = FbTextSecondary,
+                            uncheckedTrackColor = FbSurfaceElevated
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
             // Network Diagnostics Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp)
-                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
+                    .padding(horizontal = 16.dp)
+                    .border(0.5.dp, FbBorder, RoundedCornerShape(12.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(16.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -714,11 +780,11 @@ fun MeshSyncScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp)
-                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
+                    .padding(horizontal = 16.dp)
+                    .border(0.5.dp, FbBorder, RoundedCornerShape(12.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(16.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -813,11 +879,11 @@ fun MeshSyncScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp)
-                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
+                    .padding(horizontal = 16.dp)
+                    .border(0.5.dp, FbBorder, RoundedCornerShape(12.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(16.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -939,11 +1005,11 @@ fun MeshSyncScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp)
-                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
+                    .padding(horizontal = 16.dp)
+                    .border(0.5.dp, FbBorder, RoundedCornerShape(12.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(16.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -1041,11 +1107,11 @@ fun MuleStorageScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp)
-                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
+                    .padding(horizontal = 16.dp)
+                    .border(0.5.dp, FbBorder, RoundedCornerShape(12.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(16.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -1200,11 +1266,11 @@ fun AboutScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp)
-                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
+                    .padding(horizontal = 16.dp)
+                    .border(0.5.dp, FbBorder, RoundedCornerShape(12.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(16.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -1288,11 +1354,11 @@ fun AboutScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp)
-                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
+                    .padding(horizontal = 16.dp)
+                    .border(0.5.dp, FbBorder, RoundedCornerShape(12.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(16.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -1402,11 +1468,11 @@ fun AboutScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp)
-                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
+                    .padding(horizontal = 16.dp)
+                    .border(0.5.dp, FbBorder, RoundedCornerShape(12.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(16.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -1471,11 +1537,11 @@ fun AboutScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp)
-                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
+                    .padding(horizontal = 16.dp)
+                    .border(0.5.dp, FbBorder, RoundedCornerShape(12.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(16.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -1579,11 +1645,11 @@ fun AboutScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp)
-                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
+                    .padding(horizontal = 16.dp)
+                    .border(0.5.dp, FbBorder, RoundedCornerShape(12.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(16.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -1670,11 +1736,11 @@ fun AboutScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp)
-                    .border(0.8.dp, FbBorder, RoundedCornerShape(16.dp)),
+                    .padding(horizontal = 16.dp)
+                    .border(0.5.dp, FbBorder, RoundedCornerShape(12.dp)),
                 colors = CardDefaults.cardColors(containerColor = FbSurface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = RoundedCornerShape(16.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -1885,29 +1951,31 @@ private fun SettingsTopBar(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = FbSurface,
-        shadowElevation = 1.dp
+        color = FbSurface
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onNavigateBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = FbTextPrimary
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onNavigateBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = FbTextPrimary
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = title,
+                    color = FbTextPrimary,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
                 )
             }
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                text = title,
-                color = FbTextPrimary,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
+            HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
         }
     }
 }

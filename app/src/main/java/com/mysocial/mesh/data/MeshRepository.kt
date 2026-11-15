@@ -84,7 +84,38 @@ class MeshRepository(
                 }
             }
         }
+        db.onVoiceCallSignalReceived = { signal ->
+            voiceCallManager?.handleCallSignal(signal)
+        }
         startStalePeerPruner()
+        repoScope.launch(Dispatchers.IO) {
+            try {
+                // Sanitize any existing bogus 'User' or 'MeshPeer' display names in profiles_view
+                val profiles = db.profileDao().getAllProfiles()
+                for (p in profiles) {
+                    if (p.displayName == "User" || p.displayName == "MeshPeer" || p.displayName.isBlank()) {
+                        val profileEntry = db.logEntryDao().getLatestProfileEntryForAuthor(p.authorId)
+                        val realNameFromLog = profileEntry?.let { entry ->
+                            try { ProfilePayload.fromJson(entry.contentJson).displayName.takeIf { it.isNotBlank() && it != "User" && it != "MeshPeer" } } catch (_: Exception) { null }
+                        }
+                        val realNameFromStory = if (realNameFromLog == null) {
+                            db.storyDao().getStoriesForAuthor(p.authorId).firstOrNull()?.authorDisplayName?.takeIf { it.isNotBlank() && it != "User" && it != "Me" && it != "Nearby Peer" }
+                        } else null
+                        val realNameFromPeer = if (realNameFromLog == null && realNameFromStory == null) {
+                            _discoveredPeers.value.find { it.peerId == p.authorId }?.peerName?.takeIf { it.isNotBlank() && it != "User" && it != "MeshPeer" && it != "Nearby Device" }
+                        } else null
+
+                        val finalName = realNameFromLog ?: realNameFromStory ?: realNameFromPeer
+                        if (finalName != null) {
+                            db.profileDao().upsert(p.copy(displayName = finalName))
+                            Log.i("MeshRepository", "Sanitized placeholder profile for ${p.authorId} to '$finalName'")
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("MeshRepository", "Failed to sanitize placeholder profiles: ${e.message}")
+            }
+        }
     }
 
     private fun startStalePeerPruner() {
@@ -104,6 +135,7 @@ class MeshRepository(
 
     var onContentPublished: (() -> Unit)? = null
     var onPttBroadcast: ((com.mysocial.mesh.model.PttVoiceBurstPayload) -> Unit)? = null
+    var onVoiceCallBroadcast: ((com.mysocial.mesh.model.VoiceCallSignalPayload) -> Unit)? = null
 
     val groupManager: com.mysocial.mesh.group.GroupManager by lazy {
         com.mysocial.mesh.group.GroupManager(db, cryptoManager, syncEngine) {
@@ -128,6 +160,19 @@ class MeshRepository(
             }.also { manager ->
                 manager.onPttBroadcast = { burst ->
                     onPttBroadcast?.invoke(burst)
+                }
+            }
+        }
+    }
+
+    val voiceCallManager: com.mysocial.mesh.call.BleVoiceCallManager? by lazy {
+        val ctx = db.appContext ?: com.mysocial.mesh.MySocialApplication.instance?.applicationContext
+        ctx?.let {
+            com.mysocial.mesh.call.BleVoiceCallManager(it, cryptoManager, syncEngine, db, repoScope) {
+                onContentPublished?.invoke()
+            }.also { manager ->
+                manager.onVoiceCallBroadcast = { signal ->
+                    onVoiceCallBroadcast?.invoke(signal)
                 }
             }
         }
@@ -218,6 +263,29 @@ class MeshRepository(
         _discoveredPeers.value = deduplicated
         if (newPeerName.isNotBlank() && newPeerName != "MeshPeer" && newPeerName != "Nearby Device" && !newPeerName.startsWith("Host ADB")) {
             logActivity("Connected with $newPeerName")
+            repoScope.launch {
+                try {
+                    val existing = db.profileDao().getProfile(newPeerId)
+                    if (existing == null) {
+                        db.profileDao().upsert(
+                            ProfileViewEntity(
+                                authorId = newPeerId,
+                                displayName = newPeerName,
+                                bio = "",
+                                avatarSeed = newPeerId,
+                                updatedAtSeq = 0L,
+                                isVerifiedInPerson = isVerifiedInPerson(newPeerId)
+                            )
+                        )
+                    } else if (existing.displayName.isBlank() || existing.displayName.startsWith("Neighbor") || existing.displayName == "User" || existing.displayName == "MeshPeer") {
+                        db.profileDao().upsert(
+                            existing.copy(displayName = newPeerName)
+                        )
+                    }
+                } catch (e: Exception) {
+                    Log.w("MeshRepository", "Failed to cache profile for $newPeerId: ${e.message}")
+                }
+            }
         }
     }
 
@@ -552,13 +620,48 @@ class MeshRepository(
         return db.profileDao().observeAllProfiles()
     }
 
+    suspend fun upsertFriendProfile(authorId: String, displayName: String) {
+        val cleanName = displayName.trim()
+        if (cleanName.isBlank() || cleanName == "User" || cleanName == "MeshPeer") return
+        val existing = db.profileDao().getProfile(authorId)
+        db.profileDao().upsert(
+            ProfileViewEntity(
+                authorId = authorId,
+                displayName = cleanName,
+                bio = existing?.bio ?: "",
+                avatarSeed = existing?.avatarSeed ?: authorId,
+                updatedAtSeq = existing?.updatedAtSeq ?: 0L,
+                isVerifiedInPerson = existing?.isVerifiedInPerson ?: isVerifiedInPerson(authorId)
+            )
+        )
+    }
+
     fun observeFollowedProfiles(): Flow<List<ProfileViewEntity>> {
         return combine(
             observeFollowedAuthorIds(),
-            db.profileDao().observeAllProfiles()
-        ) { followedIds, profiles ->
-            val set = followedIds.toSet()
-            profiles.filter { set.contains(it.authorId) }
+            db.profileDao().observeAllProfiles(),
+            discoveredPeers
+        ) { followedIds, profiles, peers ->
+            val profileMap = profiles.associateBy { it.authorId }
+            val peerMap = peers.associateBy { it.peerId }
+            followedIds.map { authorId ->
+                val profile = profileMap[authorId]
+                val peer = peerMap[authorId]
+                val resolvedName = profile?.displayName?.takeIf { it.isNotBlank() && !it.startsWith("Neighbor") && it != "User" && it != "MeshPeer" }
+                    ?: peer?.peerName?.takeIf { it.isNotBlank() && it != "Nearby Device" && it != "MeshPeer" && !it.startsWith("Host ADB") && it != "User" }
+                    ?: profile?.displayName?.takeIf { it.isNotBlank() && it != "User" && it != "MeshPeer" }
+                    ?: peer?.peerName?.takeIf { it.isNotBlank() && it != "Nearby Device" && it != "MeshPeer" && !it.startsWith("Host ADB") }
+                    ?: "Friend @${authorId.take(4).uppercase()}"
+
+                ProfileViewEntity(
+                    authorId = authorId,
+                    displayName = resolvedName,
+                    bio = profile?.bio ?: "",
+                    avatarSeed = profile?.avatarSeed ?: authorId,
+                    updatedAtSeq = profile?.updatedAtSeq ?: 0L,
+                    isVerifiedInPerson = profile?.isVerifiedInPerson ?: isVerifiedInPerson(authorId)
+                )
+            }
         }
     }
 
@@ -744,6 +847,13 @@ class MeshRepository(
             recentMsgs.map { msg ->
                 val peerId = msg.conversationPeerId
                 val profile = profilesMap[peerId]
+                val peer = peers.find { it.peerId == peerId }
+                val resolvedName = profile?.displayName?.takeIf { it.isNotBlank() && !it.startsWith("Neighbor") && it != "User" && it != "MeshPeer" }
+                    ?: peer?.peerName?.takeIf { it.isNotBlank() && it != "Nearby Device" && it != "MeshPeer" && !it.startsWith("Host ADB") && it != "User" }
+                    ?: profile?.displayName?.takeIf { it.isNotBlank() && it != "User" && it != "MeshPeer" }
+                    ?: peer?.peerName?.takeIf { it.isNotBlank() && it != "Nearby Device" && it != "MeshPeer" && !it.startsWith("Host ADB") }
+                    ?: "Friend @${peerId.take(4).uppercase()}"
+
                 val snippet = when (msg.mediaType) {
                     "IMAGE" -> if (msg.text.isNotBlank()) "📷 ${msg.text}" else "📷 Photo"
                     "AUDIO" -> "🎤 Voice message"
@@ -751,7 +861,7 @@ class MeshRepository(
                 }
                 ConversationSummary(
                     peerId = peerId,
-                    peerDisplayName = profile?.displayName,
+                    peerDisplayName = resolvedName,
                     peerAvatarSeed = profile?.avatarSeed ?: peerId,
                     lastMessageText = snippet,
                     lastMessageTimestamp = msg.timestamp,

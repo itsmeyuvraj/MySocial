@@ -133,6 +133,7 @@ class WifiAwareTransport(
                 matchFilter: List<ByteArray>?
             ) {
                 val peerAuthorId = serviceSpecificInfo?.let { String(it, Charsets.UTF_8) } ?: "WIFI_AWARE_${peerHandle.hashCode()}"
+                if (peerAuthorId == myAuthorId) return
                 val peer = DiscoveredPeer(
                     peerId = peerAuthorId,
                     peerName = "Nearby NAN Peer",

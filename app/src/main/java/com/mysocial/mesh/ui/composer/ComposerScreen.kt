@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -85,6 +86,7 @@ import com.mysocial.mesh.ui.theme.FbAmber
 import com.mysocial.mesh.ui.theme.FbAmberLight
 import com.mysocial.mesh.ui.theme.FbBackground
 import com.mysocial.mesh.ui.theme.FbBorder
+import com.mysocial.mesh.ui.theme.FbDivider
 import com.mysocial.mesh.ui.theme.FbGreen
 import com.mysocial.mesh.ui.theme.FbRed
 import com.mysocial.mesh.ui.theme.FbRedLight
@@ -123,7 +125,7 @@ fun ComposerScreen(
         ComposerMode.PHOTO -> selectedImageUri != null || postText.isNotBlank()
         ComposerMode.POLL -> postText.isNotBlank() && pollOptions.count { it.isNotBlank() } >= 2
         ComposerMode.ALERT -> postText.isNotBlank()
-        ComposerMode.POST -> postText.isNotBlank()
+        ComposerMode.POST -> postText.isNotBlank() || selectedImageUri != null
     }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
@@ -159,16 +161,16 @@ fun ComposerScreen(
             // Mode-specific Top Bar
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = if (composerMode == ComposerMode.ALERT) FbRedLight else FbSurface,
-                shadowElevation = 1.dp
+                color = if (composerMode == ComposerMode.ALERT) FbRedLight else FbSurface
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
+                Column {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (onDismiss != null) {
                             IconButton(
@@ -260,6 +262,8 @@ fun ComposerScreen(
                         }
                     }
                 }
+                HorizontalDivider(color = FbDivider, thickness = 0.5.dp)
+                }
             }
 
             Column(
@@ -341,9 +345,9 @@ fun ComposerScreen(
                                     .fillMaxWidth()
                                     .height(200.dp)
                                     .clickable { photoPickerLauncher.launch("image/*") },
-                                shape = RoundedCornerShape(14.dp),
+                                shape = RoundedCornerShape(12.dp),
                                 colors = CardDefaults.cardColors(containerColor = FbSurfaceElevated),
-                                border = BorderStroke(1.5.dp, FacebookBlue.copy(alpha = 0.35f))
+                                border = BorderStroke(0.5.dp, FbBorder)
                             ) {
                                 Column(
                                     modifier = Modifier.fillMaxSize(),
@@ -468,9 +472,9 @@ fun ComposerScreen(
                         // Dedicated Poll Options Builder Card
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
+                            shape = RoundedCornerShape(12.dp),
                             colors = CardDefaults.cardColors(containerColor = FbSurfaceElevated),
-                            border = BorderStroke(1.dp, FbBorder)
+                            border = BorderStroke(0.5.dp, FbBorder)
                         ) {
                             Column(modifier = Modifier.padding(14.dp)) {
                                 Row(
@@ -604,8 +608,8 @@ fun ComposerScreen(
                         // Prominent High-Priority Emergency Banner
                         Card(
                             colors = CardDefaults.cardColors(containerColor = FbRedLight),
-                            border = BorderStroke(1.2.dp, FbRed.copy(alpha = 0.6f)),
-                            shape = RoundedCornerShape(14.dp),
+                            border = BorderStroke(0.5.dp, FbRed.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
@@ -764,7 +768,7 @@ fun ComposerScreen(
                     }
 
                     ComposerMode.POST -> {
-                        // ==================== STRICTLY TEXT POST WINDOW ====================
+                        // ==================== CREATE POST (TEXT + PHOTO) ====================
                         UserProfileHeader(
                             authorId = authorId,
                             displayName = displayName,
@@ -780,14 +784,14 @@ fun ComposerScreen(
                             onValueChange = { viewModel.updateText(it) },
                             placeholder = {
                                 Text(
-                                    text = "What's on your mind?",
+                                    text = if (selectedImageUri != null) "Write a caption for this photo..." else "What's on your mind?",
                                     color = FbTextTertiary,
-                                    fontSize = 18.sp
+                                    fontSize = 17.sp
                                 )
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(180.dp),
+                                .heightIn(min = if (selectedImageUri != null) 80.dp else 120.dp, max = 200.dp),
                             colors = TextFieldDefaults.colors(
                                 focusedContainerColor = Color.Transparent,
                                 unfocusedContainerColor = Color.Transparent,
@@ -798,7 +802,106 @@ fun ComposerScreen(
                             )
                         )
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Photo Preview if selected
+                        if (previewBitmap != null) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .border(0.5.dp, FbBorder, RoundedCornerShape(12.dp))
+                            ) {
+                                Image(
+                                    bitmap = previewBitmap,
+                                    contentDescription = "Selected photo preview",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(240.dp),
+                                    contentScale = ContentScale.Crop
+                                )
+
+                                // Action Buttons on top of image
+                                Row(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(20.dp))
+                                            .background(Color.Black.copy(alpha = 0.65f))
+                                            .clickable { photoPickerLauncher.launch("image/*") }
+                                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = "Change",
+                                            color = Color.White,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+
+                                    IconButton(
+                                        onClick = { viewModel.setSelectedImageUri(null) },
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Close,
+                                            contentDescription = "Remove photo",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(14.dp))
+                        } else {
+                            // Quick Add Photo Prompt Strip
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(FbSurfaceElevated)
+                                    .border(0.5.dp, FbBorder, RoundedCornerShape(10.dp))
+                                    .clickable { photoPickerLauncher.launch("image/*") }
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF45BD62).copy(alpha = 0.12f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.AddPhotoAlternate,
+                                        contentDescription = null,
+                                        tint = Color(0xFF45BD62),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Add Photo",
+                                        color = FbTextPrimary,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = "Select from gallery to share over the mesh",
+                                        color = FbTextSecondary,
+                                        fontSize = 11.5.sp
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(14.dp))
+                        }
 
                         // Post duration options row
                         ExpiryDurationRow(

@@ -1,7 +1,11 @@
 package com.mysocial.mesh.ui.feed
 
+import android.content.Context
+import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mysocial.mesh.data.MediaProcessor
 import com.mysocial.mesh.data.MeshRepository
 import com.mysocial.mesh.model.CanonicalJson
 import com.mysocial.mesh.model.PostWithAuthor
@@ -140,9 +144,40 @@ class FeedViewModel(
         repository.storyManager.observeActiveStories()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun publishStory(text: String) {
+    fun publishStory(text: String, imageUri: Uri? = null, context: Context? = null) {
         viewModelScope.launch {
-            repository.storyManager.publishStory(text)
+            var mediaBlobHash: String? = null
+            var mediaTotalBytes: Long? = null
+            var mediaChunkCount: Int? = null
+            var mediaMimeType: String? = null
+            if (imageUri != null && context != null) {
+                try {
+                    val processed = MediaProcessor.processImageUri(context, imageUri)
+                    repository.registerCompletedBlob(processed)
+                    mediaBlobHash = processed.blobHash
+                    mediaTotalBytes = processed.totalBytes
+                    mediaChunkCount = processed.chunkCount
+                    mediaMimeType = processed.mimeType
+                } catch (e: Exception) {
+                    Log.e("FeedViewModel", "Failed to process story image: ${e.message}", e)
+                }
+            }
+            val trimmed = text.trim()
+            val storyText = when {
+                trimmed.isNotBlank() -> trimmed
+                mediaBlobHash != null -> ""
+                else -> "Story update"
+            }
+            val myProfile = repository.getProfile(currentAuthorId)
+            val authorDisplayName = myProfile?.displayName?.takeIf { it.isNotBlank() } ?: "Me"
+            repository.storyManager.publishStory(
+                text = storyText,
+                authorDisplayName = authorDisplayName,
+                mediaBlobHash = mediaBlobHash,
+                mediaTotalBytes = mediaTotalBytes,
+                mediaChunkCount = mediaChunkCount,
+                mediaMimeType = mediaMimeType
+            )
         }
     }
 

@@ -19,6 +19,7 @@ class MySocialApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         installCrashSafetyNet()
     }
 
@@ -65,6 +66,10 @@ class MySocialApplication : Application() {
     companion object {
         private const val TAG = "MySocialApp"
         const val CRASH_DUMP_FILENAME = "crash_dump.txt"
+
+        @Volatile
+        var instance: MySocialApplication? = null
+            private set
 
         fun getLatestCrashDump(context: Context): String? {
             val file = File(context.filesDir, CRASH_DUMP_FILENAME)
