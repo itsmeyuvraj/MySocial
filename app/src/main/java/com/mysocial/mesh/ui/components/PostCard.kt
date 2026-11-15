@@ -170,12 +170,19 @@ fun PostCard(
     )
 
     val tags: List<String> = remember(post.tagsJson) {
-        try {
-            CanonicalJson.decodeFromString<List<String>>(post.tagsJson)
-        } catch (_: Exception) {
+        if (post.tagsJson.isBlank() || post.tagsJson == "[]") {
             emptyList()
+        } else {
+            try {
+                CanonicalJson.decodeFromString<List<String>>(post.tagsJson)
+            } catch (_: Exception) {
+                emptyList()
+            }
         }
     }
+
+    val relativeTime = remember(post.timestamp) { formatRelativeTime(post.timestamp) }
+    val relativeTimeUpper = remember(relativeTime) { relativeTime.uppercase() }
 
     val cardCornerRadius = if (compactMode) 12.dp else 16.dp
     val cardHorizontalPadding = if (compactMode) 8.dp else 12.dp
@@ -292,7 +299,7 @@ fun PostCard(
                             fontSize = 11.sp
                         )
                         Text(
-                            text = formatRelativeTime(post.timestamp),
+                            text = relativeTime,
                             color = FbTextSecondary,
                             fontSize = 12.sp
                         )
@@ -664,7 +671,7 @@ fun PostCard(
 
             // Post Relative Timestamp (Instagram uppercase style)
             Text(
-                text = formatRelativeTime(post.timestamp).uppercase(),
+                text = relativeTimeUpper,
                 color = FbTextTertiary,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Medium,

@@ -436,21 +436,7 @@ object LogValidator {
             return ValidationResult.Invalid("Sequence must be >= 1, received: ${entry.sequence}")
         }
 
-        // 1. Verify Entry Hash matches computed SHA-256
-        val computedHash = CryptoManager.computeEntryHash(
-            authorId = entry.authorId,
-            sequence = entry.sequence,
-            previousHash = entry.previousHash,
-            timestamp = entry.timestamp,
-            contentType = entry.contentType.name,
-            contentJson = entry.contentJson,
-            signature = entry.signature
-        )
-        if (computedHash != entry.entryHash) {
-            return ValidationResult.Invalid("entryHash mismatch: computed $computedHash != ${entry.entryHash}")
-        }
-
-        // 2. Verify Cryptographic Ed25519 Signature
+        // 1 & 2. Build canonical payload once and verify Entry Hash & Ed25519 Signature
         val canonicalPayload = CryptoManager.buildCanonicalPayload(
             authorId = entry.authorId,
             sequence = entry.sequence,
@@ -459,6 +445,12 @@ object LogValidator {
             contentType = entry.contentType.name,
             contentJson = entry.contentJson
         )
+
+        val computedHash = CryptoManager.computeEntryHash(canonicalPayload, entry.signature)
+        if (computedHash != entry.entryHash) {
+            return ValidationResult.Invalid("entryHash mismatch: computed $computedHash != ${entry.entryHash}")
+        }
+
         val isSignatureValid = CryptoManager.verify(
             authorId = entry.authorId,
             canonicalPayload = canonicalPayload,
