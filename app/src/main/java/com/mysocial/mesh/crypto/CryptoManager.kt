@@ -349,12 +349,27 @@ class CryptoManager private constructor(
             return mac.doFinal(rawIdentifier.toByteArray(Charsets.UTF_8))
         }
 
+        @Volatile
+        private var INSTANCE: CryptoManager? = null
+
         /**
          * Get or generate the device's cryptographic identity using Android Keystore
          * hardware-backed AES-256-GCM encryption for the Ed25519 private seed.
          * Identity is deterministically tied to the device, ensuring the User ID remains identical across reinstalls.
          */
         fun getInstance(context: Context): CryptoManager {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: buildCryptoManager(context.applicationContext).also { INSTANCE = it }
+            }
+        }
+
+        fun resetInstanceForTesting() {
+            synchronized(this) {
+                INSTANCE = null
+            }
+        }
+
+        private fun buildCryptoManager(context: Context): CryptoManager {
             val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val existingIv = prefs.getString(PREF_KEY_IV, null)
             val existingCiphertext = prefs.getString(PREF_KEY_CIPHERTEXT, null)

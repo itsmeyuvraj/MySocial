@@ -121,4 +121,27 @@ class E2eeBirationalMappingTest {
         assertEquals(payload.timestamp, decoded.timestamp)
         assertEquals(payload, decoded)
     }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun testEd25519PubToX25519RejectsIdentityPointSafely() {
+        // y = 1 in little-endian representation (Ed25519 neutral element)
+        val identityKey = ByteArray(32)
+        identityKey[0] = 1
+        E2eeManager.ed25519PubToX25519(identityKey)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun testEd25519PubToX25519RejectsNonCanonicalCoordinateSafely() {
+        // Non-canonical coordinate y >= 2^255 - 19
+        val nonCanonicalKey = ByteArray(32) { 0xFF.toByte() }
+        E2eeManager.ed25519PubToX25519(nonCanonicalKey)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun testEncryptGracefullyRejectsIdentityElementAuthorId() {
+        val identityKey = ByteArray(32)
+        identityKey[0] = 1
+        val identityAuthorId = CryptoManager.formatAuthorId(identityKey)
+        E2eeManager.encrypt(identityAuthorId, "Secret message")
+    }
 }

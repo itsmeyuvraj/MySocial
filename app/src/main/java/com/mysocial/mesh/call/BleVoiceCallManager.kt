@@ -769,6 +769,7 @@ class BleVoiceCallManager(
         val current = _activeSession.value ?: return
         _activeSession.value = current.copy(state = CallState.IN_CALL, startTimeMs = System.currentTimeMillis())
         isCallAudioRunning.set(true)
+        requestAudioFocus()
 
         // Start call duration ticker
         callDurationJob?.cancel()
@@ -996,8 +997,67 @@ class BleVoiceCallManager(
         }
     }
 
+    private var audioFocusRequest: Any? = null
+
+    private fun requestAudioFocus() {
+        try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val playbackAttributes = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+                val focusRequest = android.media.AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                    .setAudioAttributes(playbackAttributes)
+                    .setAcceptsDelayedFocusGain(true)
+                    .setOnAudioFocusChangeListener { focusChange ->
+                        when (focusChange) {
+                            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+                            AudioManager.AUDIOFOCUS_LOSS -> {
+                                Log.i(tag, "Audio focus lost ($focusChange)")
+                            }
+                            AudioManager.AUDIOFOCUS_GAIN -> {
+                                Log.i(tag, "Audio focus regained")
+                            }
+                        }
+                    }
+                    .build()
+                audioFocusRequest = focusRequest
+                audioManager.requestAudioFocus(focusRequest)
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager.requestAudioFocus(
+                    null,
+                    AudioManager.STREAM_VOICE_CALL,
+                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
+                )
+            }
+        } catch (e: Exception) {
+            Log.w(tag, "Failed to request audio focus: ${e.message}")
+        }
+    }
+
+    private fun abandonAudioFocus() {
+        try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                (audioFocusRequest as? android.media.AudioFocusRequest)?.let {
+                    audioManager.abandonAudioFocusRequest(it)
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager.abandonAudioFocus(null)
+            }
+        } catch (e: Exception) {
+            Log.w(tag, "Failed to abandon audio focus: ${e.message}")
+        } finally {
+            audioFocusRequest = null
+        }
+    }
+
     private fun stopAudioEngine() {
         isCallAudioRunning.set(false)
+        abandonAudioFocus()
         audioCaptureJob?.cancel()
         audioCaptureJob = null
         audioPlaybackJob?.cancel()

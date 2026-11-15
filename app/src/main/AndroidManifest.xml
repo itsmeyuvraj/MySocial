@@ -57,6 +57,9 @@
     <uses-permission
         android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"
         tools:targetApi="upside_down_cake" />
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"
+        tools:targetApi="upside_down_cake" />
 
     <!-- In-App APK update installation permission -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
@@ -109,7 +112,7 @@
             android:name=".service.MeshSyncService"
             android:exported="false"
             android:stopWithTask="true"
-            android:foregroundServiceType="connectedDevice" />
+            android:foregroundServiceType="connectedDevice|microphone" />
 
         <activity
             android:name=".ui.MainActivity"

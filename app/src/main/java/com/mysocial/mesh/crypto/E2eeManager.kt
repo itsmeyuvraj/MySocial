@@ -82,9 +82,21 @@ object E2eeManager {
 
         // Little-endian byte array to BigInteger
         val y = BigInteger(1, yBytes.reversedArray())
+        if (y >= P || y == ONE) {
+            throw IllegalArgumentException("Non-canonical or identity Ed25519 public key coordinate: y=$y")
+        }
+
         val num = ONE.add(y).mod(P)
         val den = ONE.subtract(y).mod(P)
-        val u = num.multiply(den.modInverse(P)).mod(P)
+        if (den == BigInteger.ZERO) {
+            throw IllegalArgumentException("Non-invertible Ed25519 public key coordinate: den=0")
+        }
+
+        val u = try {
+            num.multiply(den.modInverse(P)).mod(P)
+        } catch (e: ArithmeticException) {
+            throw IllegalArgumentException("Failed to invert denominator on Curve25519: ${e.message}", e)
+        }
 
         // BigInteger back to 32 bytes little-endian
         val uBigEndian = u.toByteArray()
@@ -122,7 +134,11 @@ object E2eeManager {
             throw IllegalArgumentException("Invalid recipient author ID: $recipientAuthorId")
         }
 
-        val recipientXPub = ed25519PubToX25519(recipientPubBytes)
+        val recipientXPub = try {
+            ed25519PubToX25519(recipientPubBytes)
+        } catch (e: Exception) {
+            throw IllegalArgumentException("Cannot convert recipient Ed25519 key to Curve25519: ${e.message}", e)
+        }
 
         // Generate ephemeral X25519 key pair
         val ephPriv = ByteArray(32)

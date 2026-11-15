@@ -69,6 +69,7 @@ class MdnsWifiTransport(
 
     private val isRunning = AtomicBoolean(false)
     private val activeSyncPeers = ConcurrentHashMap.newKeySet<String>()
+    private val inboundIpThrottle = ConcurrentHashMap<String, Long>()
 
     private val _peersMap = ConcurrentHashMap<String, DiscoveredPeer>()
     private val serviceNameToPeerId = ConcurrentHashMap<String, String>()
@@ -487,10 +488,31 @@ class MdnsWifiTransport(
     }
 
     private suspend fun handleInboundConnection(socket: Socket) {
-        val remoteIp = socket.inetAddress.hostAddress ?: "unknown"
+        val remoteIp = socket.inetAddress?.hostAddress ?: "unknown"
+        val now = System.currentTimeMillis()
+        val lastConn = inboundIpThrottle[remoteIp] ?: 0L
+        if (now - lastConn < 250L) {
+            Log.d(tag, "Throttling rapid inbound connection from $remoteIp")
+            try { socket.close() } catch (_: Exception) {}
+            return
+        }
+        inboundIpThrottle[remoteIp] = now
+
+        if (activeSyncPeers.size >= MAX_CONCURRENT_WIFI_SYNC) {
+            Log.w(tag, "Dropping inbound connection from $remoteIp: max concurrent Wi-Fi sync limit ($MAX_CONCURRENT_WIFI_SYNC) reached")
+            try { socket.close() } catch (_: Exception) {}
+            return
+        }
+
         Log.i(tag, "Accepted inbound TCP connection from $remoteIp:${socket.port}")
         val safeIpKey = remoteIp.replace(".", "_")
         val peerId = "direct_$safeIpKey"
+        if (!activeSyncPeers.add(peerId)) {
+            Log.d(tag, "Inbound sync with $peerId already active, dropping duplicate socket")
+            try { socket.close() } catch (_: Exception) {}
+            return
+        }
+
         val returnHost = if (isEmulator && remoteIp == "127.0.0.1") "10.0.2.2" else remoteIp
         val returnPort = when {
             isEmulator && remoteIp == "127.0.0.1" -> ADB_EMULATOR_TO_PHONE_PORT
@@ -521,6 +543,7 @@ class MdnsWifiTransport(
         } catch (e: Exception) {
             Log.e(tag, "Inbound sync failed with $remoteIp: ${e.message}")
         } finally {
+            activeSyncPeers.remove(peerId)
             connection.close()
             if (peerId.startsWith("direct_")) {
                 _peersMap.remove(peerId)
