@@ -5,7 +5,7 @@
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose%20(M3)-4285F4.svg?style=flat&logo=jetpackcompose)](https://developer.android.com/jetpack/compose)
 [![Bluetooth 5.0+](https://img.shields.io/badge/Transport-Bluetooth%205.0%2B%20(LE%202M)-0082FC.svg?style=flat&logo=bluetooth)](https://www.bluetooth.com/)
 [![Local Wi-Fi mDNS](https://img.shields.io/badge/Transport-Wi--Fi%20LAN%20mDNS-FF6F00.svg?style=flat&logo=wi-fi)](https://developer.android.com/training/connect-devices-wirelessly/nsd)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat)](LICENSE)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 A decentralized, serverless **peer-to-peer (P2P) mesh social network** for Android. Operates with **zero cloud servers** and **zero cellular data**, distributing immutable signed posts, comments, reactions, and chunked media attachments across nearby devices via epidemic gossip protocols over **Bluetooth 5.0+ Extended Advertising** and **Local Wi-Fi / Hotspot mDNS**.
 
@@ -245,3 +245,11 @@ Run the entire test suite with:
 ```
 
 ---
+
+## 📄 License
+
+Copyright (C) 2026 Yuvraj Poudyal
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the [GNU General Public License](LICENSE) for more details.
