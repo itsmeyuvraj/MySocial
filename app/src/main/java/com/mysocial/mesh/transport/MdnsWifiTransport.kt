@@ -232,6 +232,9 @@ class MdnsWifiTransport(
         safeStopDiscovery()
         safeUnregisterService()
 
+        resolveQueue.clear()
+        isResolving.set(false)
+
         serverJob?.cancel()
         serverJob = null
 
@@ -382,23 +385,27 @@ class MdnsWifiTransport(
             )
             for ((host, p) in allHosts) {
                 launch {
+                    var s: Socket? = null
+                    var conn: com.mysocial.mesh.protocol.StreamPeerConnection? = null
                     try {
-                        val s = Socket()
-                        s.tcpNoDelay = true
-                        s.soTimeout = 4000
-                        s.connect(java.net.InetSocketAddress(host, p), 3000)
-                        val conn = com.mysocial.mesh.protocol.StreamPeerConnection(
+                        val socket = Socket()
+                        s = socket
+                        socket.tcpNoDelay = true
+                        socket.soTimeout = 4000
+                        socket.connect(java.net.InetSocketAddress(host, p), 3000)
+                        val connection = com.mysocial.mesh.protocol.StreamPeerConnection(
                             peerId = "ptt_target_$host",
                             peerName = "Peer ($host)",
                             transportType = TransportType.MDNS_WIFI,
-                            socket = s
+                            socket = socket
                         )
-                        conn.send(msg)
+                        conn = connection
+                        connection.send(msg)
                         // Read reply/ACK so we don't abort before receiver reads the payload
                         try {
                             kotlinx.coroutines.withTimeoutOrNull(3000) {
-                                while (conn.isConnected) {
-                                    val reply = conn.receiveMessage()
+                                while (connection.isConnected) {
+                                    val reply = connection.receiveMessage()
                                     if (reply is com.mysocial.mesh.protocol.GossipMessage.PttBurstAck && reply.burstId == burst.burstId) {
                                         Log.i(tag, "PTT burst acknowledged by $host:$p")
                                         break
@@ -406,10 +413,12 @@ class MdnsWifiTransport(
                                 }
                             }
                         } catch (_: Exception) {}
-                        conn.close()
                         Log.i(tag, "Successfully transmitted real-time PTT burst to $host:$p")
                     } catch (e: Exception) {
                         Log.d(tag, "Target $host:$p not reachable for direct PTT: ${e.message}")
+                    } finally {
+                        try { conn?.close() } catch (_: Exception) {}
+                        try { s?.close() } catch (_: Exception) {}
                     }
                 }
             }
@@ -443,23 +452,27 @@ class MdnsWifiTransport(
             )
             for ((host, p) in allHosts) {
                 launch {
+                    var s: Socket? = null
+                    var conn: com.mysocial.mesh.protocol.StreamPeerConnection? = null
                     try {
-                        val s = Socket()
-                        s.tcpNoDelay = true
-                        s.soTimeout = 4000
-                        s.connect(java.net.InetSocketAddress(host, p), 3000)
-                        val conn = com.mysocial.mesh.protocol.StreamPeerConnection(
+                        val socket = Socket()
+                        s = socket
+                        socket.tcpNoDelay = true
+                        socket.soTimeout = 4000
+                        socket.connect(java.net.InetSocketAddress(host, p), 3000)
+                        val connection = com.mysocial.mesh.protocol.StreamPeerConnection(
                             peerId = "call_signal_${host}_$p",
                             peerName = "Peer ($host)",
                             transportType = TransportType.MDNS_WIFI,
-                            socket = s
+                            socket = socket
                         )
-                        conn.send(msg)
+                        conn = connection
+                        connection.send(msg)
                         // Read reply/ACK so we don't abort before receiver reads the payload
                         try {
                             kotlinx.coroutines.withTimeoutOrNull(3000) {
-                                while (conn.isConnected) {
-                                    val reply = conn.receiveMessage()
+                                while (connection.isConnected) {
+                                    val reply = connection.receiveMessage()
                                     if (reply is com.mysocial.mesh.protocol.GossipMessage.VoiceCallSignalAck && reply.callId == signal.callId) {
                                         Log.i(tag, "VoiceCallSignal ${signal.signalType} acknowledged by $host:$p")
                                         break
@@ -467,10 +480,12 @@ class MdnsWifiTransport(
                                 }
                             }
                         } catch (_: Exception) {}
-                        conn.close()
                         Log.i(tag, "Successfully transmitted real-time VoiceCallSignal ${signal.signalType} to $host:$p")
                     } catch (e: Exception) {
                         Log.d(tag, "Target $host:$p not reachable for direct VoiceCallSignal: ${e.message}")
+                    } finally {
+                        try { conn?.close() } catch (_: Exception) {}
+                        try { s?.close() } catch (_: Exception) {}
                     }
                 }
             }

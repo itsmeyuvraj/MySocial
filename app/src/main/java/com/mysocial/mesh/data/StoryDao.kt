@@ -32,5 +32,11 @@ interface StoryDao {
 
     @Query("DELETE FROM stories_view WHERE expiresAt <= :now")
     suspend fun deleteExpiredStories(now: Long = System.currentTimeMillis()): Int
+
+    @Query("SELECT COUNT(*) FROM stories_view WHERE mediaBlobHash = :blobHash AND expiresAt > :now")
+    suspend fun isStoryBlob(blobHash: String, now: Long = System.currentTimeMillis()): Int
+
+    @Query("SELECT mediaBlobHash FROM stories_view WHERE expiresAt <= :now AND mediaBlobHash IS NOT NULL")
+    suspend fun getExpiredStoryBlobHashes(now: Long = System.currentTimeMillis()): List<String>
 }
 

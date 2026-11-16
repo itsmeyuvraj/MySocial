@@ -168,6 +168,9 @@ class BleVoiceCallManager(
     private var sessionAesKey: SecretKeySpec? = null
     private val sendSequence = AtomicLong(0L)
     private val isCallAudioRunning = AtomicBoolean(false)
+    private val isReleased = AtomicBoolean(false)
+    private var l2capServerJob: Job? = null
+    private var tcpServerJob: Job? = null
 
     init {
         startL2capServer()
@@ -196,22 +199,22 @@ class BleVoiceCallManager(
                 localL2capPsm = server.psm
                 Log.i(tag, "BleVoiceCallManager L2CAP listener ready on PSM $localL2capPsm")
 
-                scope.launch(Dispatchers.IO) {
+                l2capServerJob = scope.launch(Dispatchers.IO) {
                     var currentServer = server
-                    while (isActive) {
+                    while (isActive && !isReleased.get()) {
                         try {
                             val socket = currentServer.accept() ?: break
                             Log.i(tag, "Accepted incoming L2CAP audio socket connection from ${socket.remoteDevice?.address}")
                             handleIncomingL2capSocket(socket)
                         } catch (e: Exception) {
-                            if (!isActive) break
+                            if (!isActive || isReleased.get()) break
                             Log.d(tag, "L2CAP audio server socket closed or error: ${e.message}")
                             try { currentServer.close() } catch (_: Exception) {}
                             delay(5000)
-                            if (!isActive) break
+                            if (!isActive || isReleased.get()) break
                             try {
                                 val currentAdapter = bluetoothAdapter
-                                if (currentAdapter?.isEnabled == true) {
+                                if (currentAdapter?.isEnabled == true && !isReleased.get()) {
                                     val newServer = currentAdapter.listenUsingInsecureL2capChannel()
                                     l2capServerSocket = newServer
                                     localL2capPsm = newServer.psm
@@ -245,8 +248,8 @@ class BleVoiceCallManager(
             localAudioPort = server.localPort
             Log.i(tag, "BleVoiceCallManager TCP audio listener ready on port $localAudioPort")
 
-            scope.launch(Dispatchers.IO) {
-                while (isActive && !server.isClosed) {
+            tcpServerJob = scope.launch(Dispatchers.IO) {
+                while (isActive && !server.isClosed && !isReleased.get()) {
                     try {
                         val socket = server.accept()
                         socket.tcpNoDelay = true
@@ -254,7 +257,7 @@ class BleVoiceCallManager(
                         Log.i(tag, "Accepted incoming TCP audio socket connection from ${socket.inetAddress?.hostAddress}:${socket.port}")
                         handleIncomingTcpSocket(socket)
                     } catch (e: Exception) {
-                        if (!isActive || server.isClosed) break
+                        if (!isActive || server.isClosed || isReleased.get()) break
                         Log.w(tag, "TCP audio server accept error: ${e.message}")
                         delay(1000)
                     }
@@ -1075,6 +1078,11 @@ class BleVoiceCallManager(
     }
 
     fun release() {
+        isReleased.set(true)
+        l2capServerJob?.cancel()
+        l2capServerJob = null
+        tcpServerJob?.cancel()
+        tcpServerJob = null
         incomingRingTimeoutJob?.cancel()
         incomingRingTimeoutJob = null
         outgoingDialTimeoutJob?.cancel()

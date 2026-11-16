@@ -743,9 +743,14 @@ class GossipSyncEngine(
             setOf(cryptoManager.authorId)
         }
 
-        // Stranger blobs: blobs not authored by self or followed peers
+        // Stranger blobs: blobs not authored by self or followed peers, and NOT in use by direct messages, active stories, or groups
         val evictableCandidates = allBlobFiles.mapNotNull { file ->
             val hash = file.nameWithoutExtension
+            // Never evict blobs in use by direct messages, active stories, or group messages
+            if (db.directMessageDao().isDirectMessageBlob(hash) > 0) return@mapNotNull null
+            if (db.storyDao().isStoryBlob(hash) > 0) return@mapNotNull null
+            if (db.groupDao().isGroupBlob(hash) > 0) return@mapNotNull null
+
             val post = db.postViewDao().getPostByBlobHash(hash)
             if (post != null && !followedIds.contains(post.authorId)) {
                 Triple(file, hash, file.lastModified())
@@ -775,13 +780,26 @@ class GossipSyncEngine(
      */
     suspend fun pruneExpiredPostsAndBlobs() = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
-        val expiredBlobHashes = db.postViewDao().getExpiredBlobHashes(now)
+        val expiredPostBlobs = db.postViewDao().getExpiredBlobHashes(now)
+        val expiredStoryBlobs = db.storyDao().getExpiredStoryBlobHashes(now)
+        val candidateBlobHashes = (expiredPostBlobs + expiredStoryBlobs).distinct()
+
         val blobsDir = if (context != null) {
             MediaProcessor.getBlobsDirectory(context)
         } else {
             File(System.getProperty("java.io.tmpdir"), "blobs")
         }
-        for (blobHash in expiredBlobHashes) {
+        for (blobHash in candidateBlobHashes) {
+            // Verify blob is not still in use by an active post, active story, direct message, or group message
+            val inActivePost = db.postViewDao().isPostBlobActive(blobHash, now) > 0
+            val inActiveStory = db.storyDao().isStoryBlob(blobHash, now) > 0
+            val inDirectMessage = db.directMessageDao().isDirectMessageBlob(blobHash) > 0
+            val inGroupMessage = db.groupDao().isGroupBlob(blobHash) > 0
+
+            if (inActivePost || inActiveStory || inDirectMessage || inGroupMessage) {
+                continue
+            }
+
             val file = File(blobsDir, "$blobHash.blob")
             try {
                 if (!file.canonicalPath.startsWith(blobsDir.canonicalPath)) continue

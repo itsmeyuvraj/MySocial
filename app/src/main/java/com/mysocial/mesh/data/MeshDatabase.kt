@@ -103,6 +103,9 @@ interface LogEntryDao {
     @Query("SELECT * FROM log_entries WHERE contentType = 'PTT_VOICE_BURST' ORDER BY timestamp DESC LIMIT 50")
     fun observeRecentPttEntries(): Flow<List<LogEntryEntity>>
 
+    @Query("SELECT * FROM log_entries WHERE contentType = :contentType ORDER BY timestamp ASC")
+    suspend fun getEntriesByContentType(contentType: ContentType): List<LogEntryEntity>
+
     @Query("DELETE FROM log_entries WHERE contentType = 'PTT_VOICE_BURST'")
     suspend fun clearAllPttEntries()
 }
@@ -147,6 +150,9 @@ interface PostViewDao {
 
     @Query("SELECT mediaBlobHash FROM posts_view WHERE expiresAt IS NOT NULL AND expiresAt <= :now AND mediaBlobHash IS NOT NULL")
     suspend fun getExpiredBlobHashes(now: Long = System.currentTimeMillis()): List<String>
+
+    @Query("SELECT COUNT(*) FROM posts_view WHERE mediaBlobHash = :blobHash AND (expiresAt IS NULL OR expiresAt > :now)")
+    suspend fun isPostBlobActive(blobHash: String, now: Long = System.currentTimeMillis()): Int
 
     @Query("UPDATE posts_view SET gatewayRelayedAt = :relayedAt WHERE entryHash = :hash")
     suspend fun markGatewayRelayed(hash: String, relayedAt: Long = System.currentTimeMillis())

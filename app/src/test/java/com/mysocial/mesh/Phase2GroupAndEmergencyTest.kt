@@ -234,4 +234,43 @@ class Phase2GroupAndEmergencyTest {
         finder1.stop()
         finder2.stop()
     }
+
+    @Test
+    fun testRetroactiveGroupMessageDecryptionOnJoin() = runBlocking {
+        // Alice creates group
+        val group = groupManager.createGroup(name = "Field Engineers")
+        val inviteUri = groupManager.generateInviteUri(group)
+
+        // Setup Bob with his own in-memory database
+        val dbBob = MeshDatabase.buildInMemory(context)
+        val cryptoBob = CryptoManager.createInMemory(seed = ByteArray(32) { 88 })
+        dbBob.cryptoManager = cryptoBob
+        val engineBob = GossipSyncEngine(dbBob, cryptoBob, "Bob", context = context)
+        val groupManagerBob = GroupManager(dbBob, cryptoBob, engineBob)
+
+        // Alice sends a message
+        val sendResult = groupManager.sendGroupMessage(group.groupId, "Pre-join secret broadcast", "Alice")
+        assertTrue(sendResult.isSuccess)
+        val aliceEntry = db.logEntryDao().getEntriesForAuthorAfter(cryptoA.authorId, 0L).first { it.contentType == ContentType.GROUP_MESSAGE }
+
+        // Bob syncs/receives Alice's log entry BEFORE joining the group
+        dbBob.logEntryDao().insert(aliceEntry)
+        com.mysocial.mesh.data.LogProjector.project(aliceEntry.toDomain(), dbBob)
+
+        // Before joining, Bob has the message stored with plaintextSnippet = null
+        val preJoinMessages = dbBob.groupDao().getMessagesForGroup(group.groupId)
+        assertEquals(1, preJoinMessages.size)
+        assertEquals(null, preJoinMessages[0].plaintextSnippet)
+
+        // Now Bob joins the group using the invite URI
+        val joinedGroup = groupManagerBob.joinGroupFromInvite(inviteUri, "Bob")
+        assertNotNull(joinedGroup)
+
+        // After joining, Bob's historical message must now be decrypted!
+        val postJoinMessages = dbBob.groupDao().getMessagesForGroup(group.groupId)
+        assertEquals(1, postJoinMessages.size)
+        assertEquals("Pre-join secret broadcast", postJoinMessages[0].plaintextSnippet)
+
+        dbBob.close()
+    }
 }

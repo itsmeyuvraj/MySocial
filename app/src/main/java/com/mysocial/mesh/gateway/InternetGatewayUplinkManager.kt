@@ -144,23 +144,27 @@ class InternetGatewayUplinkManager(
         timestamp: Long
     ): Boolean {
         // Try real HTTP POST to gateway endpoint; if network is restricted or simulated, succeed gracefully
+        var connection: HttpURLConnection? = null
         return try {
             val url = URL(DEFAULT_GATEWAY_URL)
-            val connection = (url.openConnection() as HttpURLConnection).apply {
+            val conn = (url.openConnection() as HttpURLConnection).apply {
                 connectTimeout = 3000
                 readTimeout = 3000
                 requestMethod = "POST"
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json")
             }
+            connection = conn
             val jsonBody = """{"entryHash":"$entryHash","authorId":"$authorId","text":${org.json.JSONObject.quote(text)},"timestamp":$timestamp}"""
-            connection.outputStream.use { it.write(jsonBody.toByteArray(Charsets.UTF_8)) }
-            val code = connection.responseCode
+            conn.outputStream.use { it.write(jsonBody.toByteArray(Charsets.UTF_8)) }
+            val code = conn.responseCode
             code in 200..299
         } catch (e: Exception) {
             // In offline/test environments, consider uplink simulated as successful
             Log.d(TAG, "Simulating cloud uplink for test environment: ${e.message}")
             true
+        } finally {
+            try { connection?.disconnect() } catch (_: Exception) {}
         }
     }
 }

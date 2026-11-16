@@ -200,7 +200,7 @@ class PeerApkUpdateManager(
                         throw IllegalStateException("Server returned HTTP $responseCode")
                     }
 
-                    val totalLength = conn.contentLength.toLong().takeIf { it > 0 } ?: 10_000_000L
+                    val totalLength = conn.contentLength.toLong()
 
                     BufferedInputStream(conn.inputStream).use { input ->
                         FileOutputStream(tempFile).use { output ->
@@ -209,12 +209,16 @@ class PeerApkUpdateManager(
                             while (input.read(buffer).also { read = it } != -1) {
                                 output.write(buffer, 0, read)
                                 bytesReadTotal += read
-                                _downloadProgress.value = (bytesReadTotal.toFloat() / totalLength.toFloat()).coerceIn(0f, 1f)
+                                val denom = if (totalLength > 0) totalLength else 10_000_000L
+                                _downloadProgress.value = (bytesReadTotal.toFloat() / denom.toFloat()).coerceIn(0f, 1f)
                             }
                             output.flush()
                         }
                     }
                     conn.disconnect()
+                    if (totalLength > 0 && bytesReadTotal < totalLength) {
+                        throw java.io.IOException("Truncated HTTP download: expected $totalLength bytes, received $bytesReadTotal")
+                    }
                 } catch (e: Exception) {
                     Log.w(tag, "HttpURLConnection download failed (${e.message}), attempting direct TCP socket stream fallback...")
                     downloadViaDirectSocket(effectiveHost, remotePort, tempFile) { progress ->
@@ -307,6 +311,9 @@ class PeerApkUpdateManager(
                     onProgress((bytesReadTotal.toFloat() / contentLength.toFloat()).coerceIn(0f, 1f))
                 }
                 fileOut.flush()
+            }
+            if (contentLength > 0 && bytesReadTotal < contentLength) {
+                throw java.io.IOException("Truncated direct socket download: expected $contentLength bytes, received $bytesReadTotal")
             }
             Log.i(tag, "Direct TCP socket stream successfully downloaded $bytesReadTotal bytes")
         }

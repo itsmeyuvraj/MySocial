@@ -296,6 +296,17 @@ class PttWalkieTalkieManager(
         }
     }
 
+    fun cancelRecording() {
+        _isRecording.value = false
+        try {
+            activeAudioRecord?.stop()
+        } catch (_: Exception) {}
+        recordingJob?.cancel()
+        recordingJob = null
+        recordedBytesStream = null
+        abandonTransientFocus(isRecording = true)
+    }
+
     /**
      * Stops recording, applies software gain normalization, and broadcasts to the mesh.
      */
@@ -314,6 +325,7 @@ class PttWalkieTalkieManager(
 
         val rawAudio = recordedBytesStream?.toByteArray() ?: ByteArray(0)
         val durationMs = System.currentTimeMillis() - recordingStartTime
+        recordedBytesStream = null
 
         if (rawAudio.isEmpty() && durationMs < 200) {
             return@withContext Result.failure(IllegalArgumentException("Voice burst too short"))
