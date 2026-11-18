@@ -114,6 +114,52 @@ class GroupManager(
             )
             db.groupDao().upsertMember(member)
 
+            // Retroactively decrypt any existing group messages received via epidemic gossip before joining
+            try {
+                val keyBytes = Base64.decode(keyBase64, Base64.NO_WRAP)
+                val entries = db.logEntryDao().getEntriesByContentType(ContentType.GROUP_MESSAGE)
+                val myAuthorId = cryptoManager.authorId
+                for (entry in entries) {
+                    try {
+                        val payload = GroupMessagePayload.fromJson(entry.contentJson)
+                        if (payload.groupId == groupId) {
+                            var decryptedSnippet: String? = null
+                            try {
+                                val ivBytes = Base64.decode(payload.ivBase64, Base64.NO_WRAP)
+                                val cipherBytes = Base64.decode(payload.ciphertextBase64, Base64.NO_WRAP)
+                                val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                                val spec = GCMParameterSpec(128, ivBytes)
+                                cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(keyBytes, "AES"), spec)
+                                val plainBytes = cipher.doFinal(cipherBytes)
+                                val plainText = String(plainBytes, Charsets.UTF_8)
+                                val content = GroupPlaintextContent.fromJson(plainText)
+                                decryptedSnippet = content.text
+                            } catch (e: Exception) {
+                                Log.w("GroupManager", "Failed to retroactively decrypt message ${payload.messageId}: ${e.message}")
+                            }
+                            val isOutgoing = (entry.authorId == myAuthorId)
+                            db.groupDao().insertMessage(
+                                GroupMessageEntity(
+                                    messageId = payload.messageId,
+                                    groupId = payload.groupId,
+                                    senderAuthorId = payload.senderAuthorId,
+                                    senderDisplayName = payload.senderDisplayName,
+                                    ciphertextBase64 = payload.ciphertextBase64,
+                                    plaintextSnippet = decryptedSnippet,
+                                    mediaBlobHash = payload.mediaBlobHash,
+                                    mediaType = payload.mediaType,
+                                    timestamp = payload.timestamp,
+                                    isOutgoing = isOutgoing,
+                                    status = if (isOutgoing) 1 else 0
+                                )
+                            )
+                        }
+                    } catch (_: Exception) {}
+                }
+            } catch (e: Exception) {
+                Log.w("GroupManager", "Failed to decrypt historical group messages on join: ${e.message}")
+            }
+
             group
         } catch (e: Exception) {
             Log.e("GroupManager", "Failed to parse group invite URI", e)

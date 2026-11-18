@@ -19,7 +19,8 @@ import kotlin.math.sin
  */
 class CompassDirectionFinder(context: Context) : SensorEventListener {
 
-    private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+    private val appContext = context.applicationContext
+    private val sensorManager = appContext.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
     private val rotationSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
     private val accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
     private val magnetometer = sensorManager?.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
@@ -34,23 +35,35 @@ class CompassDirectionFinder(context: Context) : SensorEventListener {
     private var hasGravity = false
     private var hasMagnetic = false
 
+    private val subscriberCount = java.util.concurrent.atomic.AtomicInteger(0)
     private var isListening = false
 
+    @Synchronized
     fun start() {
-        if (isListening || sensorManager == null) return
-        if (rotationSensor != null) {
-            sensorManager.registerListener(this, rotationSensor, SensorManager.SENSOR_DELAY_UI)
-        } else if (accelerometer != null && magnetometer != null) {
-            sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_UI)
-            sensorManager.registerListener(this, magnetometer, SensorManager.SENSOR_DELAY_UI)
+        if (sensorManager == null) return
+        val count = subscriberCount.incrementAndGet()
+        if (count == 1 && !isListening) {
+            if (rotationSensor != null) {
+                sensorManager.registerListener(this, rotationSensor, SensorManager.SENSOR_DELAY_UI)
+            } else if (accelerometer != null && magnetometer != null) {
+                sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_UI)
+                sensorManager.registerListener(this, magnetometer, SensorManager.SENSOR_DELAY_UI)
+            }
+            isListening = true
         }
-        isListening = true
     }
 
+    @Synchronized
     fun stop() {
-        if (!isListening || sensorManager == null) return
-        sensorManager.unregisterListener(this)
-        isListening = false
+        if (sensorManager == null) return
+        val count = subscriberCount.decrementAndGet()
+        if (count <= 0) {
+            subscriberCount.set(0)
+            if (isListening) {
+                sensorManager.unregisterListener(this)
+                isListening = false
+            }
+        }
     }
 
     override fun onSensorChanged(event: SensorEvent) {
@@ -87,6 +100,15 @@ class CompassDirectionFinder(context: Context) : SensorEventListener {
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     companion object {
+        @Volatile
+        private var INSTANCE: CompassDirectionFinder? = null
+
+        fun getInstance(context: Context): CompassDirectionFinder {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: CompassDirectionFinder(context.applicationContext).also { INSTANCE = it }
+            }
+        }
+
         /**
          * Calculates initial bearing from current GPS coordinates to target coordinates in degrees (0..360).
          */

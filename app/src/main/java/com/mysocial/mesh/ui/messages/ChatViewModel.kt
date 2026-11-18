@@ -46,7 +46,7 @@ class ChatViewModel(
 
     // Voice Note Recorder & Player
     val voiceRecorder = VoiceRecorder(viewModelScope)
-    val voicePlayer = VoicePlayer(viewModelScope)
+    val voicePlayer = VoicePlayer(viewModelScope, repository.database.appContext)
     val isRecording: StateFlow<Boolean> = voiceRecorder.isRecording
 
     fun startVoiceCall() {

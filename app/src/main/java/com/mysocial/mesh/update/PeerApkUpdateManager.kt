@@ -200,7 +200,7 @@ class PeerApkUpdateManager(
                         throw IllegalStateException("Server returned HTTP $responseCode")
                     }
 
-                    val totalLength = conn.contentLength.toLong().takeIf { it > 0 } ?: 10_000_000L
+                    val totalLength = conn.contentLength.toLong()
 
                     BufferedInputStream(conn.inputStream).use { input ->
                         FileOutputStream(tempFile).use { output ->
@@ -209,12 +209,16 @@ class PeerApkUpdateManager(
                             while (input.read(buffer).also { read = it } != -1) {
                                 output.write(buffer, 0, read)
                                 bytesReadTotal += read
-                                _downloadProgress.value = (bytesReadTotal.toFloat() / totalLength.toFloat()).coerceIn(0f, 1f)
+                                val denom = if (totalLength > 0) totalLength else 10_000_000L
+                                _downloadProgress.value = (bytesReadTotal.toFloat() / denom.toFloat()).coerceIn(0f, 1f)
                             }
                             output.flush()
                         }
                     }
                     conn.disconnect()
+                    if (totalLength > 0 && bytesReadTotal < totalLength) {
+                        throw java.io.IOException("Truncated HTTP download: expected $totalLength bytes, received $bytesReadTotal")
+                    }
                 } catch (e: Exception) {
                     Log.w(tag, "HttpURLConnection download failed (${e.message}), attempting direct TCP socket stream fallback...")
                     downloadViaDirectSocket(effectiveHost, remotePort, tempFile) { progress ->
@@ -263,53 +267,56 @@ class PeerApkUpdateManager(
         targetFile: File,
         onProgress: (Float) -> Unit
     ) {
-        val socket = Socket()
-        socket.tcpNoDelay = true
-        socket.connect(InetSocketAddress(host, port), 10_000)
-        socket.soTimeout = 60_000
+        Socket().use { socket ->
+            socket.tcpNoDelay = true
+            socket.connect(InetSocketAddress(host, port), 10_000)
+            socket.soTimeout = 60_000
 
-        val out = socket.getOutputStream()
-        val request = "GET /mysocial.apk HTTP/1.1\r\nHost: $host:$port\r\nConnection: close\r\n\r\n"
-        out.write(request.toByteArray(Charsets.US_ASCII))
-        out.flush()
+            val out = socket.getOutputStream()
+            val request = "GET /mysocial.apk HTTP/1.1\r\nHost: $host:$port\r\nConnection: close\r\n\r\n"
+            out.write(request.toByteArray(Charsets.US_ASCII))
+            out.flush()
 
-        val rawIn = socket.getInputStream()
-        val inStream = BufferedInputStream(rawIn)
+            val rawIn = socket.getInputStream()
+            val inStream = BufferedInputStream(rawIn)
 
-        var contentLength: Long = 10_000_000L
-        val headerBytes = ByteArrayOutputStream()
-        var matchState = 0
-        while (true) {
-            val b = inStream.read()
-            if (b == -1) break
-            headerBytes.write(b)
-            if (matchState == 0 && b == '\r'.code) matchState = 1
-            else if (matchState == 1 && b == '\n'.code) matchState = 2
-            else if (matchState == 2 && b == '\r'.code) matchState = 3
-            else if (matchState == 3 && b == '\n'.code) break
-            else matchState = if (b == '\r'.code) 1 else 0
-        }
-
-        val headerStr = headerBytes.toString("US-ASCII")
-        for (line in headerStr.lines()) {
-            if (line.startsWith("Content-Length:", ignoreCase = true)) {
-                contentLength = line.substringAfter(":").trim().toLongOrNull() ?: contentLength
+            var contentLength: Long = 10_000_000L
+            val headerBytes = ByteArrayOutputStream()
+            var matchState = 0
+            while (true) {
+                val b = inStream.read()
+                if (b == -1) break
+                headerBytes.write(b)
+                if (matchState == 0 && b == '\r'.code) matchState = 1
+                else if (matchState == 1 && b == '\n'.code) matchState = 2
+                else if (matchState == 2 && b == '\r'.code) matchState = 3
+                else if (matchState == 3 && b == '\n'.code) break
+                else matchState = if (b == '\r'.code) 1 else 0
             }
-        }
 
-        var bytesReadTotal = 0L
-        FileOutputStream(targetFile).use { fileOut ->
-            val buffer = ByteArray(32768)
-            var read: Int
-            while (inStream.read(buffer).also { read = it } != -1) {
-                fileOut.write(buffer, 0, read)
-                bytesReadTotal += read
-                onProgress((bytesReadTotal.toFloat() / contentLength.toFloat()).coerceIn(0f, 1f))
+            val headerStr = headerBytes.toString("US-ASCII")
+            for (line in headerStr.lines()) {
+                if (line.startsWith("Content-Length:", ignoreCase = true)) {
+                    contentLength = line.substringAfter(":").trim().toLongOrNull() ?: contentLength
+                }
             }
-            fileOut.flush()
+
+            var bytesReadTotal = 0L
+            FileOutputStream(targetFile).use { fileOut ->
+                val buffer = ByteArray(32768)
+                var read: Int
+                while (inStream.read(buffer).also { read = it } != -1) {
+                    fileOut.write(buffer, 0, read)
+                    bytesReadTotal += read
+                    onProgress((bytesReadTotal.toFloat() / contentLength.toFloat()).coerceIn(0f, 1f))
+                }
+                fileOut.flush()
+            }
+            if (contentLength > 0 && bytesReadTotal < contentLength) {
+                throw java.io.IOException("Truncated direct socket download: expected $contentLength bytes, received $bytesReadTotal")
+            }
+            Log.i(tag, "Direct TCP socket stream successfully downloaded $bytesReadTotal bytes")
         }
-        socket.close()
-        Log.i(tag, "Direct TCP socket stream successfully downloaded $bytesReadTotal bytes")
     }
 
     /**
@@ -320,7 +327,8 @@ class PeerApkUpdateManager(
             val pm = context.packageManager
 
             val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                PackageManager.GET_SIGNING_CERTIFICATES
+                @Suppress("DEPRECATION")
+                PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_SIGNATURES
             } else {
                 @Suppress("DEPRECATION")
                 PackageManager.GET_SIGNATURES
@@ -349,24 +357,39 @@ class PeerApkUpdateManager(
                 return false
             }
 
-            // Verify developer signing signatures match the currently installed app
-            val currentSignatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            // Verify developer signing signatures match the currently installed app using SHA-256 certificate digest
+            val md = java.security.MessageDigest.getInstance("SHA-256")
+            val currentSignatures: List<ByteArray> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 val pInfo = pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
-                pInfo.signingInfo?.apkContentsSigners?.map { it.toByteArray().contentHashCode() }
+                val signers = pInfo.signingInfo?.apkContentsSigners ?: pInfo.signingInfo?.signingCertificateHistory
+                if (signers != null) {
+                    signers.map { md.digest(it.toByteArray()) }
+                } else {
+                    @Suppress("DEPRECATION")
+                    pInfo.signatures?.map { md.digest(it.toByteArray()) }
+                }
             } else {
                 @Suppress("DEPRECATION")
                 val pInfo = pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES)
-                pInfo.signatures?.map { it.toByteArray().contentHashCode() }
+                pInfo.signatures?.map { md.digest(it.toByteArray()) }
             } ?: return false
 
-            val archiveSignatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                archiveInfo.signingInfo?.apkContentsSigners?.map { it.toByteArray().contentHashCode() }
+            val archiveSignatures: List<ByteArray> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val signers = archiveInfo.signingInfo?.apkContentsSigners ?: archiveInfo.signingInfo?.signingCertificateHistory
+                if (signers != null) {
+                    signers.map { md.digest(it.toByteArray()) }
+                } else {
+                    @Suppress("DEPRECATION")
+                    archiveInfo.signatures?.map { md.digest(it.toByteArray()) }
+                }
             } else {
                 @Suppress("DEPRECATION")
-                archiveInfo.signatures?.map { it.toByteArray().contentHashCode() }
+                archiveInfo.signatures?.map { md.digest(it.toByteArray()) }
             } ?: return false
 
-            val matches = currentSignatures.any { it in archiveSignatures }
+            val matches = currentSignatures.any { cur ->
+                archiveSignatures.any { arch -> cur.contentEquals(arch) }
+            }
             if (!matches) {
                 Log.w(tag, "Signatures do not match installed app! Rejecting untrusted APK.")
             }

@@ -47,21 +47,56 @@ object E2eeManager {
     private val ONE: BigInteger = BigInteger.ONE
     private val secureRandom = SecureRandom()
 
+    private val DOMAIN_SEPARATOR_BYTES = "mysocial:e2ee:v1:aes-256-gcm".toByteArray(Charsets.UTF_8)
+
+    private val threadLocalSha256 = ThreadLocal.withInitial {
+        MessageDigest.getInstance("SHA-256")
+    }
+
+    // Bounded LRU cache for converted X25519 public keys to avoid repeating 255-bit modular inverse
+    private val x25519PubCache = java.util.Collections.synchronizedMap(
+        object : java.util.LinkedHashMap<String, ByteArray>(128, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ByteArray>?): Boolean {
+                return size > 1024
+            }
+        }
+    )
+
     /**
      * Converts an Ed25519 32-byte public key into an X25519 32-byte public key coordinate
      * via the birational map: u = (1 + y) / (1 - y) (mod 2^255 - 19).
+     * Results are cached to avoid costly BigInteger modInverse computations.
      */
     fun ed25519PubToX25519(edPubBytes: ByteArray): ByteArray {
         require(edPubBytes.size == 32) { "Ed25519 public key must be 32 bytes" }
+        val cacheKey = Base64.getEncoder().encodeToString(edPubBytes)
+        return x25519PubCache.getOrPut(cacheKey) {
+            computeEd25519PubToX25519(edPubBytes)
+        }
+    }
+
+    private fun computeEd25519PubToX25519(edPubBytes: ByteArray): ByteArray {
         val yBytes = edPubBytes.copyOf()
         // Mask out the sign bit of x (highest bit of byte 31)
         yBytes[31] = (yBytes[31].toInt() and 0x7F).toByte()
 
         // Little-endian byte array to BigInteger
         val y = BigInteger(1, yBytes.reversedArray())
+        if (y >= P || y == ONE) {
+            throw IllegalArgumentException("Non-canonical or identity Ed25519 public key coordinate: y=$y")
+        }
+
         val num = ONE.add(y).mod(P)
         val den = ONE.subtract(y).mod(P)
-        val u = num.multiply(den.modInverse(P)).mod(P)
+        if (den == BigInteger.ZERO) {
+            throw IllegalArgumentException("Non-invertible Ed25519 public key coordinate: den=0")
+        }
+
+        val u = try {
+            num.multiply(den.modInverse(P)).mod(P)
+        } catch (e: ArithmeticException) {
+            throw IllegalArgumentException("Failed to invert denominator on Curve25519: ${e.message}", e)
+        }
 
         // BigInteger back to 32 bytes little-endian
         val uBigEndian = u.toByteArray()
@@ -95,9 +130,15 @@ object E2eeManager {
      */
     fun encrypt(recipientAuthorId: String, plaintext: String): DirectMessagePayload {
         val recipientPubBytes = CryptoManager.extractPublicKeyBytes(recipientAuthorId)
-            ?: throw IllegalArgumentException("Invalid recipient author ID: $recipientAuthorId")
+        if (recipientPubBytes.size != 32) {
+            throw IllegalArgumentException("Invalid recipient author ID: $recipientAuthorId")
+        }
 
-        val recipientXPub = ed25519PubToX25519(recipientPubBytes)
+        val recipientXPub = try {
+            ed25519PubToX25519(recipientPubBytes)
+        } catch (e: Exception) {
+            throw IllegalArgumentException("Cannot convert recipient Ed25519 key to Curve25519: ${e.message}", e)
+        }
 
         // Generate ephemeral X25519 key pair
         val ephPriv = ByteArray(32)
@@ -137,8 +178,21 @@ object E2eeManager {
      * Returns null if decryption fails or authentication tag is invalid.
      */
     fun decrypt(myPrivateSeed: ByteArray, payload: DirectMessagePayload): String? {
+        val myXPriv = try {
+            ed25519PrivToX25519(myPrivateSeed)
+        } catch (_: Exception) {
+            return null
+        }
+        return decryptWithX25519Priv(myXPriv, payload)
+    }
+
+    /**
+     * Fast-path decryption using a pre-derived X25519 private key.
+     * Skips SHA-512 re-derivation and RFC 8032 bit clamping on every message.
+     */
+    fun decryptWithX25519Priv(myXPriv: ByteArray, payload: DirectMessagePayload): String? {
         return try {
-            val myXPriv = ed25519PrivToX25519(myPrivateSeed)
+            if (myXPriv.size != 32) return null
             val ephPub = Base64.getDecoder().decode(payload.ephemeralPublicKeyBase64)
             if (ephPub.size != 32) return null
 
@@ -160,9 +214,10 @@ object E2eeManager {
     }
 
     private fun deriveAesKey(sharedSecret: ByteArray): ByteArray {
-        val md = MessageDigest.getInstance("SHA-256")
+        val md = threadLocalSha256.get() ?: java.security.MessageDigest.getInstance("SHA-256")
+        md.reset()
         md.update(sharedSecret)
-        md.update("mysocial:e2ee:v1:aes-256-gcm".toByteArray(Charsets.UTF_8))
+        md.update(DOMAIN_SEPARATOR_BYTES)
         return md.digest()
     }
 }

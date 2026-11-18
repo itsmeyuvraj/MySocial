@@ -29,6 +29,24 @@ class CryptoManager private constructor(
     val publicKeyBytes: ByteArray,
     private val privateKeyBytes: ByteArray
 ) {
+    // Pre-allocated crypto parameters to avoid repeated object allocations during signing and verification
+    private val ed25519PrivateKeyParams = Ed25519PrivateKeyParameters(privateKeyBytes, 0)
+    val ed25519PublicKeyParams = Ed25519PublicKeyParameters(publicKeyBytes, 0)
+
+    // Pre-derived X25519 private key scalar for direct messaging and Diffie-Hellman key agreement
+    val x25519PrivateKeyBytes: ByteArray by lazy {
+        E2eeManager.ed25519PrivToX25519(privateKeyBytes)
+    }
+
+    // Bounded LRU cache for pairwise computed shared secrets with peers (max 512 peers)
+    // Avoids running Curve25519 Diffie-Hellman scalar multiplication repeatedly during voice calls or active chats
+    private val sharedSecretCache = java.util.Collections.synchronizedMap(
+        object : java.util.LinkedHashMap<String, ByteArray>(128, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ByteArray>?): Boolean {
+                return size > 512
+            }
+        }
+    )
 
     /**
      * Build the canonical payload string over which the author creates their cryptographic signature.
@@ -54,11 +72,12 @@ class CryptoManager private constructor(
 
     /**
      * Signs the deterministic payload string with the local Ed25519 private key.
+     * Reuses pre-allocated Ed25519PrivateKeyParameters to minimize GC allocations.
      * Returns the signature encoded in standard Base64.
      */
     fun sign(canonicalPayload: String): String {
         val signer = Ed25519Signer()
-        signer.init(true, Ed25519PrivateKeyParameters(privateKeyBytes, 0))
+        signer.init(true, ed25519PrivateKeyParams)
         val data = canonicalPayload.toByteArray(Charsets.UTF_8)
         signer.update(data, 0, data.size)
         val sig = signer.generateSignature()
@@ -94,23 +113,34 @@ class CryptoManager private constructor(
     }
 
     /**
-     * Decrypts an incoming 1-on-1 direct message using the local Ed25519 private key seed.
+     * Decrypts an incoming 1-on-1 direct message using the local pre-derived X25519 private key.
      */
     fun decryptDirectMessage(payload: DirectMessagePayload): String? {
-        return E2eeManager.decrypt(privateKeyBytes, payload)
+        return E2eeManager.decryptWithX25519Priv(x25519PrivateKeyBytes, payload)
     }
 
     /**
      * Computes an X25519 ECDH shared secret with a peer's identity key for voice calls and secure sessions.
+     * Caches pairwise computed secrets to eliminate Diffie-Hellman recalculation during active audio streaming.
      */
     fun computeSharedSecret(peerAuthorId: String): ByteArray? {
+        val cached = sharedSecretCache[peerAuthorId]
+        if (cached != null) return cached
+
         return try {
-            val peerPubBytes = extractPublicKeyBytes(peerAuthorId) ?: return null
+            val peerPubBytes = extractPublicKeyBytes(peerAuthorId)
+            if (peerPubBytes.size != 32) return null
             val peerX25519Pub = E2eeManager.ed25519PubToX25519(peerPubBytes)
-            val myX25519Priv = E2eeManager.ed25519PrivToX25519(privateKeyBytes)
             val sharedSecret = ByteArray(32)
-            val ok = org.bouncycastle.math.ec.rfc7748.X25519.calculateAgreement(myX25519Priv, 0, peerX25519Pub, 0, sharedSecret, 0)
-            if (ok) sharedSecret else null
+            val ok = org.bouncycastle.math.ec.rfc7748.X25519.calculateAgreement(
+                x25519PrivateKeyBytes, 0, peerX25519Pub, 0, sharedSecret, 0
+            )
+            if (ok) {
+                sharedSecretCache[peerAuthorId] = sharedSecret
+                sharedSecret
+            } else {
+                null
+            }
         } catch (_: Exception) {
             null
         }
@@ -190,6 +220,14 @@ class CryptoManager private constructor(
         }
 
         /**
+         * Direct overload to compute entryHash when canonicalPayload is already constructed.
+         * Eliminates redundant string concatenations on validation and gossip sync hot paths.
+         */
+        fun computeEntryHash(canonicalPayload: String, signature: String): String {
+            return sha256Hex("$canonicalPayload:$signature")
+        }
+
+        /**
          * Verifies an Ed25519 signature against an authorId and the canonical payload string.
          * Employs cached Ed25519PublicKeyParameters and a bounded verification LRU cache.
          */
@@ -243,7 +281,7 @@ class CryptoManager private constructor(
          * SHA-256 hex string calculation using reusable ThreadLocal MessageDigest.
          */
         fun sha256Hex(data: ByteArray): String {
-            val digest = threadLocalSha256.get()!!
+            val digest = threadLocalSha256.get() ?: java.security.MessageDigest.getInstance("SHA-256")
             digest.reset()
             val hash = digest.digest(data)
             val hexChars = CharArray(hash.size * 2)
@@ -282,7 +320,11 @@ class CryptoManager private constructor(
                 if (clean.endsWith(".ed25519")) {
                     clean = clean.substring(0, clean.length - 8)
                 }
-                Base64.getDecoder().decode(clean)
+                try {
+                    Base64.getDecoder().decode(clean)
+                } catch (_: Exception) {
+                    ByteArray(0)
+                }
             }
         }
 
@@ -307,12 +349,27 @@ class CryptoManager private constructor(
             return mac.doFinal(rawIdentifier.toByteArray(Charsets.UTF_8))
         }
 
+        @Volatile
+        private var INSTANCE: CryptoManager? = null
+
         /**
          * Get or generate the device's cryptographic identity using Android Keystore
          * hardware-backed AES-256-GCM encryption for the Ed25519 private seed.
          * Identity is deterministically tied to the device, ensuring the User ID remains identical across reinstalls.
          */
         fun getInstance(context: Context): CryptoManager {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: buildCryptoManager(context.applicationContext).also { INSTANCE = it }
+            }
+        }
+
+        fun resetInstanceForTesting() {
+            synchronized(this) {
+                INSTANCE = null
+            }
+        }
+
+        private fun buildCryptoManager(context: Context): CryptoManager {
             val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val existingIv = prefs.getString(PREF_KEY_IV, null)
             val existingCiphertext = prefs.getString(PREF_KEY_CIPHERTEXT, null)

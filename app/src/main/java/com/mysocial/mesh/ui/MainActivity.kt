@@ -157,6 +157,11 @@ class MainActivity : ComponentActivity() {
     private var pendingUpdateInfo by mutableStateOf<AppUpdateInfo?>(null)
     private var targetTab by mutableIntStateOf(0)
     private var pendingChatPeerId by mutableStateOf<String?>(null)
+    private var pendingGroupId by mutableStateOf<String?>(null)
+
+    private val peerIdentifiedListener: (String, String, String) -> Unit = { connectionPeerId, remoteAuthorId, remoteDisplayName ->
+        repository.updatePeerNameAndId(connectionPeerId, remoteAuthorId, remoteDisplayName)
+    }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -168,6 +173,11 @@ class MainActivity : ComponentActivity() {
         val chatPeerId = intent.getStringExtra("open_chat_peer_id")
         if (!chatPeerId.isNullOrBlank()) {
             pendingChatPeerId = chatPeerId
+        }
+        val groupId = intent.getStringExtra("open_group_id")
+        if (!groupId.isNullOrBlank()) {
+            targetTab = 3
+            pendingGroupId = groupId
         }
     }
 
@@ -195,9 +205,7 @@ class MainActivity : ComponentActivity() {
                 repository.onVoiceCallBroadcast = { signal ->
                     s.broadcastVoiceCallSignal(signal)
                 }
-                s.getSyncEngine().addPeerIdentifiedListener { connectionPeerId, remoteAuthorId, remoteDisplayName ->
-                    repository.updatePeerNameAndId(connectionPeerId, remoteAuthorId, remoteDisplayName)
-                }
+                s.getSyncEngine().addPeerIdentifiedListener(peerIdentifiedListener)
                 lifecycleScope.launch {
                     s.allDiscoveredPeers.collectLatest { peers ->
                         repository.updateDiscoveredPeers(peers)
@@ -238,6 +246,7 @@ class MainActivity : ComponentActivity() {
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
+            syncService?.getSyncEngine()?.removePeerIdentifiedListener(peerIdentifiedListener)
             syncService = null
             isBound = false
         }
@@ -304,6 +313,11 @@ class MainActivity : ComponentActivity() {
         if (!initialChatPeerId.isNullOrBlank()) {
             pendingChatPeerId = initialChatPeerId
         }
+        val initialGroupId = intent?.getStringExtra("open_group_id")
+        if (!initialGroupId.isNullOrBlank()) {
+            targetTab = 3
+            pendingGroupId = initialGroupId
+        }
 
         setContent {
             val themeMode by appSettings.themeMode.collectAsState()
@@ -325,6 +339,9 @@ class MainActivity : ComponentActivity() {
                                 repository.syncEngine.myDisplayName = chosenName
                                 appSettings.setAcceptedTerms(true)
                                 appSettings.setCompletedOnboarding(true)
+                            }
+                            if (!com.mysocial.mesh.utils.BatteryOptimizationHelper.isIgnoringBatteryOptimizations(this@MainActivity)) {
+                                com.mysocial.mesh.utils.BatteryOptimizationHelper.requestIgnoreBatteryOptimizations(this@MainActivity)
                             }
                             if (!hasPermissions) {
                                 requestMeshPermissions()
@@ -382,6 +399,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        syncService?.getSyncEngine()?.removePeerIdentifiedListener(peerIdentifiedListener)
         if (isBound) {
             unbindService(serviceConnection)
             isBound = false
@@ -435,9 +453,10 @@ class MainActivity : ComponentActivity() {
         val isCallMuted by (voiceCallMgr?.isMuted?.collectAsState() ?: remember { mutableStateOf(false) })
         val isCallSpeakerphone by (voiceCallMgr?.isSpeakerphone?.collectAsState() ?: remember { mutableStateOf(false) })
 
-        if (pendingUpdateInfo != null) {
+        val update = pendingUpdateInfo
+        if (update != null) {
             UpdateDialog(
-                updateInfo = pendingUpdateInfo!!,
+                updateInfo = update,
                 downloadProgress = downloadProgress,
                 isDownloading = isDownloadingUpdate,
                 onConfirmUpdate = {
@@ -535,8 +554,10 @@ class MainActivity : ComponentActivity() {
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
-                if (activeChatPeer != null) {
-                    val peer = activeChatPeer!!
+                val chatPeer = activeChatPeer
+                val profilePeer = activeProfilePeer
+                if (chatPeer != null) {
+                    val peer = chatPeer
                     val chatViewModel = remember(peer.first) {
                         ChatViewModel(peer.first, repository)
                     }
@@ -545,8 +566,8 @@ class MainActivity : ComponentActivity() {
                         peerDisplayName = peer.second,
                         onNavigateBack = { activeChatPeer = null }
                     )
-                } else if (activeProfilePeer != null) {
-                    val peer = activeProfilePeer!!
+                } else if (profilePeer != null) {
+                    val peer = profilePeer
                     BackHandler { activeProfilePeer = null }
                     PeerProfileScreen(
                         peerAuthorId = peer.first,
@@ -644,7 +665,9 @@ class MainActivity : ComponentActivity() {
                                         onNavigateBack = { selectedTab = 0 },
                                         onOpenChat = { peerId, peerName ->
                                             activeChatPeer = Pair(peerId, peerName)
-                                        }
+                                        },
+                                        initialGroupId = pendingGroupId,
+                                        onClearInitialGroupId = { pendingGroupId = null }
                                     )
                                 }
                                 4 -> IdentityScreen(viewModel = identityViewModel)

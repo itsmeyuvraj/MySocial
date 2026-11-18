@@ -50,6 +50,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -59,11 +60,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.mysocial.mesh.ui.components.AvatarView
 import com.mysocial.mesh.ui.components.LegalDocumentDialog
 import com.mysocial.mesh.ui.components.LegalTextContent
@@ -78,6 +83,7 @@ import com.mysocial.mesh.ui.theme.FbSurfaceElevated
 import com.mysocial.mesh.ui.theme.FbTextPrimary
 import com.mysocial.mesh.ui.theme.FbTextSecondary
 import com.mysocial.mesh.ui.theme.FbTextTertiary
+import com.mysocial.mesh.utils.BatteryOptimizationHelper
 import com.mysocial.mesh.utils.toFormattedBbid
 
 @Composable
@@ -536,6 +542,106 @@ private fun StepPermissionsAndTerms(
                     color = FbTextSecondary,
                     lineHeight = 18.sp
                 )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Background Reliability & Battery Optimization Card
+        val context = LocalContext.current
+        var isBatteryExempt by remember {
+            mutableStateOf(BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context))
+        }
+
+        val lifecycleOwner = LocalLifecycleOwner.current
+        DisposableEffect(lifecycleOwner) {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    isBatteryExempt = BatteryOptimizationHelper.isIgnoringBatteryOptimizations(context)
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose {
+                lifecycleOwner.lifecycle.removeObserver(observer)
+            }
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = FbSurfaceElevated),
+            shape = RoundedCornerShape(12.dp),
+            border = androidx.compose.foundation.BorderStroke(0.5.dp, FbBorder)
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f, fill = false)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Security,
+                            contentDescription = null,
+                            tint = if (isBatteryExempt) FbGreen else Color(0xFFF59E0B),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Background Mesh Relay",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = FbTextPrimary
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (isBatteryExempt) FbGreen.copy(alpha = 0.15f) else Color(0xFFF59E0B).copy(alpha = 0.15f))
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = if (isBatteryExempt) "Exempted" else "Action Needed",
+                            color = if (isBatteryExempt) FbGreen else Color(0xFFD97706),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = if (isBatteryExempt) {
+                        "Battery optimization is exempted. MySocial will continue relaying peer messages and SOS emergency alerts even when your screen is locked."
+                    } else {
+                        "Android's Doze mode may suspend BLE background scanning and hop relays when your screen turns off. Exemption allows 24/7 background packet hopping."
+                    },
+                    fontSize = 12.5.sp,
+                    color = FbTextSecondary,
+                    lineHeight = 18.sp
+                )
+
+                if (!isBatteryExempt) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(
+                        onClick = {
+                            BatteryOptimizationHelper.requestIgnoreBatteryOptimizations(context)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = FacebookBlue),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Disable Battery Optimization",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
             }
         }
 

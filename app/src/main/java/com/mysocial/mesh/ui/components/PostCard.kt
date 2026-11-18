@@ -39,13 +39,13 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.WifiTethering
-import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.automirrored.outlined.Send
@@ -170,12 +170,19 @@ fun PostCard(
     )
 
     val tags: List<String> = remember(post.tagsJson) {
-        try {
-            CanonicalJson.decodeFromString<List<String>>(post.tagsJson)
-        } catch (_: Exception) {
+        if (post.tagsJson.isBlank() || post.tagsJson == "[]") {
             emptyList()
+        } else {
+            try {
+                CanonicalJson.decodeFromString<List<String>>(post.tagsJson)
+            } catch (_: Exception) {
+                emptyList()
+            }
         }
     }
+
+    val relativeTime = remember(post.timestamp) { formatRelativeTime(post.timestamp) }
+    val relativeTimeUpper = remember(relativeTime) { relativeTime.uppercase() }
 
     val cardCornerRadius = if (compactMode) 12.dp else 16.dp
     val cardHorizontalPadding = if (compactMode) 8.dp else 12.dp
@@ -292,13 +299,53 @@ fun PostCard(
                             fontSize = 11.sp
                         )
                         Text(
-                            text = formatRelativeTime(post.timestamp),
+                            text = relativeTime,
                             color = FbTextSecondary,
                             fontSize = 12.sp
                         )
                         if (showHopBadges && post.hopCount > 1) {
                             Text(text = "•", color = FbTextTertiary, fontSize = 10.sp)
                             HopBadge(hopCount = post.hopCount, transportSource = post.transportSource)
+                        }
+                    }
+
+                    if (!post.locationName.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable {
+                                    com.mysocial.mesh.utils.LocationHelper.openLocationInMap(
+                                        context,
+                                        post.latitude,
+                                        post.longitude,
+                                        post.locationName
+                                    )
+                                }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.LocationOn,
+                                contentDescription = "Location",
+                                tint = FacebookBlue,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = post.locationName,
+                                color = FacebookBlue,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (post.latitude != null && post.longitude != null) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "🗺️",
+                                    fontSize = 10.sp
+                                )
+                            }
                         }
                     }
                 }
@@ -588,16 +635,6 @@ fun PostCard(
                         modifier = Modifier.size(22.dp)
                     )
                 }
-
-                Spacer(modifier = Modifier.weight(1f))
-
-                // Right Bookmark / Save Icon
-                Icon(
-                    imageVector = Icons.Outlined.BookmarkBorder,
-                    contentDescription = "Save",
-                    tint = FbTextPrimary,
-                    modifier = Modifier.size(25.dp)
-                )
             }
 
             // Likes Counter (Instagram style: "15 likes")
@@ -664,7 +701,7 @@ fun PostCard(
 
             // Post Relative Timestamp (Instagram uppercase style)
             Text(
-                text = formatRelativeTime(post.timestamp).uppercase(),
+                text = relativeTimeUpper,
                 color = FbTextTertiary,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Medium,

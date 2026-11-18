@@ -50,5 +50,8 @@ interface GroupDao {
 
     @Query("UPDATE group_messages SET status = :status WHERE messageId = :messageId")
     suspend fun updateMessageStatus(messageId: String, status: Int)
+
+    @Query("SELECT COUNT(*) FROM group_messages WHERE mediaBlobHash = :blobHash")
+    suspend fun isGroupBlob(blobHash: String): Int
 }
 

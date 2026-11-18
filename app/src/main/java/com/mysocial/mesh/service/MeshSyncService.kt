@@ -7,6 +7,9 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import android.content.pm.ServiceInfo
 import android.os.Binder
 import android.os.Build
@@ -110,10 +113,16 @@ class MeshSyncService : Service() {
 
         val initialNotification = buildNotification("Looking for nearby friends & posts...")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val hasMicPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+            val fgsType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && hasMicPermission) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            } else {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+            }
             startForeground(
                 NOTIFICATION_ID,
                 initialNotification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+                fgsType
             )
         } else {
             startForeground(NOTIFICATION_ID, initialNotification)
@@ -223,7 +232,7 @@ class MeshSyncService : Service() {
                 _allDiscoveredPeers.value = _allDiscoveredPeers.value
                     .filter { it.peerId != cryptoManager.authorId }
                     .map { peer ->
-                        if (peer.peerId == connectionPeerId || peer.peerId == remoteAuthorId || peer.peerId.startsWith("peer_") || peer.peerId.startsWith("direct_")) {
+                        if (peer.peerId == connectionPeerId || peer.peerId == remoteAuthorId) {
                             peer.copy(peerId = remoteAuthorId, peerName = remoteDisplayName)
                         } else {
                             peer
@@ -410,6 +419,11 @@ class MeshSyncService : Service() {
 
     fun broadcastVoiceCallSignal(signal: com.mysocial.mesh.model.VoiceCallSignalPayload) {
         wifiTransport?.broadcastVoiceCallSignal(signal)
+    }
+
+    fun forceSyncPeer(peerId: String) {
+        wifiTransport?.forceSync(peerId)
+        bleTransport?.forceSync(peerId)
     }
 
     fun forceSyncAll() {

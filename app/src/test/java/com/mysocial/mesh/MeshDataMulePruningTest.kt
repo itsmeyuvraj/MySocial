@@ -187,4 +187,81 @@ class MeshDataMulePruningTest {
         // Post must be deleted
         assertNull("Expired post must be deleted from posts_view", db.postViewDao().getPost("post_expired_with_blob"))
     }
+
+    @Test
+    fun testDirectMessageBlobProtectedFromStrangerMediaPruning() = runBlocking {
+        val dmBlobHash = "dm_photo_blob_hash"
+        val dmFile = File(blobsDir, "$dmBlobHash.blob")
+        dmFile.writeBytes(ByteArray(1024 * 1024) { 5 })
+
+        // Insert direct message with this blob
+        db.directMessageDao().insertMessage(
+            com.mysocial.mesh.model.DirectMessageEntity(
+                messageId = "dm_msg_1",
+                conversationPeerId = cryptoStranger.authorId,
+                senderId = cryptoStranger.authorId,
+                recipientId = cryptoAlice.authorId,
+                text = "Confidential blueprint",
+                timestamp = System.currentTimeMillis(),
+                isOutgoing = false,
+                mediaBlobHash = dmBlobHash,
+                mediaType = "IMAGE"
+            )
+        )
+        db.blobDao().upsertManifest(
+            BlobManifestEntity(
+                blobHash = dmBlobHash,
+                mimeType = "image/webp",
+                totalBytes = dmFile.length(),
+                chunkCount = 1,
+                isComplete = true
+            )
+        )
+
+        // Set max cache to 0 MB (all unreferenced/stranger media will trigger pruning)
+        appSettings.setMaxStrangerMediaCacheMb(0)
+
+        syncEngine.pruneStrangerMediaIfOverCapacity()
+
+        // DM attachment MUST be preserved even though there is no post in posts_view
+        assertTrue("Direct message blob must never be pruned as orphaned media", dmFile.exists())
+    }
+
+    @Test
+    fun testExpiredStoryBlobPurgedWhenStoryExpires() = runBlocking {
+        val now = System.currentTimeMillis()
+        val expiredStoryBlobHash = "expired_story_blob_hash"
+        val storyFile = File(blobsDir, "$expiredStoryBlobHash.blob")
+        storyFile.writeBytes(ByteArray(4096) { 7 })
+
+        db.storyDao().insert(
+            com.mysocial.mesh.model.StoryEntity(
+                storyId = "story_expired_1",
+                authorId = cryptoAlice.authorId,
+                authorDisplayName = "Alice",
+                text = "Day at the park",
+                mediaBlobHash = expiredStoryBlobHash,
+                createdAt = now - 90_000_000L,
+                expiresAt = now - 1000L // Expired
+            )
+        )
+        db.blobDao().upsertManifest(
+            BlobManifestEntity(
+                blobHash = expiredStoryBlobHash,
+                mimeType = "image/webp",
+                totalBytes = 4096,
+                chunkCount = 1,
+                isComplete = true
+            )
+        )
+
+        syncEngine.pruneExpiredPostsAndBlobs()
+
+        // Expired story blob file must be deleted
+        assertFalse("Expired story blob file must be purged", storyFile.exists())
+        // Manifest must be deleted
+        assertNull("Expired story manifest must be purged", db.blobDao().getManifest(expiredStoryBlobHash))
+        // Story must be deleted
+        assertNull("Expired story must be deleted from stories_view", db.storyDao().getStoryById("story_expired_1"))
+    }
 }

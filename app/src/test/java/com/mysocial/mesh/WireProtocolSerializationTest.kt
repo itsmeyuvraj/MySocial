@@ -4,6 +4,7 @@ import com.mysocial.mesh.model.CanonicalJson
 import com.mysocial.mesh.model.ContentType
 import com.mysocial.mesh.model.DirectMessageReceiptPayload
 import com.mysocial.mesh.model.FollowPayload
+import com.mysocial.mesh.model.LocationAttachment
 import com.mysocial.mesh.model.MediaAttachment
 import com.mysocial.mesh.model.PostDeletePayload
 import com.mysocial.mesh.model.PostEditPayload
@@ -102,7 +103,12 @@ class WireProtocolSerializationTest {
             isPublic = false, // Friends only
             expiresAt = 1800000000000L,
             isSos = false,
-            pollOptions = listOf("Option A", "Option B", "Option C")
+            pollOptions = listOf("Option A", "Option B", "Option C"),
+            location = LocationAttachment(
+                name = "Mount Rainier Base Camp",
+                latitude = 46.8523,
+                longitude = -121.7603
+            )
         )
         val json = fullPost.toJson()
         val decoded = PostPayload.fromJson(json)
@@ -116,6 +122,10 @@ class WireProtocolSerializationTest {
         assertFalse(decoded.isSos)
         assertEquals(3, decoded.pollOptions!!.size)
         assertEquals("Option A", decoded.pollOptions!![0])
+        assertNotNull(decoded.location)
+        assertEquals("Mount Rainier Base Camp", decoded.location!!.name)
+        assertEquals(46.8523, decoded.location!!.latitude!!, 0.0001)
+        assertEquals(-121.7603, decoded.location!!.longitude!!, 0.0001)
     }
 
     @Test

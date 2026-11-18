@@ -1218,9 +1218,10 @@ fun AboutScreen(
     var showTermsDialog by remember { mutableStateOf(false) }
     var isExportingDiagnostics by remember { mutableStateOf(false) }
 
-    if (showUpdateDialog && updateInfo != null) {
+    val currentUpdate = updateInfo
+    if (showUpdateDialog && currentUpdate != null) {
         UpdateDialog(
-            updateInfo = updateInfo!!,
+            updateInfo = currentUpdate,
             downloadProgress = downloadProgress,
             isDownloading = isDownloadingUpdate,
             onConfirmUpdate = {

@@ -161,7 +161,7 @@ class BleMeshTransport(
     private var isScanningExtended: Boolean = false
 
     val isAvailable: Boolean
-        get() = bluetoothAdapter != null && bluetoothAdapter!!.isEnabled
+        get() = bluetoothAdapter?.isEnabled == true
 
     val isExtendedAdvertisingSupported: Boolean
         get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
@@ -176,8 +176,8 @@ class BleMeshTransport(
                 bluetoothAdapter?.isLeCodedPhySupported == true
 
     val maxAdvertisingDataLength: Int
-        get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && bluetoothAdapter != null) {
-            bluetoothAdapter!!.leMaximumAdvertisingDataLength
+        get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            bluetoothAdapter?.leMaximumAdvertisingDataLength ?: 31
         } else {
             31
         }
@@ -188,7 +188,8 @@ class BleMeshTransport(
     @SuppressLint("MissingPermission")
     fun start() {
         if (!isRunning.compareAndSet(false, true)) return
-        if (bluetoothAdapter == null || !bluetoothAdapter!!.isEnabled) {
+        val adapter = bluetoothAdapter
+        if (adapter == null || !adapter.isEnabled) {
             Log.w(tag, "Bluetooth is disabled or unavailable on this device")
             return
         }
@@ -296,9 +297,10 @@ class BleMeshTransport(
      */
     @SuppressLint("MissingPermission")
     private fun startL2capServer() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && bluetoothAdapter != null) {
+        val adapter = bluetoothAdapter
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && adapter != null) {
             try {
-                val server = bluetoothAdapter!!.listenUsingInsecureL2capChannel()
+                val server = adapter.listenUsingInsecureL2capChannel()
                 l2capServerSocket = server
                 localL2capPsm = server.psm
                 Log.i(tag, "BLE L2CAP CoC Server listening on dynamic PSM $localL2capPsm")
@@ -897,10 +899,17 @@ class BleMeshTransport(
                 var conn: BluetoothSocketPeerConnection? = null
                 var rawSocket: android.bluetooth.BluetoothSocket? = null
                 var fallbackNeeded = false
+                var timeoutJob: Job? = null
                 try {
                     val l2capSocket = device.createInsecureL2capChannel(knownPsm)
                     rawSocket = l2capSocket
+                    timeoutJob = scope.launch {
+                        delay(10_000L)
+                        Log.w(tag, "Direct L2CAP connection to $address timed out after 10s, aborting socket")
+                        try { rawSocket?.close() } catch (_: Exception) {}
+                    }
                     l2capSocket.connect()
+                    timeoutJob.cancel()
                     Log.i(tag, "Successfully connected direct BLE L2CAP channel to $address (bypassed GATT roundtrips)")
                     conn = BluetoothSocketPeerConnection(
                         peerId = peerId,
@@ -910,11 +919,13 @@ class BleMeshTransport(
                     )
                     syncEngine.syncWithPeer(conn)
                 } catch (e: Exception) {
+                    timeoutJob?.cancel()
                     Log.w(tag, "Direct L2CAP connection failed to $address: ${e.message}. Falling back to GATT discovery.")
                     peerPsmMap.remove(address)
                     peerPsmMap.remove(peerId)
                     fallbackNeeded = true
                 } finally {
+                    timeoutJob?.cancel()
                     try { conn?.close() } catch (_: Exception) {}
                     if (conn == null) {
                         try { rawSocket?.close() } catch (_: Exception) {}
@@ -1077,10 +1088,17 @@ class BleMeshTransport(
                                     scope.launch(Dispatchers.IO) {
                                         var conn: BluetoothSocketPeerConnection? = null
                                         var rawSocket: android.bluetooth.BluetoothSocket? = null
+                                        var connectTimeoutJob: Job? = null
                                         try {
                                             val l2capSocket = device.createInsecureL2capChannel(remotePsm)
                                             rawSocket = l2capSocket
+                                            connectTimeoutJob = scope.launch {
+                                                delay(10_000L)
+                                                Log.w(tag, "GATT discovered L2CAP connect to $address timed out after 10s, aborting socket")
+                                                try { rawSocket?.close() } catch (_: Exception) {}
+                                            }
                                             l2capSocket.connect()
+                                            connectTimeoutJob.cancel()
                                             Log.i(tag, "Successfully connected BLE L2CAP channel to $address")
                                             conn = BluetoothSocketPeerConnection(
                                                 peerId = peerId,
@@ -1090,8 +1108,10 @@ class BleMeshTransport(
                                             )
                                             syncEngine.syncWithPeer(conn)
                                         } catch (e: Exception) {
+                                            connectTimeoutJob?.cancel()
                                             Log.w(tag, "L2CAP connection failed to $address: ${e.message}")
                                         } finally {
+                                            connectTimeoutJob?.cancel()
                                             try { conn?.close() } catch (_: Exception) {}
                                             if (conn == null) {
                                                 try { rawSocket?.close() } catch (_: Exception) {}

@@ -292,11 +292,14 @@ fun ChatScreen(
                                     .border(1.dp, FacebookBlue, RoundedCornerShape(8.dp))
                             ) {
                                 val previewBitmap = remember(selectedImageUri) {
-                                    try {
-                                        context.contentResolver.openInputStream(selectedImageUri!!)?.use {
-                                            BitmapFactory.decodeStream(it)
-                                        }
-                                    } catch (_: Exception) { null }
+                                    val uri = selectedImageUri
+                                    if (uri != null) {
+                                        try {
+                                            context.contentResolver.openInputStream(uri)?.use {
+                                                BitmapFactory.decodeStream(it)
+                                            }
+                                        } catch (_: Exception) { null }
+                                    } else null
                                 }
                                 if (previewBitmap != null) {
                                     Image(
@@ -561,8 +564,9 @@ fun ChatScreen(
         }
 
         // Long-Press Message Actions Dialog
-        if (selectedMessageForActions != null) {
-            val msg = selectedMessageForActions!!
+        val msgForActions = selectedMessageForActions
+        if (msgForActions != null) {
+            val msg = msgForActions
             val clipboardManager = LocalClipboardManager.current
             AlertDialog(
                 onDismissRequest = { selectedMessageForActions = null },

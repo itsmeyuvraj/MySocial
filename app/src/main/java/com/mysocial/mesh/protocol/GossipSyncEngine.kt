@@ -73,6 +73,10 @@ class GossipSyncEngine(
         peerIdentifiedListeners.add(listener)
     }
 
+    fun removePeerIdentifiedListener(listener: (connectionPeerId: String, remoteAuthorId: String, remoteDisplayName: String) -> Unit) {
+        peerIdentifiedListeners.remove(listener)
+    }
+
     var onPeerIdentified: ((connectionPeerId: String, remoteAuthorId: String, remoteDisplayName: String) -> Unit)?
         get() = peerIdentifiedListeners.firstOrNull()
         set(value) {
@@ -551,6 +555,10 @@ class GossipSyncEngine(
      * Handles peer's BLOB_REQ: streams requested 16 KB chunks sequentially.
      */
     private suspend fun handleBlobReq(connection: PeerConnection, req: GossipMessage.BlobReq) {
+        if (!MediaProcessor.isValidBlobHash(req.blobHash)) {
+            Log.w(tag, "Rejecting BlobReq with invalid/malformed blobHash from ${connection.peerId}: ${req.blobHash}")
+            return
+        }
         val manifest = db.blobDao().getManifest(req.blobHash) ?: return
         val totalChunks = manifest.chunkCount
 
@@ -586,7 +594,24 @@ class GossipSyncEngine(
      * Handles incoming BLOB_CHUNK: stores chunk in Room, verifies SHA-256 upon completion.
      */
     private suspend fun handleBlobChunk(peerId: String, chunk: GossipMessage.BlobChunk) {
-        val bytes = Base64.decode(chunk.bytesBase64, Base64.DEFAULT)
+        if (!MediaProcessor.isValidBlobHash(chunk.blobHash)) {
+            Log.w(tag, "Rejecting BlobChunk with invalid/malformed blobHash from $peerId: ${chunk.blobHash}")
+            return
+        }
+        if (chunk.chunkIndex < 0 || chunk.totalChunks <= 0 || chunk.chunkIndex >= chunk.totalChunks || chunk.totalChunks > 10_000) {
+            Log.w(tag, "Rejecting BlobChunk with out-of-bounds index (${chunk.chunkIndex}/${chunk.totalChunks}) from $peerId")
+            return
+        }
+        val bytes = try {
+            Base64.decode(chunk.bytesBase64, Base64.DEFAULT)
+        } catch (e: Exception) {
+            Log.w(tag, "Failed to decode base64 for BlobChunk from $peerId: ${e.message}")
+            return
+        }
+        if (bytes.size > MediaProcessor.CHUNK_SIZE * 2) {
+            Log.w(tag, "Rejecting oversized BlobChunk payload (${bytes.size} bytes) from $peerId")
+            return
+        }
         db.blobDao().upsertChunk(
             BlobChunkEntity(
                 blobHash = chunk.blobHash,
@@ -615,8 +640,12 @@ class GossipSyncEngine(
      * writes to files/blobs/<blobHash>.blob, and marks manifest isComplete = true.
      */
     private suspend fun assembleAndVerifyBlob(peerId: String, blobHash: String, totalChunks: Int) {
+        if (!MediaProcessor.isValidBlobHash(blobHash)) {
+            Log.e(tag, "Refusing to assemble blob with invalid/malformed hash: $blobHash")
+            return
+        }
         val allChunks = db.blobDao().getAllChunksForBlob(blobHash)
-        if (allChunks.size < totalChunks) return
+        if (allChunks.size != totalChunks || !allChunks.withIndex().all { (idx, c) -> c.chunkIndex == idx }) return
 
         val blobsDir = if (context != null) {
             MediaProcessor.getBlobsDirectory(context)
@@ -714,9 +743,14 @@ class GossipSyncEngine(
             setOf(cryptoManager.authorId)
         }
 
-        // Stranger blobs: blobs not authored by self or followed peers
+        // Stranger blobs: blobs not authored by self or followed peers, and NOT in use by direct messages, active stories, or groups
         val evictableCandidates = allBlobFiles.mapNotNull { file ->
             val hash = file.nameWithoutExtension
+            // Never evict blobs in use by direct messages, active stories, or group messages
+            if (db.directMessageDao().isDirectMessageBlob(hash) > 0) return@mapNotNull null
+            if (db.storyDao().isStoryBlob(hash) > 0) return@mapNotNull null
+            if (db.groupDao().isGroupBlob(hash) > 0) return@mapNotNull null
+
             val post = db.postViewDao().getPostByBlobHash(hash)
             if (post != null && !followedIds.contains(post.authorId)) {
                 Triple(file, hash, file.lastModified())
@@ -746,14 +780,32 @@ class GossipSyncEngine(
      */
     suspend fun pruneExpiredPostsAndBlobs() = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
-        val expiredBlobHashes = db.postViewDao().getExpiredBlobHashes(now)
+        val expiredPostBlobs = db.postViewDao().getExpiredBlobHashes(now)
+        val expiredStoryBlobs = db.storyDao().getExpiredStoryBlobHashes(now)
+        val candidateBlobHashes = (expiredPostBlobs + expiredStoryBlobs).distinct()
+
         val blobsDir = if (context != null) {
             MediaProcessor.getBlobsDirectory(context)
         } else {
             File(System.getProperty("java.io.tmpdir"), "blobs")
         }
-        for (blobHash in expiredBlobHashes) {
+        for (blobHash in candidateBlobHashes) {
+            // Verify blob is not still in use by an active post, active story, direct message, or group message
+            val inActivePost = db.postViewDao().isPostBlobActive(blobHash, now) > 0
+            val inActiveStory = db.storyDao().isStoryBlob(blobHash, now) > 0
+            val inDirectMessage = db.directMessageDao().isDirectMessageBlob(blobHash) > 0
+            val inGroupMessage = db.groupDao().isGroupBlob(blobHash) > 0
+
+            if (inActivePost || inActiveStory || inDirectMessage || inGroupMessage) {
+                continue
+            }
+
             val file = File(blobsDir, "$blobHash.blob")
+            try {
+                if (!file.canonicalPath.startsWith(blobsDir.canonicalPath)) continue
+            } catch (_: Exception) {
+                continue
+            }
             if (file.exists()) {
                 file.delete()
             }
@@ -772,6 +824,7 @@ class GossipSyncEngine(
      * Triggered when the user taps "Tap to prioritize download".
      */
     suspend fun prioritizeBlob(blobHash: String) = withContext(Dispatchers.IO) {
+        if (!MediaProcessor.isValidBlobHash(blobHash)) return@withContext
         val manifest = db.blobDao().getManifest(blobHash) ?: return@withContext
         if (manifest.isComplete) return@withContext
 

@@ -53,6 +53,13 @@ data class MediaAttachment(
 )
 
 @Serializable
+data class LocationAttachment(
+    val name: String,
+    val latitude: Double? = null,
+    val longitude: Double? = null
+)
+
+@Serializable
 data class PostPayload(
     val text: String,
     val tags: List<String> = emptyList(),
@@ -60,7 +67,8 @@ data class PostPayload(
     val isPublic: Boolean = true,
     val expiresAt: Long? = null,
     val isSos: Boolean = false,
-    val pollOptions: List<String>? = null
+    val pollOptions: List<String>? = null,
+    val location: LocationAttachment? = null
 ) {
     fun toJson(): String = CanonicalJson.encodeToString(this)
 
@@ -342,7 +350,10 @@ data class PostViewEntity(
     val expiresAt: Long? = null,
     val isSos: Boolean = false,
     val pollOptionsJson: String? = null,
-    val gatewayRelayedAt: Long? = null
+    val gatewayRelayedAt: Long? = null,
+    val locationName: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null
 )
 
 /**

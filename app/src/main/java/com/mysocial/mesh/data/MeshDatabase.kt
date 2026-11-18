@@ -103,6 +103,9 @@ interface LogEntryDao {
     @Query("SELECT * FROM log_entries WHERE contentType = 'PTT_VOICE_BURST' ORDER BY timestamp DESC LIMIT 50")
     fun observeRecentPttEntries(): Flow<List<LogEntryEntity>>
 
+    @Query("SELECT * FROM log_entries WHERE contentType = :contentType ORDER BY timestamp ASC")
+    suspend fun getEntriesByContentType(contentType: ContentType): List<LogEntryEntity>
+
     @Query("DELETE FROM log_entries WHERE contentType = 'PTT_VOICE_BURST'")
     suspend fun clearAllPttEntries()
 }
@@ -147,6 +150,9 @@ interface PostViewDao {
 
     @Query("SELECT mediaBlobHash FROM posts_view WHERE expiresAt IS NOT NULL AND expiresAt <= :now AND mediaBlobHash IS NOT NULL")
     suspend fun getExpiredBlobHashes(now: Long = System.currentTimeMillis()): List<String>
+
+    @Query("SELECT COUNT(*) FROM posts_view WHERE mediaBlobHash = :blobHash AND (expiresAt IS NULL OR expiresAt > :now)")
+    suspend fun isPostBlobActive(blobHash: String, now: Long = System.currentTimeMillis()): Int
 
     @Query("UPDATE posts_view SET gatewayRelayedAt = :relayedAt WHERE entryHash = :hash")
     suspend fun markGatewayRelayed(hash: String, relayedAt: Long = System.currentTimeMillis())
@@ -436,21 +442,7 @@ object LogValidator {
             return ValidationResult.Invalid("Sequence must be >= 1, received: ${entry.sequence}")
         }
 
-        // 1. Verify Entry Hash matches computed SHA-256
-        val computedHash = CryptoManager.computeEntryHash(
-            authorId = entry.authorId,
-            sequence = entry.sequence,
-            previousHash = entry.previousHash,
-            timestamp = entry.timestamp,
-            contentType = entry.contentType.name,
-            contentJson = entry.contentJson,
-            signature = entry.signature
-        )
-        if (computedHash != entry.entryHash) {
-            return ValidationResult.Invalid("entryHash mismatch: computed $computedHash != ${entry.entryHash}")
-        }
-
-        // 2. Verify Cryptographic Ed25519 Signature
+        // 1 & 2. Build canonical payload once and verify Entry Hash & Ed25519 Signature
         val canonicalPayload = CryptoManager.buildCanonicalPayload(
             authorId = entry.authorId,
             sequence = entry.sequence,
@@ -459,6 +451,12 @@ object LogValidator {
             contentType = entry.contentType.name,
             contentJson = entry.contentJson
         )
+
+        val computedHash = CryptoManager.computeEntryHash(canonicalPayload, entry.signature)
+        if (computedHash != entry.entryHash) {
+            return ValidationResult.Invalid("entryHash mismatch: computed $computedHash != ${entry.entryHash}")
+        }
+
         val isSignatureValid = CryptoManager.verify(
             authorId = entry.authorId,
             canonicalPayload = canonicalPayload,
@@ -511,7 +509,7 @@ object LogValidator {
             when (contentType) {
                 ContentType.POST -> {
                     val p = PostPayload.fromJson(json)
-                    p.text.isNotBlank() || p.media != null || !p.pollOptions.isNullOrEmpty()
+                    p.text.isNotBlank() || p.media != null || !p.pollOptions.isNullOrEmpty() || p.location != null
                 }
                 ContentType.REPLY -> {
                     val r = ReplyPayload.fromJson(json)
@@ -674,7 +672,10 @@ object LogProjector {
                         transportSource = transportSource,
                         expiresAt = payload.expiresAt,
                         isSos = payload.isSos,
-                        pollOptionsJson = pollOptionsJson
+                        pollOptionsJson = pollOptionsJson,
+                        locationName = payload.location?.name,
+                        latitude = payload.location?.latitude,
+                        longitude = payload.location?.longitude
                     )
                 )
 
@@ -1029,7 +1030,7 @@ data class BatchResult(val acceptedCount: Int, val errors: List<String>)
         GroupMessageEntity::class,
         StoryEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -1276,6 +1277,20 @@ abstract class MeshDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_11_12 = object : androidx.room.migration.Migration(11, 12) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // Non-destructive transition for v12 schema stability
+            }
+        }
+
+        val MIGRATION_12_13 = object : androidx.room.migration.Migration(12, 13) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `posts_view` ADD COLUMN `locationName` TEXT")
+                db.execSQL("ALTER TABLE `posts_view` ADD COLUMN `latitude` REAL")
+                db.execSQL("ALTER TABLE `posts_view` ADD COLUMN `longitude` REAL")
+            }
+        }
+
         @Volatile
         private var INSTANCE: MeshDatabase? = null
 
@@ -1292,7 +1307,7 @@ abstract class MeshDatabase : RoomDatabase() {
                 DATABASE_NAME
             )
                 .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
                 .fallbackToDestructiveMigration()
                 .build()
                 .also { it.appContext = context.applicationContext }

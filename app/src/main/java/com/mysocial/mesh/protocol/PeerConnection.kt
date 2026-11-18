@@ -61,6 +61,9 @@ class StreamPeerConnection(
         get() = try { socket.inetAddress?.hostAddress } catch (_: Exception) { null }
 
     init {
+        try {
+            socket.soTimeout = 30_000
+        } catch (_: Exception) {}
         // Start background reader thread
         Thread({
             try {
@@ -71,7 +74,7 @@ class StreamPeerConnection(
                     incomingChannel.trySend(message)
                 }
             } catch (e: Exception) {
-                // Connection closed or error
+                // Connection closed, timed out, or error
             } finally {
                 closed.set(true)
                 incomingChannel.close()

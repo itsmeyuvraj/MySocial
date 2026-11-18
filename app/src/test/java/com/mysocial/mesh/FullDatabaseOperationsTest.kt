@@ -328,5 +328,12 @@ class FullDatabaseOperationsTest {
         assertEquals(true, db.followDao().isVerifiedInPerson(alice, bob))
         assertEquals(true, db.followDao().isVerifiedInPerson(bob, alice))
     }
+
+    @Test
+    fun testMigration11To12RunsCleanly() {
+        assertEquals(11, MeshDatabase.MIGRATION_11_12.startVersion)
+        assertEquals(12, MeshDatabase.MIGRATION_11_12.endVersion)
+        MeshDatabase.MIGRATION_11_12.migrate(db.openHelper.writableDatabase)
+    }
 }
 

@@ -49,7 +49,7 @@ fun CompassRadarView(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val compassFinder = remember { CompassDirectionFinder(context) }
+    val compassFinder = remember { CompassDirectionFinder.getInstance(context) }
 
     DisposableEffect(compassFinder) {
         compassFinder.start()

@@ -106,12 +106,23 @@ class IosCompanionBridge(
     fun openL2capChannel(device: BluetoothDevice, onConnected: (BluetoothSocket) -> Unit) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             scope.launch {
+                var rawSocket: BluetoothSocket? = null
+                var timeoutJob: kotlinx.coroutines.Job? = null
                 try {
                     val socket = device.createInsecureL2capChannel(L2CAP_PSM)
+                    rawSocket = socket
+                    timeoutJob = scope.launch {
+                        kotlinx.coroutines.delay(10_000L)
+                        Log.w(TAG, "iOS L2CAP channel connect to ${device.address} timed out after 10s, aborting socket")
+                        try { rawSocket?.close() } catch (_: Exception) {}
+                    }
                     socket.connect()
+                    timeoutJob.cancel()
                     Log.i(TAG, "Connected to iOS device via L2CAP CoC: ${device.address}")
                     onConnected(socket)
                 } catch (e: Exception) {
+                    timeoutJob?.cancel()
+                    try { rawSocket?.close() } catch (_: Exception) {}
                     Log.w(TAG, "Failed to connect iOS L2CAP channel: ${e.message}")
                 }
             }

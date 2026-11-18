@@ -69,6 +69,7 @@ class MdnsWifiTransport(
 
     private val isRunning = AtomicBoolean(false)
     private val activeSyncPeers = ConcurrentHashMap.newKeySet<String>()
+    private val inboundIpThrottle = ConcurrentHashMap<String, Long>()
 
     private val _peersMap = ConcurrentHashMap<String, DiscoveredPeer>()
     private val serviceNameToPeerId = ConcurrentHashMap<String, String>()
@@ -231,6 +232,9 @@ class MdnsWifiTransport(
         safeStopDiscovery()
         safeUnregisterService()
 
+        resolveQueue.clear()
+        isResolving.set(false)
+
         serverJob?.cancel()
         serverJob = null
 
@@ -356,8 +360,11 @@ class MdnsWifiTransport(
      * Broadcasts an urgent real-time PTT voice burst immediately to all known peers over TCP.
      */
     fun broadcastPttBurst(burst: com.mysocial.mesh.model.PttVoiceBurstPayload) {
-        val targets = _peersMap.values.filter { it.hostAddress != null && it.port != null }.toList()
-        val allHosts = targets.map { Pair(it.hostAddress!!, it.port!!) }.toMutableSet()
+        val allHosts = _peersMap.values.mapNotNull { peer ->
+            val host = peer.hostAddress
+            val port = peer.port
+            if (host != null && port != null) Pair(host, port) else null
+        }.toMutableSet()
 
         if (isEmulator) {
             allHosts.add(Pair("10.0.2.2", ADB_EMULATOR_TO_PHONE_PORT))
@@ -378,23 +385,27 @@ class MdnsWifiTransport(
             )
             for ((host, p) in allHosts) {
                 launch {
+                    var s: Socket? = null
+                    var conn: com.mysocial.mesh.protocol.StreamPeerConnection? = null
                     try {
-                        val s = Socket()
-                        s.tcpNoDelay = true
-                        s.soTimeout = 4000
-                        s.connect(java.net.InetSocketAddress(host, p), 3000)
-                        val conn = com.mysocial.mesh.protocol.StreamPeerConnection(
+                        val socket = Socket()
+                        s = socket
+                        socket.tcpNoDelay = true
+                        socket.soTimeout = 4000
+                        socket.connect(java.net.InetSocketAddress(host, p), 3000)
+                        val connection = com.mysocial.mesh.protocol.StreamPeerConnection(
                             peerId = "ptt_target_$host",
                             peerName = "Peer ($host)",
                             transportType = TransportType.MDNS_WIFI,
-                            socket = s
+                            socket = socket
                         )
-                        conn.send(msg)
+                        conn = connection
+                        connection.send(msg)
                         // Read reply/ACK so we don't abort before receiver reads the payload
                         try {
                             kotlinx.coroutines.withTimeoutOrNull(3000) {
-                                while (conn.isConnected) {
-                                    val reply = conn.receiveMessage()
+                                while (connection.isConnected) {
+                                    val reply = connection.receiveMessage()
                                     if (reply is com.mysocial.mesh.protocol.GossipMessage.PttBurstAck && reply.burstId == burst.burstId) {
                                         Log.i(tag, "PTT burst acknowledged by $host:$p")
                                         break
@@ -402,10 +413,12 @@ class MdnsWifiTransport(
                                 }
                             }
                         } catch (_: Exception) {}
-                        conn.close()
                         Log.i(tag, "Successfully transmitted real-time PTT burst to $host:$p")
                     } catch (e: Exception) {
                         Log.d(tag, "Target $host:$p not reachable for direct PTT: ${e.message}")
+                    } finally {
+                        try { conn?.close() } catch (_: Exception) {}
+                        try { s?.close() } catch (_: Exception) {}
                     }
                 }
             }
@@ -416,8 +429,11 @@ class MdnsWifiTransport(
      * Broadcasts an urgent real-time Voice Call signal (INVITE, ACCEPT, REJECT, HANGUP) immediately to all reachable peers over TCP.
      */
     fun broadcastVoiceCallSignal(signal: com.mysocial.mesh.model.VoiceCallSignalPayload) {
-        val targets = _peersMap.values.filter { it.hostAddress != null && it.port != null }.toList()
-        val allHosts = targets.map { Pair(it.hostAddress!!, it.port!!) }.toMutableSet()
+        val allHosts = _peersMap.values.mapNotNull { peer ->
+            val host = peer.hostAddress
+            val port = peer.port
+            if (host != null && port != null) Pair(host, port) else null
+        }.toMutableSet()
 
         if (isEmulator) {
             allHosts.add(Pair("10.0.2.2", ADB_EMULATOR_TO_PHONE_PORT))
@@ -436,23 +452,27 @@ class MdnsWifiTransport(
             )
             for ((host, p) in allHosts) {
                 launch {
+                    var s: Socket? = null
+                    var conn: com.mysocial.mesh.protocol.StreamPeerConnection? = null
                     try {
-                        val s = Socket()
-                        s.tcpNoDelay = true
-                        s.soTimeout = 4000
-                        s.connect(java.net.InetSocketAddress(host, p), 3000)
-                        val conn = com.mysocial.mesh.protocol.StreamPeerConnection(
+                        val socket = Socket()
+                        s = socket
+                        socket.tcpNoDelay = true
+                        socket.soTimeout = 4000
+                        socket.connect(java.net.InetSocketAddress(host, p), 3000)
+                        val connection = com.mysocial.mesh.protocol.StreamPeerConnection(
                             peerId = "call_signal_${host}_$p",
                             peerName = "Peer ($host)",
                             transportType = TransportType.MDNS_WIFI,
-                            socket = s
+                            socket = socket
                         )
-                        conn.send(msg)
+                        conn = connection
+                        connection.send(msg)
                         // Read reply/ACK so we don't abort before receiver reads the payload
                         try {
                             kotlinx.coroutines.withTimeoutOrNull(3000) {
-                                while (conn.isConnected) {
-                                    val reply = conn.receiveMessage()
+                                while (connection.isConnected) {
+                                    val reply = connection.receiveMessage()
                                     if (reply is com.mysocial.mesh.protocol.GossipMessage.VoiceCallSignalAck && reply.callId == signal.callId) {
                                         Log.i(tag, "VoiceCallSignal ${signal.signalType} acknowledged by $host:$p")
                                         break
@@ -460,10 +480,12 @@ class MdnsWifiTransport(
                                 }
                             }
                         } catch (_: Exception) {}
-                        conn.close()
                         Log.i(tag, "Successfully transmitted real-time VoiceCallSignal ${signal.signalType} to $host:$p")
                     } catch (e: Exception) {
                         Log.d(tag, "Target $host:$p not reachable for direct VoiceCallSignal: ${e.message}")
+                    } finally {
+                        try { conn?.close() } catch (_: Exception) {}
+                        try { s?.close() } catch (_: Exception) {}
                     }
                 }
             }
@@ -487,10 +509,31 @@ class MdnsWifiTransport(
     }
 
     private suspend fun handleInboundConnection(socket: Socket) {
-        val remoteIp = socket.inetAddress.hostAddress ?: "unknown"
+        val remoteIp = socket.inetAddress?.hostAddress ?: "unknown"
+        val now = System.currentTimeMillis()
+        val lastConn = inboundIpThrottle[remoteIp] ?: 0L
+        if (now - lastConn < 250L) {
+            Log.d(tag, "Throttling rapid inbound connection from $remoteIp")
+            try { socket.close() } catch (_: Exception) {}
+            return
+        }
+        inboundIpThrottle[remoteIp] = now
+
+        if (activeSyncPeers.size >= MAX_CONCURRENT_WIFI_SYNC) {
+            Log.w(tag, "Dropping inbound connection from $remoteIp: max concurrent Wi-Fi sync limit ($MAX_CONCURRENT_WIFI_SYNC) reached")
+            try { socket.close() } catch (_: Exception) {}
+            return
+        }
+
         Log.i(tag, "Accepted inbound TCP connection from $remoteIp:${socket.port}")
         val safeIpKey = remoteIp.replace(".", "_")
         val peerId = "direct_$safeIpKey"
+        if (!activeSyncPeers.add(peerId)) {
+            Log.d(tag, "Inbound sync with $peerId already active, dropping duplicate socket")
+            try { socket.close() } catch (_: Exception) {}
+            return
+        }
+
         val returnHost = if (isEmulator && remoteIp == "127.0.0.1") "10.0.2.2" else remoteIp
         val returnPort = when {
             isEmulator && remoteIp == "127.0.0.1" -> ADB_EMULATOR_TO_PHONE_PORT
@@ -521,6 +564,7 @@ class MdnsWifiTransport(
         } catch (e: Exception) {
             Log.e(tag, "Inbound sync failed with $remoteIp: ${e.message}")
         } finally {
+            activeSyncPeers.remove(peerId)
             connection.close()
             if (peerId.startsWith("direct_")) {
                 _peersMap.remove(peerId)

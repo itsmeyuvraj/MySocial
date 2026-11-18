@@ -108,7 +108,7 @@ class RadarViewModel(
     }
 
     fun forceSyncPeer(peerId: String) {
-        getService()?.forceSyncAll()
+        getService()?.forceSyncPeer(peerId)
     }
 
     fun syncWithDirectIp(targetHost: String, targetPort: Int = 42530) {

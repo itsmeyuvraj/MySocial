@@ -168,6 +168,9 @@ class BleVoiceCallManager(
     private var sessionAesKey: SecretKeySpec? = null
     private val sendSequence = AtomicLong(0L)
     private val isCallAudioRunning = AtomicBoolean(false)
+    private val isReleased = AtomicBoolean(false)
+    private var l2capServerJob: Job? = null
+    private var tcpServerJob: Job? = null
 
     init {
         startL2capServer()
@@ -188,29 +191,31 @@ class BleVoiceCallManager(
      */
     @SuppressLint("MissingPermission")
     private fun startL2capServer() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && bluetoothAdapter != null) {
+        val adapter = bluetoothAdapter
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && adapter != null) {
             try {
-                val server = bluetoothAdapter!!.listenUsingInsecureL2capChannel()
+                val server = adapter.listenUsingInsecureL2capChannel()
                 l2capServerSocket = server
                 localL2capPsm = server.psm
                 Log.i(tag, "BleVoiceCallManager L2CAP listener ready on PSM $localL2capPsm")
 
-                scope.launch(Dispatchers.IO) {
+                l2capServerJob = scope.launch(Dispatchers.IO) {
                     var currentServer = server
-                    while (isActive) {
+                    while (isActive && !isReleased.get()) {
                         try {
                             val socket = currentServer.accept() ?: break
                             Log.i(tag, "Accepted incoming L2CAP audio socket connection from ${socket.remoteDevice?.address}")
                             handleIncomingL2capSocket(socket)
                         } catch (e: Exception) {
-                            if (!isActive) break
+                            if (!isActive || isReleased.get()) break
                             Log.d(tag, "L2CAP audio server socket closed or error: ${e.message}")
                             try { currentServer.close() } catch (_: Exception) {}
                             delay(5000)
-                            if (!isActive) break
+                            if (!isActive || isReleased.get()) break
                             try {
-                                if (bluetoothAdapter?.isEnabled == true) {
-                                    val newServer = bluetoothAdapter!!.listenUsingInsecureL2capChannel()
+                                val currentAdapter = bluetoothAdapter
+                                if (currentAdapter?.isEnabled == true && !isReleased.get()) {
+                                    val newServer = currentAdapter.listenUsingInsecureL2capChannel()
                                     l2capServerSocket = newServer
                                     localL2capPsm = newServer.psm
                                     currentServer = newServer
@@ -243,8 +248,8 @@ class BleVoiceCallManager(
             localAudioPort = server.localPort
             Log.i(tag, "BleVoiceCallManager TCP audio listener ready on port $localAudioPort")
 
-            scope.launch(Dispatchers.IO) {
-                while (isActive && !server.isClosed) {
+            tcpServerJob = scope.launch(Dispatchers.IO) {
+                while (isActive && !server.isClosed && !isReleased.get()) {
                     try {
                         val socket = server.accept()
                         socket.tcpNoDelay = true
@@ -252,7 +257,7 @@ class BleVoiceCallManager(
                         Log.i(tag, "Accepted incoming TCP audio socket connection from ${socket.inetAddress?.hostAddress}:${socket.port}")
                         handleIncomingTcpSocket(socket)
                     } catch (e: Exception) {
-                        if (!isActive || server.isClosed) break
+                        if (!isActive || server.isClosed || isReleased.get()) break
                         Log.w(tag, "TCP audio server accept error: ${e.message}")
                         delay(1000)
                     }
@@ -769,6 +774,7 @@ class BleVoiceCallManager(
         val current = _activeSession.value ?: return
         _activeSession.value = current.copy(state = CallState.IN_CALL, startTimeMs = System.currentTimeMillis())
         isCallAudioRunning.set(true)
+        requestAudioFocus()
 
         // Start call duration ticker
         callDurationJob?.cancel()
@@ -996,8 +1002,67 @@ class BleVoiceCallManager(
         }
     }
 
+    private var audioFocusRequest: Any? = null
+
+    private fun requestAudioFocus() {
+        try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val playbackAttributes = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+                val focusRequest = android.media.AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                    .setAudioAttributes(playbackAttributes)
+                    .setAcceptsDelayedFocusGain(true)
+                    .setOnAudioFocusChangeListener { focusChange ->
+                        when (focusChange) {
+                            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+                            AudioManager.AUDIOFOCUS_LOSS -> {
+                                Log.i(tag, "Audio focus lost ($focusChange)")
+                            }
+                            AudioManager.AUDIOFOCUS_GAIN -> {
+                                Log.i(tag, "Audio focus regained")
+                            }
+                        }
+                    }
+                    .build()
+                audioFocusRequest = focusRequest
+                audioManager.requestAudioFocus(focusRequest)
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager.requestAudioFocus(
+                    null,
+                    AudioManager.STREAM_VOICE_CALL,
+                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
+                )
+            }
+        } catch (e: Exception) {
+            Log.w(tag, "Failed to request audio focus: ${e.message}")
+        }
+    }
+
+    private fun abandonAudioFocus() {
+        try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                (audioFocusRequest as? android.media.AudioFocusRequest)?.let {
+                    audioManager.abandonAudioFocusRequest(it)
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager.abandonAudioFocus(null)
+            }
+        } catch (e: Exception) {
+            Log.w(tag, "Failed to abandon audio focus: ${e.message}")
+        } finally {
+            audioFocusRequest = null
+        }
+    }
+
     private fun stopAudioEngine() {
         isCallAudioRunning.set(false)
+        abandonAudioFocus()
         audioCaptureJob?.cancel()
         audioCaptureJob = null
         audioPlaybackJob?.cancel()
@@ -1013,6 +1078,11 @@ class BleVoiceCallManager(
     }
 
     fun release() {
+        isReleased.set(true)
+        l2capServerJob?.cancel()
+        l2capServerJob = null
+        tcpServerJob?.cancel()
+        tcpServerJob = null
         incomingRingTimeoutJob?.cancel()
         incomingRingTimeoutJob = null
         outgoingDialTimeoutJob?.cancel()
