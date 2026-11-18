@@ -75,7 +75,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -137,30 +139,36 @@ fun ComposerScreen(
         ComposerMode.POST -> postText.isNotBlank() || selectedImageUri != null || locationAttachment != null
     }
 
+    val coroutineScope = rememberCoroutineScope()
+
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
                       permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         if (granted) {
-            val loc = LocationHelper.getLastKnownLocation(context)
-            if (loc != null) {
-                val name = LocationHelper.getPlaceName(context, loc.first, loc.second)
-                viewModel.setLocation(name, loc.first, loc.second)
-            } else {
-                viewModel.setLocation("Current Location")
+            coroutineScope.launch {
+                val loc = LocationHelper.getOrAcquireLocation(context)
+                if (loc != null) {
+                    val name = LocationHelper.getPlaceName(context, loc.first, loc.second)
+                    viewModel.setLocation(name, loc.first, loc.second)
+                } else {
+                    viewModel.setLocation("Current Location")
+                }
             }
         }
     }
 
     val onUseCurrentLocation: () -> Unit = {
         if (LocationHelper.hasLocationPermission(context)) {
-            val loc = LocationHelper.getLastKnownLocation(context)
-            if (loc != null) {
-                val name = LocationHelper.getPlaceName(context, loc.first, loc.second)
-                viewModel.setLocation(name, loc.first, loc.second)
-            } else {
-                viewModel.setLocation("Current Location")
+            coroutineScope.launch {
+                val loc = LocationHelper.getOrAcquireLocation(context)
+                if (loc != null) {
+                    val name = LocationHelper.getPlaceName(context, loc.first, loc.second)
+                    viewModel.setLocation(name, loc.first, loc.second)
+                } else {
+                    viewModel.setLocation("Current Location")
+                }
             }
         } else {
             locationPermissionLauncher.launch(
