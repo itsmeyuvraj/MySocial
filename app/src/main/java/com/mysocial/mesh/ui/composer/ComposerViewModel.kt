@@ -8,6 +8,7 @@ import com.mysocial.mesh.data.MediaProcessor
 import com.mysocial.mesh.data.MeshRepository
 import com.mysocial.mesh.model.LocationAttachment
 import com.mysocial.mesh.model.MediaAttachment
+import com.mysocial.mesh.utils.LocationHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -65,6 +66,12 @@ class ComposerViewModel(
     private val _locationAttachment = MutableStateFlow<LocationAttachment?>(null)
     val locationAttachment: StateFlow<LocationAttachment?> = _locationAttachment.asStateFlow()
 
+    private val _isAcquiringLocation = MutableStateFlow(false)
+    val isAcquiringLocation: StateFlow<Boolean> = _isAcquiringLocation.asStateFlow()
+
+    // Tracks if user intentionally dismissed/removed location for this post
+    private var locationExplicitlyRemoved = false
+
     val authorId: String = repository.cryptoManager.authorId
     val myProfile = repository.observeMyProfile()
 
@@ -106,6 +113,8 @@ class ComposerViewModel(
         _isPublishing.value = false
         _isPublic.value = true
         _locationAttachment.value = null
+        _isAcquiringLocation.value = false
+        locationExplicitlyRemoved = false
 
         when (mode) {
             ComposerMode.POST -> {
@@ -178,6 +187,8 @@ class ComposerViewModel(
     fun setLocation(name: String, latitude: Double? = null, longitude: Double? = null) {
         val trimmed = name.trim()
         if (trimmed.isNotBlank()) {
+            locationExplicitlyRemoved = false
+            _isAcquiringLocation.value = false
             _locationAttachment.value = LocationAttachment(
                 name = trimmed,
                 latitude = latitude,
@@ -188,6 +199,49 @@ class ComposerViewModel(
 
     fun clearLocation() {
         _locationAttachment.value = null
+        _isAcquiringLocation.value = false
+        locationExplicitlyRemoved = true
+    }
+
+    /**
+     * Automatically acquires and attaches the device location to the post.
+     * Uses fast-path cached coordinates for instantaneous UI display while simultaneously
+     * querying hardware GNSS satellite lock in background for maximum accuracy.
+     */
+    fun autoAcquireLocation(context: Context) {
+        if (locationExplicitlyRemoved || _locationAttachment.value != null || _isAcquiringLocation.value) return
+        if (!LocationHelper.hasLocationPermission(context)) return
+
+        viewModelScope.launch {
+            _isAcquiringLocation.value = true
+            try {
+                // 1. Fast-path: immediately attach last known location if present
+                val lastKnown = LocationHelper.getLastKnownLocation(context)
+                if (lastKnown != null && !locationExplicitlyRemoved && _locationAttachment.value == null) {
+                    val name = LocationHelper.getPlaceName(context, lastKnown.first, lastKnown.second)
+                    _locationAttachment.value = LocationAttachment(
+                        name = name,
+                        latitude = lastKnown.first,
+                        longitude = lastKnown.second
+                    )
+                }
+
+                // 2. Active satellite acquisition for fresh, precise coordinates
+                val fresh = LocationHelper.getOrAcquireLocation(context, timeoutMs = 8_000L)
+                if (fresh != null && !locationExplicitlyRemoved) {
+                    val name = LocationHelper.getPlaceName(context, fresh.first, fresh.second)
+                    _locationAttachment.value = LocationAttachment(
+                        name = name,
+                        latitude = fresh.first,
+                        longitude = fresh.second
+                    )
+                }
+            } catch (_: Exception) {
+                // Keep graceful fallback
+            } finally {
+                _isAcquiringLocation.value = false
+            }
+        }
     }
 
     fun setPublic(isPublic: Boolean) {
@@ -220,7 +274,21 @@ class ComposerViewModel(
         val validPollOptions = if (_isPollEnabled.value) {
             _pollOptions.value.map { it.trim() }.filter { it.isNotBlank() }.takeIf { it.size >= 2 }
         } else null
-        val location = _locationAttachment.value
+        var location = _locationAttachment.value
+
+        // Automatic location attachment: if not yet locked in and not explicitly removed, resolve best available fix
+        if (location == null && !locationExplicitlyRemoved && LocationHelper.hasLocationPermission(context)) {
+            val fallback = LocationHelper.getLastKnownLocation(context)
+            if (fallback != null) {
+                val name = LocationHelper.getPlaceName(context, fallback.first, fallback.second)
+                location = LocationAttachment(
+                    name = name,
+                    latitude = fallback.first,
+                    longitude = fallback.second
+                )
+                _locationAttachment.value = location
+            }
+        }
 
         if (text.isBlank() && imageUri == null && validPollOptions == null && location == null) return
 
@@ -273,6 +341,8 @@ class ComposerViewModel(
                     _pollOptions.value = listOf("", "")
                     _expiryOption.value = ExpiryOption.FOREVER
                     _locationAttachment.value = null
+                    _isAcquiringLocation.value = false
+                    locationExplicitlyRemoved = false
                     _statusMessage.value = "Post shared successfully!"
                     onSuccess()
                 } else {

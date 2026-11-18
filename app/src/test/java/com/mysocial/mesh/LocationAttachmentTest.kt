@@ -3,9 +3,11 @@ package com.mysocial.mesh
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.mysocial.mesh.crypto.CryptoManager
+import com.mysocial.mesh.data.AppSettings
 import com.mysocial.mesh.data.LogProjector
 import com.mysocial.mesh.data.LogValidator
 import com.mysocial.mesh.data.MeshDatabase
+import com.mysocial.mesh.data.MeshRepository
 import com.mysocial.mesh.data.ValidationResult
 import com.mysocial.mesh.model.ContentType
 import com.mysocial.mesh.model.LocationAttachment
@@ -13,10 +15,13 @@ import com.mysocial.mesh.model.LogEntry
 import com.mysocial.mesh.model.PostPayload
 import com.mysocial.mesh.model.PostViewEntity
 import com.mysocial.mesh.protocol.GossipSyncEngine
+import com.mysocial.mesh.ui.composer.ComposerMode
+import com.mysocial.mesh.ui.composer.ComposerViewModel
 import com.mysocial.mesh.utils.LocationHelper
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -175,5 +180,36 @@ class LocationAttachmentTest {
         val post = db.postViewDao().getPost(published!!.entryHash)
         assertNotNull(post)
         assertEquals("Central Square", post?.locationName)
+    }
+
+    @Test
+    fun testComposerViewModelLocationState() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val appSettings = AppSettings.getInstance(context)
+        val repository = MeshRepository(db, cryptoManager, syncEngine, appSettings)
+        val vm = ComposerViewModel(repository)
+
+        // Initially null
+        assertNull(vm.locationAttachment.value)
+        assertFalse(vm.isAcquiringLocation.value)
+
+        // setLocation updates state
+        vm.setLocation("Golden Gate Bridge", 37.8199, -122.4783)
+        assertNotNull(vm.locationAttachment.value)
+        assertEquals("Golden Gate Bridge", vm.locationAttachment.value?.name)
+        assertEquals(37.8199, vm.locationAttachment.value?.latitude ?: 0.0, 0.0001)
+        assertEquals(-122.4783, vm.locationAttachment.value?.longitude ?: 0.0, 0.0001)
+
+        // clearLocation removes location
+        vm.clearLocation()
+        assertNull(vm.locationAttachment.value)
+        assertFalse(vm.isAcquiringLocation.value)
+
+        // resetForMode resets location
+        vm.setLocation("Muir Woods", 37.8970, -122.5811)
+        assertEquals("Muir Woods", vm.locationAttachment.value?.name)
+        vm.resetForMode(ComposerMode.POST)
+        assertNull(vm.locationAttachment.value)
+        assertFalse(vm.isAcquiringLocation.value)
     }
 }

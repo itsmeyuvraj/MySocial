@@ -125,6 +125,7 @@ fun ComposerScreen(
     val isPollEnabled by viewModel.isPollEnabled.collectAsState()
     val pollOptions by viewModel.pollOptions.collectAsState()
     val locationAttachment by viewModel.locationAttachment.collectAsState()
+    val isAcquiringLocation by viewModel.isAcquiringLocation.collectAsState()
 
     var showAudienceDialog by remember { mutableStateOf(false) }
     var showLocationDialog by remember { mutableStateOf(false) }
@@ -147,29 +148,26 @@ fun ComposerScreen(
         val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
                       permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         if (granted) {
-            coroutineScope.launch {
-                val loc = LocationHelper.getOrAcquireLocation(context)
-                if (loc != null) {
-                    val name = LocationHelper.getPlaceName(context, loc.first, loc.second)
-                    viewModel.setLocation(name, loc.first, loc.second)
-                } else {
-                    viewModel.setLocation("Current Location")
-                }
-            }
+            viewModel.autoAcquireLocation(context)
         }
     }
 
     val onUseCurrentLocation: () -> Unit = {
         if (LocationHelper.hasLocationPermission(context)) {
-            coroutineScope.launch {
-                val loc = LocationHelper.getOrAcquireLocation(context)
-                if (loc != null) {
-                    val name = LocationHelper.getPlaceName(context, loc.first, loc.second)
-                    viewModel.setLocation(name, loc.first, loc.second)
-                } else {
-                    viewModel.setLocation("Current Location")
-                }
-            }
+            viewModel.autoAcquireLocation(context)
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    val onRequestLocation: () -> Unit = {
+        if (LocationHelper.hasLocationPermission(context)) {
+            showLocationDialog = true
         } else {
             locationPermissionLauncher.launch(
                 arrayOf(
@@ -186,10 +184,20 @@ fun ComposerScreen(
         viewModel.setSelectedImageUri(uri)
     }
 
-    // Auto-prompt photo picker when launched into PHOTO mode with no photo yet
+    // Auto-prompt photo picker when in PHOTO mode and auto-acquire location across all modes
     LaunchedEffect(composerMode) {
         if (composerMode == ComposerMode.PHOTO && selectedImageUri == null) {
             photoPickerLauncher.launch("image/*")
+        }
+        if (LocationHelper.hasLocationPermission(context)) {
+            viewModel.autoAcquireLocation(context)
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
         }
     }
 
@@ -466,55 +474,16 @@ fun ComposerScreen(
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // Location Attachment in Photo Mode
-                        if (locationAttachment != null) {
-                            AttachedLocationChip(
-                                location = locationAttachment!!,
-                                onRemove = { viewModel.clearLocation() }
-                            )
-                            Spacer(modifier = Modifier.height(14.dp))
-                        } else {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(FbSurfaceElevated)
-                                    .border(0.5.dp, FbBorder, RoundedCornerShape(10.dp))
-                                    .clickable { showLocationDialog = true }
-                                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(FacebookBlue.copy(alpha = 0.12f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.LocationOn,
-                                        contentDescription = null,
-                                        tint = FacebookBlue,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Tag Location",
-                                        color = FbTextPrimary,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Text(
-                                        text = "Add where this photo was taken",
-                                        color = FbTextSecondary,
-                                        fontSize = 11.5.sp
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(14.dp))
-                        }
+                        // Automatic Location Section in Photo Mode
+                        ComposerLocationSection(
+                            locationAttachment = locationAttachment,
+                            isAcquiringLocation = isAcquiringLocation,
+                            isAlert = false,
+                            onEditLocation = { showLocationDialog = true },
+                            onRemoveLocation = { viewModel.clearLocation() },
+                            onRequestLocation = onRequestLocation
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
 
                         // Expiry Duration Row
                         ExpiryDurationRow(
@@ -666,6 +635,18 @@ fun ComposerScreen(
                                 }
                             }
                         }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Automatic Location Section in Poll Mode
+                        ComposerLocationSection(
+                            locationAttachment = locationAttachment,
+                            isAcquiringLocation = isAcquiringLocation,
+                            isAlert = false,
+                            onEditLocation = { showLocationDialog = true },
+                            onRemoveLocation = { viewModel.clearLocation() },
+                            onRequestLocation = onRequestLocation
+                        )
 
                         Spacer(modifier = Modifier.height(14.dp))
 
@@ -833,56 +814,16 @@ fun ComposerScreen(
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // Location Attachment in Alert Mode
-                        if (locationAttachment != null) {
-                            AttachedLocationChip(
-                                location = locationAttachment!!,
-                                onRemove = { viewModel.clearLocation() },
-                                isAlert = true
-                            )
-                            Spacer(modifier = Modifier.height(14.dp))
-                        } else {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(FbRedLight)
-                                    .border(0.8.dp, FbRed.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-                                    .clickable { showLocationDialog = true }
-                                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(FbRed.copy(alpha = 0.15f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.LocationOn,
-                                        contentDescription = null,
-                                        tint = FbRed,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Attach Emergency Location",
-                                        color = FbRed,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = "Tag exact GPS coordinates or hazard area for responders",
-                                        color = FbTextSecondary,
-                                        fontSize = 11.5.sp
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(14.dp))
-                        }
+                        // Automatic Location Section in Alert Mode
+                        ComposerLocationSection(
+                            locationAttachment = locationAttachment,
+                            isAcquiringLocation = isAcquiringLocation,
+                            isAlert = true,
+                            onEditLocation = { showLocationDialog = true },
+                            onRemoveLocation = { viewModel.clearLocation() },
+                            onRequestLocation = onRequestLocation
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
 
                         // Alert Duration Row
                         ExpiryDurationRow(
@@ -1056,56 +997,16 @@ fun ComposerScreen(
                             Spacer(modifier = Modifier.height(14.dp))
                         }
 
-                        // Attached Location Chip in Post Mode
-                        if (locationAttachment != null) {
-                            AttachedLocationChip(
-                                location = locationAttachment!!,
-                                onRemove = { viewModel.clearLocation() }
-                            )
-                            Spacer(modifier = Modifier.height(14.dp))
-                        } else {
-                            // Quick Add Location Prompt Strip
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(FbSurfaceElevated)
-                                    .border(0.5.dp, FbBorder, RoundedCornerShape(10.dp))
-                                    .clickable { showLocationDialog = true }
-                                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(FacebookBlue.copy(alpha = 0.12f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.LocationOn,
-                                        contentDescription = null,
-                                        tint = FacebookBlue,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Add Location",
-                                        color = FbTextPrimary,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Text(
-                                        text = "Attach GPS or named place to your mesh post",
-                                        color = FbTextSecondary,
-                                        fontSize = 11.5.sp
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(14.dp))
-                        }
+                        // Automatic Location Section in Post Mode
+                        ComposerLocationSection(
+                            locationAttachment = locationAttachment,
+                            isAcquiringLocation = isAcquiringLocation,
+                            isAlert = false,
+                            onEditLocation = { showLocationDialog = true },
+                            onRemoveLocation = { viewModel.clearLocation() },
+                            onRequestLocation = onRequestLocation
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
 
                         // Post duration options row
                         ExpiryDurationRow(
@@ -1464,9 +1365,83 @@ private fun PrivacyReassuranceBanner() {
 }
 
 @Composable
-private fun AttachedLocationChip(
-    location: LocationAttachment,
-    onRemove: () -> Unit,
+private fun ComposerLocationSection(
+    locationAttachment: LocationAttachment?,
+    isAcquiringLocation: Boolean,
+    isAlert: Boolean,
+    onEditLocation: () -> Unit,
+    onRemoveLocation: () -> Unit,
+    onRequestLocation: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (locationAttachment != null) {
+        AttachedLocationChip(
+            location = locationAttachment,
+            onRemove = onRemoveLocation,
+            onEdit = onEditLocation,
+            isAlert = isAlert,
+            modifier = modifier
+        )
+    } else if (isAcquiringLocation) {
+        AcquiringLocationChip(
+            onCancel = onRemoveLocation,
+            isAlert = isAlert,
+            modifier = modifier
+        )
+    } else {
+        // Fallback row if location permission is not yet granted or user manually cleared it
+        val bg = if (isAlert) FbRedLight else FbSurfaceElevated
+        val borderCol = if (isAlert) FbRed.copy(alpha = 0.4f) else FbBorder
+        val iconBg = if (isAlert) FbRed.copy(alpha = 0.15f) else FacebookBlue.copy(alpha = 0.12f)
+        val iconTint = if (isAlert) FbRed else FacebookBlue
+        val titleText = if (isAlert) "Attach Emergency Location" else "Add Location"
+        val subtitleText = if (isAlert) "Tag GPS coordinates or hazard area for responders" else "Auto-location disabled • Tap to add or retry"
+
+        Row(
+            modifier = modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(bg)
+                .border(0.8.dp, borderCol, RoundedCornerShape(10.dp))
+                .clickable { onRequestLocation() }
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(iconBg),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.LocationOn,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = titleText,
+                    color = if (isAlert) FbRed else FbTextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = subtitleText,
+                    color = FbTextSecondary,
+                    fontSize = 11.5.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AcquiringLocationChip(
+    onCancel: () -> Unit,
     isAlert: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -1483,6 +1458,61 @@ private fun AttachedLocationChip(
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(16.dp),
+            color = textCol,
+            strokeWidth = 2.dp
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Acquiring GPS location...",
+                color = textCol,
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "Attaching your location automatically",
+                color = textCol.copy(alpha = 0.75f),
+                fontSize = 11.sp
+            )
+        }
+        IconButton(
+            onClick = onCancel,
+            modifier = Modifier.size(24.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Close,
+                contentDescription = "Cancel location",
+                tint = textCol,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun AttachedLocationChip(
+    location: LocationAttachment,
+    onRemove: () -> Unit,
+    onEdit: (() -> Unit)? = null,
+    isAlert: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    val bg = if (isAlert) FbRedLight else FacebookBlueLight
+    val borderCol = if (isAlert) FbRed.copy(alpha = 0.4f) else FacebookBlue.copy(alpha = 0.35f)
+    val textCol = if (isAlert) FbRed else FacebookBlue
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(bg)
+            .border(1.dp, borderCol, RoundedCornerShape(10.dp))
+            .clickable(enabled = onEdit != null) { onEdit?.invoke() }
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Icon(
             imageVector = Icons.Filled.LocationOn,
             contentDescription = "Attached Location",
@@ -1491,21 +1521,40 @@ private fun AttachedLocationChip(
         )
         Spacer(modifier = Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = location.name,
-                color = textCol,
-                fontSize = 13.5.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            if (location.latitude != null && location.longitude != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = LocationHelper.formatCoordinates(location.latitude, location.longitude),
-                    color = textCol.copy(alpha = 0.75f),
-                    fontSize = 11.sp
+                    text = location.name,
+                    color = textCol,
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
+                Spacer(modifier = Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(textCol.copy(alpha = 0.15f))
+                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                ) {
+                    Text(
+                        text = "Auto",
+                        color = textCol,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
+            val subtitle = if (location.latitude != null && location.longitude != null) {
+                LocationHelper.formatCoordinates(location.latitude, location.longitude) + " • Tap to edit"
+            } else {
+                "Tap to edit"
+            }
+            Text(
+                text = subtitle,
+                color = textCol.copy(alpha = 0.75f),
+                fontSize = 11.sp
+            )
         }
         IconButton(
             onClick = onRemove,
