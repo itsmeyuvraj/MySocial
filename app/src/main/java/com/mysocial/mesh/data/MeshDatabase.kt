@@ -509,7 +509,7 @@ object LogValidator {
             when (contentType) {
                 ContentType.POST -> {
                     val p = PostPayload.fromJson(json)
-                    p.text.isNotBlank() || p.media != null || !p.pollOptions.isNullOrEmpty()
+                    p.text.isNotBlank() || p.media != null || !p.pollOptions.isNullOrEmpty() || p.location != null
                 }
                 ContentType.REPLY -> {
                     val r = ReplyPayload.fromJson(json)
@@ -672,7 +672,10 @@ object LogProjector {
                         transportSource = transportSource,
                         expiresAt = payload.expiresAt,
                         isSos = payload.isSos,
-                        pollOptionsJson = pollOptionsJson
+                        pollOptionsJson = pollOptionsJson,
+                        locationName = payload.location?.name,
+                        latitude = payload.location?.latitude,
+                        longitude = payload.location?.longitude
                     )
                 )
 
@@ -1027,7 +1030,7 @@ data class BatchResult(val acceptedCount: Int, val errors: List<String>)
         GroupMessageEntity::class,
         StoryEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -1280,6 +1283,14 @@ abstract class MeshDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_12_13 = object : androidx.room.migration.Migration(12, 13) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `posts_view` ADD COLUMN `locationName` TEXT")
+                db.execSQL("ALTER TABLE `posts_view` ADD COLUMN `latitude` REAL")
+                db.execSQL("ALTER TABLE `posts_view` ADD COLUMN `longitude` REAL")
+            }
+        }
+
         @Volatile
         private var INSTANCE: MeshDatabase? = null
 
@@ -1296,7 +1307,7 @@ abstract class MeshDatabase : RoomDatabase() {
                 DATABASE_NAME
             )
                 .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
                 .fallbackToDestructiveMigration()
                 .build()
                 .also { it.appContext = context.applicationContext }

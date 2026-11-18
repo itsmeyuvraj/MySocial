@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.Public
@@ -305,6 +306,46 @@ fun PostCard(
                         if (showHopBadges && post.hopCount > 1) {
                             Text(text = "•", color = FbTextTertiary, fontSize = 10.sp)
                             HopBadge(hopCount = post.hopCount, transportSource = post.transportSource)
+                        }
+                    }
+
+                    if (!post.locationName.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable {
+                                    com.mysocial.mesh.utils.LocationHelper.openLocationInMap(
+                                        context,
+                                        post.latitude,
+                                        post.longitude,
+                                        post.locationName
+                                    )
+                                }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.LocationOn,
+                                contentDescription = "Location",
+                                tint = FacebookBlue,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = post.locationName,
+                                color = FacebookBlue,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (post.latitude != null && post.longitude != null) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "🗺️",
+                                    fontSize = 10.sp
+                                )
+                            }
                         }
                     }
                 }

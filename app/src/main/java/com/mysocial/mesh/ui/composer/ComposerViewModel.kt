@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mysocial.mesh.data.MediaProcessor
 import com.mysocial.mesh.data.MeshRepository
+import com.mysocial.mesh.model.LocationAttachment
 import com.mysocial.mesh.model.MediaAttachment
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -61,6 +62,9 @@ class ComposerViewModel(
     private val _pollOptions = MutableStateFlow(listOf("", ""))
     val pollOptions: StateFlow<List<String>> = _pollOptions.asStateFlow()
 
+    private val _locationAttachment = MutableStateFlow<LocationAttachment?>(null)
+    val locationAttachment: StateFlow<LocationAttachment?> = _locationAttachment.asStateFlow()
+
     val authorId: String = repository.cryptoManager.authorId
     val myProfile = repository.observeMyProfile()
 
@@ -101,6 +105,7 @@ class ComposerViewModel(
         _tags.value = emptyList()
         _isPublishing.value = false
         _isPublic.value = true
+        _locationAttachment.value = null
 
         when (mode) {
             ComposerMode.POST -> {
@@ -170,6 +175,21 @@ class ComposerViewModel(
         }
     }
 
+    fun setLocation(name: String, latitude: Double? = null, longitude: Double? = null) {
+        val trimmed = name.trim()
+        if (trimmed.isNotBlank()) {
+            _locationAttachment.value = LocationAttachment(
+                name = trimmed,
+                latitude = latitude,
+                longitude = longitude
+            )
+        }
+    }
+
+    fun clearLocation() {
+        _locationAttachment.value = null
+    }
+
     fun setPublic(isPublic: Boolean) {
         _isPublic.value = isPublic
     }
@@ -200,8 +220,9 @@ class ComposerViewModel(
         val validPollOptions = if (_isPollEnabled.value) {
             _pollOptions.value.map { it.trim() }.filter { it.isNotBlank() }.takeIf { it.size >= 2 }
         } else null
+        val location = _locationAttachment.value
 
-        if (text.isBlank() && imageUri == null && validPollOptions == null) return
+        if (text.isBlank() && imageUri == null && validPollOptions == null && location == null) return
 
         viewModelScope.launch {
             _isPublishing.value = true
@@ -225,6 +246,7 @@ class ComposerViewModel(
                     text.isNotBlank() -> text
                     mediaAttachment != null -> "Shared a photo"
                     validPollOptions != null -> "Participate in this poll"
+                    location != null -> "At ${location.name}"
                     else -> "New update"
                 }
 
@@ -237,7 +259,8 @@ class ComposerViewModel(
                     isPublic = _isPublic.value,
                     expiresAt = expiresAt,
                     isSos = _isSos.value,
-                    pollOptions = validPollOptions
+                    pollOptions = validPollOptions,
+                    location = location
                 )
                 _isPublishing.value = false
 
@@ -249,6 +272,7 @@ class ComposerViewModel(
                     _isPollEnabled.value = false
                     _pollOptions.value = listOf("", "")
                     _expiryOption.value = ExpiryOption.FOREVER
+                    _locationAttachment.value = null
                     _statusMessage.value = "Post shared successfully!"
                     onSuccess()
                 } else {

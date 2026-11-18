@@ -350,7 +350,8 @@ class MeshRepository(
         isPublic: Boolean = true,
         expiresAt: Long? = null,
         isSos: Boolean = false,
-        pollOptions: List<String>? = null
+        pollOptions: List<String>? = null,
+        location: com.mysocial.mesh.model.LocationAttachment? = null
     ): Result<LogEntry> {
         val payload = PostPayload(
             text = text.trim(),
@@ -359,7 +360,8 @@ class MeshRepository(
             isPublic = isPublic,
             expiresAt = expiresAt,
             isSos = isSos,
-            pollOptions = pollOptions
+            pollOptions = pollOptions,
+            location = location
         ).toJson()
         return syncEngine.createAndPublishLocalEntry(ContentType.POST, payload).also {
             if (it.isSuccess) {
@@ -367,6 +369,7 @@ class MeshRepository(
                     isSos -> " [Urgent Alert]"
                     pollOptions != null -> " with poll"
                     media != null -> " with photo"
+                    location != null -> " at ${location.name}"
                     else -> ""
                 }
                 val aud = if (isPublic) "public" else "friends-only"
