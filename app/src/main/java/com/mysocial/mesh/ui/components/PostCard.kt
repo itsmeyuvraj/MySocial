@@ -9,10 +9,12 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -109,7 +111,7 @@ import com.mysocial.mesh.ui.theme.FbTextSecondary
 import com.mysocial.mesh.ui.theme.FbTextTertiary
 import java.io.File
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun PostCard(
     postWithAuthor: PostWithAuthor,
@@ -257,7 +259,8 @@ fun PostCard(
                         CompassRadarView(
                             senderAuthorId = authorId,
                             targetLatitude = post.latitude,
-                            targetLongitude = post.longitude
+                            targetLongitude = post.longitude,
+                            targetLocationName = post.locationName
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                     }
@@ -319,14 +322,25 @@ fun PostCard(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
-                                .clickable {
-                                    com.mysocial.mesh.utils.LocationHelper.openLocationInMap(
-                                        context,
-                                        post.latitude,
-                                        post.longitude,
-                                        post.locationName
-                                    )
-                                }
+                                .combinedClickable(
+                                    onClick = {
+                                        com.mysocial.mesh.utils.LocationHelper.openLocationInMap(
+                                            context,
+                                            post.latitude,
+                                            post.longitude,
+                                            post.locationName
+                                        )
+                                    },
+                                    onLongClick = {
+                                        if (post.latitude != null && post.longitude != null) {
+                                            com.mysocial.mesh.utils.LocationHelper.copyCoordinates(
+                                                context,
+                                                post.latitude,
+                                                post.longitude
+                                            )
+                                        }
+                                    }
+                                )
                         ) {
                             val locationTint = if (post.isSos) FbRed else FacebookBlue
                             Icon(

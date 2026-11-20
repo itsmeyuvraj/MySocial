@@ -15,8 +15,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,6 +50,7 @@ fun CompassRadarView(
     senderAuthorId: String,
     targetLatitude: Double? = null,
     targetLongitude: Double? = null,
+    targetLocationName: String? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -75,6 +78,19 @@ fun CompassRadarView(
         } else {
             val hash = abs(senderAuthorId.hashCode())
             (hash % 360).toFloat()
+        }
+    }
+
+    val distanceMeters = remember(targetLatitude, targetLongitude, myLocation) {
+        if (targetLatitude != null && targetLongitude != null && myLocation != null) {
+            CompassDirectionFinder.calculateDistanceMeters(
+                lat1 = myLocation.first,
+                lon1 = myLocation.second,
+                lat2 = targetLatitude,
+                lon2 = targetLongitude
+            )
+        } else {
+            null
         }
     }
 
@@ -157,11 +173,38 @@ fun CompassRadarView(
                     fontWeight = FontWeight.SemiBold,
                     color = FbTextPrimary
                 )
+                val statusText = if (distanceMeters != null) {
+                    val distStr = CompassDirectionFinder.formatDistance(distanceMeters)
+                    "Distance: ~$distStr • Target: ${targetBearing.toInt()}°"
+                } else {
+                    "Device Azimuth: ${currentAzimuth.toInt()}° • Target: ${targetBearing.toInt()}°"
+                }
                 Text(
-                    text = "Device Azimuth: ${currentAzimuth.toInt()}° • Target: ${targetBearing.toInt()}°",
+                    text = statusText,
                     fontSize = 11.sp,
                     color = FbTextSecondary
                 )
+            }
+
+            if (targetLatitude != null && targetLongitude != null) {
+                IconButton(
+                    onClick = {
+                        com.mysocial.mesh.utils.LocationHelper.openLocationInMap(
+                            context,
+                            targetLatitude,
+                            targetLongitude,
+                            targetLocationName
+                        )
+                    },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.LocationOn,
+                        contentDescription = "Open in Maps",
+                        tint = FbRed,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
         }
     }

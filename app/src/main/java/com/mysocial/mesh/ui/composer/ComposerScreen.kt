@@ -1389,13 +1389,26 @@ private fun ComposerLocationSection(
             modifier = modifier
         )
     } else {
+        val context = LocalContext.current
+        val isServicesEnabled = remember { LocationHelper.isLocationServicesEnabled(context) }
         // Fallback row if location permission is not yet granted or user manually cleared it
         val bg = if (isAlert) FbRedLight else FbSurfaceElevated
         val borderCol = if (isAlert) FbRed.copy(alpha = 0.4f) else FbBorder
         val iconBg = if (isAlert) FbRed.copy(alpha = 0.15f) else FacebookBlue.copy(alpha = 0.12f)
         val iconTint = if (isAlert) FbRed else FacebookBlue
         val titleText = if (isAlert) "Attach Emergency Location" else "Add Location"
-        val subtitleText = if (isAlert) "Tag GPS coordinates or hazard area for responders" else "Auto-location disabled • Tap to add or retry"
+        val subtitleText = when {
+            !isServicesEnabled -> "Location turned off in system settings • Tap to enable"
+            isAlert -> "Tag GPS coordinates or hazard area for responders"
+            else -> "Auto-location disabled • Tap to add or retry"
+        }
+        val onRowClick = {
+            if (!isServicesEnabled) {
+                LocationHelper.openLocationSettings(context)
+            } else {
+                onRequestLocation()
+            }
+        }
 
         Row(
             modifier = modifier
@@ -1403,7 +1416,7 @@ private fun ComposerLocationSection(
                 .clip(RoundedCornerShape(10.dp))
                 .background(bg)
                 .border(0.8.dp, borderCol, RoundedCornerShape(10.dp))
-                .clickable { onRequestLocation() }
+                .clickable { onRowClick() }
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {

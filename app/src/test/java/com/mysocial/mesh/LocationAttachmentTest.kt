@@ -272,4 +272,44 @@ class LocationAttachmentTest {
         assertEquals(37.742, projected?.latitude ?: 0.0, 0.001)
         assertEquals(-119.603, projected?.longitude ?: 0.0, 0.001)
     }
+
+    @Test
+    fun testCompassDirectionFinderDistanceCalculationAndFormatting() {
+        // Distance from Mt. Everest base to summit (~5.5 km)
+        val lat1 = 28.0026
+        val lon1 = 86.8528
+        val lat2 = 27.9881
+        val lon2 = 86.9250
+        val distMeters = com.mysocial.mesh.emergency.CompassDirectionFinder.calculateDistanceMeters(lat1, lon1, lat2, lon2)
+        assertTrue("Distance should be greater than 7000m", distMeters > 7000.0)
+        assertTrue("Distance should be less than 8500m", distMeters < 8500.0)
+
+        // Test formatting
+        val formattedMeters = com.mysocial.mesh.emergency.CompassDirectionFinder.formatDistance(450.0)
+        assertEquals("450 m", formattedMeters)
+
+        val formattedKm = com.mysocial.mesh.emergency.CompassDirectionFinder.formatDistance(7350.0)
+        assertEquals("7.4 km", formattedKm)
+    }
+
+    @Test
+    fun testFormatCoordinatesWithAltitude() {
+        val withAlt = LocationHelper.formatCoordinates(47.6062, -122.3321, 142.6)
+        assertEquals("47.6062° N, 122.3321° W (Alt: 142m)", withAlt)
+
+        val withoutAlt = LocationHelper.formatCoordinates(47.6062, -122.3321, null)
+        assertEquals("47.6062° N, 122.3321° W", withoutAlt)
+    }
+
+    @Test
+    fun testLocationServicesAndClipboard() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        // Verify isLocationServicesEnabled runs safely without exceptions
+        val enabled = LocationHelper.isLocationServicesEnabled(context)
+        // Verify copyCoordinates copies to system clipboard
+        LocationHelper.copyCoordinates(context, 37.7749, -122.4194)
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+        assertNotNull(clipboard?.primaryClip)
+        assertEquals("37.7749, -122.4194", clipboard?.primaryClip?.getItemAt(0)?.text?.toString())
+    }
 }

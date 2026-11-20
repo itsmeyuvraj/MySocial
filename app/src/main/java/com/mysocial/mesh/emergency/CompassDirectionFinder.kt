@@ -143,6 +143,31 @@ class CompassDirectionFinder(context: Context) : SensorEventListener {
             val ratio = (txPower - rssi) / (10.0 * pathLossExponent)
             return 10.0.pow(ratio).coerceIn(0.1, 500.0)
         }
+
+        /**
+         * Computes the great-circle distance between two GPS coordinates using the Haversine formula in meters.
+         */
+        fun calculateDistanceMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+            val r = 6_371_000.0 // Earth radius in meters
+            val dLat = Math.toRadians(lat2 - lat1)
+            val dLon = Math.toRadians(lon2 - lon1)
+            val sinDlat = sin(dLat / 2)
+            val sinDlon = sin(dLon / 2)
+            val a = sinDlat * sinDlat + cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sinDlon * sinDlon
+            val c = 2 * atan2(kotlin.math.sqrt(a), kotlin.math.sqrt(1 - a))
+            return r * c
+        }
+
+        /**
+         * Formats a distance in meters to a human-readable string (e.g. "120 m" or "2.4 km").
+         */
+        fun formatDistance(meters: Double): String {
+            return if (meters < 1000.0) {
+                "${meters.toInt()} m"
+            } else {
+                String.format(java.util.Locale.US, "%.1f km", meters / 1000.0)
+            }
+        }
     }
 }
 

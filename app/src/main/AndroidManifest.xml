@@ -89,6 +89,7 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
         android:networkSecurityConfig="@xml/network_security_config"
+        android:enableOnBackInvokedCallback="true"
         android:theme="@style/Theme.MySocial"
         tools:targetApi="34">
 

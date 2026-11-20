@@ -580,7 +580,8 @@ class MdnsWifiTransport(
             serviceType = this@MdnsWifiTransport.serviceType
             port = serverPort
             setAttribute("authorId", localAuthorId)
-            setAttribute("displayName", localDisplayName)
+            // RFC 6763 recommends DNS-SD TXT record keys <= 9 chars to prevent Android framework warnings
+            setAttribute("name", localDisplayName)
         }
 
         registrationListener = object : NsdManager.RegistrationListener {
@@ -732,7 +733,7 @@ class MdnsWifiTransport(
 
         val rawAuthorId = resolved.attributes["authorId"]?.let { String(it, Charsets.UTF_8) }
         val peerId = rawAuthorId ?: resolved.serviceName
-        val rawDisplayName = resolved.attributes["displayName"]?.let { String(it, Charsets.UTF_8) }
+        val rawDisplayName = (resolved.attributes["name"] ?: resolved.attributes["displayName"])?.let { String(it, Charsets.UTF_8) }
         val peerName = if (!rawDisplayName.isNullOrBlank() && rawDisplayName != "MeshPeer" && rawDisplayName != "User") {
             rawDisplayName
         } else {

@@ -27,6 +27,16 @@ import kotlin.math.abs
 object LocationHelper {
 
     /**
+     * Detailed location coordinates and telemetry.
+     */
+    data class LocationResult(
+        val latitude: Double,
+        val longitude: Double,
+        val altitude: Double? = null,
+        val accuracy: Float? = null
+    )
+
+    /**
      * Checks if either fine or coarse location permission is granted.
      */
     fun hasLocationPermission(context: Context): Boolean {
@@ -52,10 +62,52 @@ object LocationHelper {
     }
 
     /**
-     * Retrieves the device's last known location using GPS, Network, or Passive providers.
-     * Selects the most accurate/recent location available.
+     * Checks whether location services are enabled system-wide on the device.
      */
-    fun getLastKnownLocation(context: Context): Pair<Double, Double>? {
+    fun isLocationServicesEnabled(context: Context): Boolean {
+        val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return false
+        return lm.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
+               lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+    }
+
+    /**
+     * Launches Android System Location Settings so the user can enable location services.
+     */
+    fun openLocationSettings(context: Context) {
+        try {
+            val intent = Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        } catch (_: Exception) {
+            try {
+                val intent = Intent(android.provider.Settings.ACTION_SETTINGS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+            } catch (_: Exception) {}
+        }
+    }
+
+    /**
+     * Copies latitude and longitude coordinates to system clipboard with formatted Toast confirmation.
+     */
+    fun copyCoordinates(context: Context, latitude: Double, longitude: Double) {
+        try {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+            val clip = android.content.ClipData.newPlainText("GPS Coordinates", "$latitude, $longitude")
+            clipboard?.setPrimaryClip(clip)
+            val formatted = formatCoordinates(latitude, longitude)
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                Toast.makeText(context, "Coordinates copied: $formatted", Toast.LENGTH_SHORT).show()
+            }
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * Retrieves the device's last known location with altitude details if available.
+     */
+    fun getLastKnownLocationDetails(context: Context): LocationResult? {
         if (!hasLocationPermission(context)) return null
         val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
 
@@ -81,20 +133,29 @@ object LocationHelper {
             }
         }
 
-        return bestLocation?.let { Pair(it.latitude, it.longitude) }
+        return bestLocation?.let {
+            val alt = if (it.hasAltitude()) it.altitude else null
+            val acc = if (it.hasAccuracy()) it.accuracy else null
+            LocationResult(it.latitude, it.longitude, alt, acc)
+        }
     }
 
     /**
-     * Actively requests a fresh standalone hardware GPS fix from satellite signals.
-     * When off-grid in deep backcountry/forest with zero cellular A-GPS, this engages
-     * the phone's autonomous GNSS receiver chip directly with satellites overhead.
-     * Times out gracefully after [timeoutMs] and falls back to last known fix if available.
+     * Retrieves the device's last known location using GPS, Network, or Passive providers.
+     * Selects the most accurate/recent location available.
      */
-    suspend fun getOrAcquireLocation(context: Context, timeoutMs: Long = 8_000L): Pair<Double, Double>? {
+    fun getLastKnownLocation(context: Context): Pair<Double, Double>? {
+        return getLastKnownLocationDetails(context)?.let { Pair(it.latitude, it.longitude) }
+    }
+
+    /**
+     * Actively requests a fresh standalone hardware GPS fix from satellite signals with altitude details.
+     */
+    suspend fun getOrAcquireLocationDetails(context: Context, timeoutMs: Long = 8_000L): LocationResult? {
         if (!hasLocationPermission(context)) return null
         val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
 
-        val last = getLastKnownLocation(context)
+        val last = getLastKnownLocationDetails(context)
         val hasFine = hasFineLocationPermission(context)
 
         return withTimeoutOrNull(timeoutMs) {
@@ -105,7 +166,9 @@ object LocationHelper {
                             lm.removeUpdates(this)
                         } catch (_: Exception) {}
                         if (cont.isActive) {
-                            cont.resume(Pair(loc.latitude, loc.longitude))
+                            val alt = if (loc.hasAltitude()) loc.altitude else null
+                            val acc = if (loc.hasAccuracy()) loc.accuracy else null
+                            cont.resume(LocationResult(loc.latitude, loc.longitude, alt, acc))
                         }
                     }
 
@@ -155,20 +218,35 @@ object LocationHelper {
     }
 
     /**
-     * Formats latitude and longitude coordinates into a human-readable string:
-     * e.g. "37.7749° N, 122.4194° W"
+     * Actively requests a fresh standalone hardware GPS fix from satellite signals.
+     * When off-grid in deep backcountry/forest with zero cellular A-GPS, this engages
+     * the phone's autonomous GNSS receiver chip directly with satellites overhead.
+     * Times out gracefully after [timeoutMs] and falls back to last known fix if available.
      */
-    fun formatCoordinates(lat: Double, lon: Double): String {
+    suspend fun getOrAcquireLocation(context: Context, timeoutMs: Long = 8_000L): Pair<Double, Double>? {
+        return getOrAcquireLocationDetails(context, timeoutMs)?.let { Pair(it.latitude, it.longitude) }
+    }
+
+    /**
+     * Formats latitude and longitude coordinates into a human-readable string:
+     * e.g. "37.7749° N, 122.4194° W" or "37.7749° N, 122.4194° W (Alt: 240m)"
+     */
+    fun formatCoordinates(lat: Double, lon: Double, altitudeMeters: Double? = null): String {
         val latDir = if (lat >= 0) "N" else "S"
         val lonDir = if (lon >= 0) "E" else "W"
-        return String.format(Locale.US, "%.4f° %s, %.4f° %s", abs(lat), latDir, abs(lon), lonDir)
+        val base = String.format(Locale.US, "%.4f° %s, %.4f° %s", abs(lat), latDir, abs(lon), lonDir)
+        return if (altitudeMeters != null && !altitudeMeters.isNaN()) {
+            "$base (Alt: ${altitudeMeters.toInt()}m)"
+        } else {
+            base
+        }
     }
 
     /**
      * Attempts to resolve coordinates to a descriptive place/locality name.
      * When offline or geocoding is unavailable, falls back gracefully to formatted coordinates.
      */
-    fun getPlaceName(context: Context, lat: Double, lon: Double): String {
+    fun getPlaceName(context: Context, lat: Double, lon: Double, altitudeMeters: Double? = null): String {
         try {
             if (Geocoder.isPresent()) {
                 val geocoder = Geocoder(context, Locale.getDefault())
@@ -191,14 +269,19 @@ object LocationHelper {
                         parts.add(adminArea)
                     }
                     if (parts.isNotEmpty()) {
-                        return parts.joinToString(", ")
+                        val resolvedName = parts.joinToString(", ")
+                        return if (altitudeMeters != null && !altitudeMeters.isNaN()) {
+                            "$resolvedName (Alt: ${altitudeMeters.toInt()}m)"
+                        } else {
+                            resolvedName
+                        }
                     }
                 }
             }
         } catch (_: Exception) {
             // Geocoder unavailable or network error in offline mode
         }
-        return formatCoordinates(lat, lon)
+        return formatCoordinates(lat, lon, altitudeMeters)
     }
 
     /**

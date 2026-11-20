@@ -217,24 +217,24 @@ class ComposerViewModel(
             _isAcquiringLocation.value = true
             try {
                 // 1. Fast-path: immediately attach last known location if present
-                val lastKnown = LocationHelper.getLastKnownLocation(context)
+                val lastKnown = LocationHelper.getLastKnownLocationDetails(context)
                 if (lastKnown != null && !locationExplicitlyRemoved && _locationAttachment.value == null) {
-                    val name = LocationHelper.getPlaceName(context, lastKnown.first, lastKnown.second)
+                    val name = LocationHelper.getPlaceName(context, lastKnown.latitude, lastKnown.longitude, lastKnown.altitude)
                     _locationAttachment.value = LocationAttachment(
                         name = name,
-                        latitude = lastKnown.first,
-                        longitude = lastKnown.second
+                        latitude = lastKnown.latitude,
+                        longitude = lastKnown.longitude
                     )
                 }
 
                 // 2. Active satellite acquisition for fresh, precise coordinates
-                val fresh = LocationHelper.getOrAcquireLocation(context, timeoutMs = 8_000L)
+                val fresh = LocationHelper.getOrAcquireLocationDetails(context, timeoutMs = 8_000L)
                 if (fresh != null && !locationExplicitlyRemoved) {
-                    val name = LocationHelper.getPlaceName(context, fresh.first, fresh.second)
+                    val name = LocationHelper.getPlaceName(context, fresh.latitude, fresh.longitude, fresh.altitude)
                     _locationAttachment.value = LocationAttachment(
                         name = name,
-                        latitude = fresh.first,
-                        longitude = fresh.second
+                        latitude = fresh.latitude,
+                        longitude = fresh.longitude
                     )
                 }
             } catch (_: Exception) {
@@ -286,13 +286,13 @@ class ComposerViewModel(
                 var location = _locationAttachment.value
                 // Automatic location attachment: if not yet locked in and not explicitly removed, resolve best available fix
                 if (location == null && !locationExplicitlyRemoved && LocationHelper.hasLocationPermission(context)) {
-                    val fallback = LocationHelper.getLastKnownLocation(context)
+                    val fallback = LocationHelper.getLastKnownLocationDetails(context)
                     if (fallback != null) {
-                        val name = LocationHelper.getPlaceName(context, fallback.first, fallback.second)
+                        val name = LocationHelper.getPlaceName(context, fallback.latitude, fallback.longitude, fallback.altitude)
                         location = LocationAttachment(
                             name = name,
-                            latitude = fallback.first,
-                            longitude = fallback.second
+                            latitude = fallback.latitude,
+                            longitude = fallback.longitude
                         )
                         _locationAttachment.value = location
                     }
