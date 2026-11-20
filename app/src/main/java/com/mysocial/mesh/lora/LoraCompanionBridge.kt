@@ -84,7 +84,8 @@ class LoraCompanionBridge private constructor(private val context: Context) {
             disconnect()
             _connectionState.value = LoraConnectionState.CONNECTING
 
-            val adapter = BluetoothAdapter.getDefaultAdapter()
+            val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager
+            val adapter = manager?.adapter ?: @Suppress("DEPRECATION") BluetoothAdapter.getDefaultAdapter()
                 ?: return@withContext Result.failure(IllegalStateException("Bluetooth adapter not available"))
 
             val device: BluetoothDevice = adapter.getRemoteDevice(deviceAddress)
@@ -139,12 +140,15 @@ class LoraCompanionBridge private constructor(private val context: Context) {
     }
 
     /**
-     * Broadcasts a high-priority emergency SOS beacon over Sub-GHz LoRa.
+     * Broadcasts a high-priority emergency SOS beacon over Sub-GHz LoRa with optional GPS coordinates.
      */
     suspend fun broadcastSosAlert(
         authorId: String,
         text: String,
-        entryHash: String
+        entryHash: String,
+        locationName: String? = null,
+        latitude: Double? = null,
+        longitude: Double? = null
     ): Boolean = withContext(Dispatchers.IO) {
         if (!_bridgeInfo.value.isEnabled) return@withContext false
         if (_connectionState.value == LoraConnectionState.DISCONNECTED) return@withContext false
@@ -156,6 +160,9 @@ class LoraCompanionBridge private constructor(private val context: Context) {
                 put("hash", entryHash)
                 put("text", text.take(160))
                 put("time", System.currentTimeMillis())
+                if (!locationName.isNullOrBlank()) put("loc", locationName)
+                if (latitude != null) put("lat", latitude)
+                if (longitude != null) put("lon", longitude)
             }
             val payload = json.toString().toByteArray(Charsets.UTF_8)
             val packet = LoraPacket(

@@ -188,6 +188,10 @@ class MeshSyncService : Service() {
 
                     val existing = db.postViewDao().getPost(hash)
                     if (existing == null && authorId.isNotBlank() && hash.isNotBlank()) {
+                        val locName = json.optString("loc").takeIf { it.isNotBlank() }
+                        val lat = if (json.has("lat") && !json.isNull("lat")) json.optDouble("lat") else null
+                        val lon = if (json.has("lon") && !json.isNull("lon")) json.optDouble("lon") else null
+
                         val postEntity = com.mysocial.mesh.model.PostViewEntity(
                             entryHash = hash,
                             authorId = authorId,
@@ -200,14 +204,18 @@ class MeshSyncService : Service() {
                             hopDistance = packet.hopCount + 1,
                             hopCount = packet.hopCount + 1,
                             transportSource = "LORA",
-                            timestamp = json.optLong("time", System.currentTimeMillis())
+                            timestamp = json.optLong("time", System.currentTimeMillis()),
+                            locationName = locName,
+                            latitude = lat,
+                            longitude = lon
                         )
                         db.postViewDao().upsert(postEntity)
-                        Log.i(tag, "Ingested LoRa post into feed: $hash (SOS=$isSos, hop=${packet.hopCount})")
+                        Log.i(tag, "Ingested LoRa post into feed: $hash (SOS=$isSos, hop=${packet.hopCount}, loc=$locName)")
                         if (isSos) {
+                            val authorLabel = if (locName != null) "LoRa Emergency Beacon ($locName)" else "LoRa Radio Beacon"
                             com.mysocial.mesh.utils.PeerNotificationHelper.notifySosEmergency(
                                 context = this@MeshSyncService,
-                                authorName = "LoRa Radio Beacon",
+                                authorName = authorLabel,
                                 text = text
                             )
                         }

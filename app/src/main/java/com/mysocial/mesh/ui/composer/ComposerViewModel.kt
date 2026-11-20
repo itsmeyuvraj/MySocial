@@ -9,6 +9,7 @@ import com.mysocial.mesh.data.MeshRepository
 import com.mysocial.mesh.model.LocationAttachment
 import com.mysocial.mesh.model.MediaAttachment
 import com.mysocial.mesh.utils.LocationHelper
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -212,7 +213,7 @@ class ComposerViewModel(
         if (locationExplicitlyRemoved || _locationAttachment.value != null || _isAcquiringLocation.value) return
         if (!LocationHelper.hasLocationPermission(context)) return
 
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             _isAcquiringLocation.value = true
             try {
                 // 1. Fast-path: immediately attach last known location if present
@@ -274,29 +275,33 @@ class ComposerViewModel(
         val validPollOptions = if (_isPollEnabled.value) {
             _pollOptions.value.map { it.trim() }.filter { it.isNotBlank() }.takeIf { it.size >= 2 }
         } else null
-        var location = _locationAttachment.value
 
-        // Automatic location attachment: if not yet locked in and not explicitly removed, resolve best available fix
-        if (location == null && !locationExplicitlyRemoved && LocationHelper.hasLocationPermission(context)) {
-            val fallback = LocationHelper.getLastKnownLocation(context)
-            if (fallback != null) {
-                val name = LocationHelper.getPlaceName(context, fallback.first, fallback.second)
-                location = LocationAttachment(
-                    name = name,
-                    latitude = fallback.first,
-                    longitude = fallback.second
-                )
-                _locationAttachment.value = location
-            }
-        }
+        if (text.isBlank() && imageUri == null && validPollOptions == null && _locationAttachment.value == null && !LocationHelper.hasLocationPermission(context)) return
 
-        if (text.isBlank() && imageUri == null && validPollOptions == null && location == null) return
-
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             _isPublishing.value = true
             _statusMessage.value = null
 
             try {
+                var location = _locationAttachment.value
+                // Automatic location attachment: if not yet locked in and not explicitly removed, resolve best available fix
+                if (location == null && !locationExplicitlyRemoved && LocationHelper.hasLocationPermission(context)) {
+                    val fallback = LocationHelper.getLastKnownLocation(context)
+                    if (fallback != null) {
+                        val name = LocationHelper.getPlaceName(context, fallback.first, fallback.second)
+                        location = LocationAttachment(
+                            name = name,
+                            latitude = fallback.first,
+                            longitude = fallback.second
+                        )
+                        _locationAttachment.value = location
+                    }
+                }
+
+                if (text.isBlank() && imageUri == null && validPollOptions == null && location == null) {
+                    _isPublishing.value = false
+                    return@launch
+                }
                 var mediaAttachment: MediaAttachment? = null
                 if (imageUri != null) {
                     val processed = MediaProcessor.processImageUri(context, imageUri)

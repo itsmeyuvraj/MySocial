@@ -384,7 +384,14 @@ class MeshRepository(
                         val bridge = com.mysocial.mesh.lora.LoraCompanionBridge.getInstance(appContext)
                         repoScope.launch(Dispatchers.IO) {
                             if (isSos) {
-                                bridge.broadcastSosAlert(entry.authorId, text, entry.entryHash)
+                                bridge.broadcastSosAlert(
+                                    authorId = entry.authorId,
+                                    text = text,
+                                    entryHash = entry.entryHash,
+                                    locationName = location?.name,
+                                    latitude = location?.latitude,
+                                    longitude = location?.longitude
+                                )
                             } else if (text.length <= 160) {
                                 bridge.broadcastShortPost(entry.authorId, text, entry.entryHash)
                             }

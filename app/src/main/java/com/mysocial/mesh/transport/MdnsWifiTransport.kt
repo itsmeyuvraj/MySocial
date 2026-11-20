@@ -685,6 +685,7 @@ class MdnsWifiTransport(
         processNextResolve()
     }
 
+    @Suppress("DEPRECATION")
     private fun processNextResolve() {
         val manager = nsdManager ?: return
         if (!isResolving.compareAndSet(false, true)) return
@@ -718,6 +719,7 @@ class MdnsWifiTransport(
         }
     }
 
+    @Suppress("DEPRECATION")
     private fun handleResolvedPeer(resolved: NsdServiceInfo) {
         val host: InetAddress = resolved.host ?: return
         val hostAddress = host.hostAddress ?: return

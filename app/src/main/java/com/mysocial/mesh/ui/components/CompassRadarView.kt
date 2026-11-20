@@ -46,6 +46,8 @@ import kotlin.math.abs
 @Composable
 fun CompassRadarView(
     senderAuthorId: String,
+    targetLatitude: Double? = null,
+    targetLongitude: Double? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -60,10 +62,20 @@ fun CompassRadarView(
 
     val currentAzimuth by compassFinder.azimuth.collectAsState()
 
-    // Determine target relative bearing deterministically from author ID
-    val targetBearing = remember(senderAuthorId) {
-        val hash = abs(senderAuthorId.hashCode())
-        (hash % 360).toFloat()
+    // If both device and target coordinates are available, calculate true geographic bearing; fallback to author hash
+    val myLocation = remember { com.mysocial.mesh.utils.LocationHelper.getLastKnownLocation(context) }
+    val targetBearing = remember(senderAuthorId, targetLatitude, targetLongitude, myLocation) {
+        if (targetLatitude != null && targetLongitude != null && myLocation != null) {
+            CompassDirectionFinder.calculateBearing(
+                lat1 = myLocation.first,
+                lon1 = myLocation.second,
+                lat2 = targetLatitude,
+                lon2 = targetLongitude
+            )
+        } else {
+            val hash = abs(senderAuthorId.hashCode())
+            (hash % 360).toFloat()
+        }
     }
 
     val relativeAngle = CompassDirectionFinder.calculateRelativeBearing(currentAzimuth, targetBearing)

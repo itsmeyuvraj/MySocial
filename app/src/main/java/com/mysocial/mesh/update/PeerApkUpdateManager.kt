@@ -322,6 +322,7 @@ class PeerApkUpdateManager(
     /**
      * Cryptographically verifies package name, version, and developer signing certificate.
      */
+    @Suppress("DEPRECATION")
     private fun verifyApk(apkFile: File, expectedVersionCode: Long): Boolean {
         return try {
             val pm = context.packageManager

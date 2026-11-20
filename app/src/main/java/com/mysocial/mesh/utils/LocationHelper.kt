@@ -42,6 +42,16 @@ object LocationHelper {
     }
 
     /**
+     * Checks if high-accuracy fine location permission is granted.
+     */
+    fun hasFineLocationPermission(context: Context): Boolean {
+        return ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    /**
      * Retrieves the device's last known location using GPS, Network, or Passive providers.
      * Selects the most accurate/recent location available.
      */
@@ -85,6 +95,7 @@ object LocationHelper {
         val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
 
         val last = getLastKnownLocation(context)
+        val hasFine = hasFineLocationPermission(context)
 
         return withTimeoutOrNull(timeoutMs) {
             suspendCancellableCoroutine { cont ->
@@ -106,11 +117,25 @@ object LocationHelper {
 
                 try {
                     val looper = Looper.getMainLooper()
-                    if (lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                        lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 0f, listener, looper)
-                    } else if (lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-                        lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 1000L, 0f, listener, looper)
-                    } else {
+                    var registeredAny = false
+
+                    // If fine location is permitted and GPS is enabled, request satellite fixes
+                    if (hasFine && lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                        try {
+                            lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 0f, listener, looper)
+                            registeredAny = true
+                        } catch (_: SecurityException) {}
+                    }
+
+                    // Concurrently request network provider for fast coarse / indoor location
+                    if (lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+                        try {
+                            lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 1000L, 0f, listener, looper)
+                            registeredAny = true
+                        } catch (_: SecurityException) {}
+                    }
+
+                    if (!registeredAny) {
                         if (cont.isActive) cont.resume(last)
                         return@suspendCancellableCoroutine
                     }
@@ -203,7 +228,9 @@ object LocationHelper {
             }
             context.startActivity(mapIntent)
         } catch (_: Exception) {
-            Toast.makeText(context, "No map application available to view location", Toast.LENGTH_SHORT).show()
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                Toast.makeText(context, "No map application available to view location", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 }

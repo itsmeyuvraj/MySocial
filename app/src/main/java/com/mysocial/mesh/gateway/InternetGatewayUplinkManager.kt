@@ -108,7 +108,15 @@ class InternetGatewayUplinkManager(
 
         for (post in pendingPosts) {
             try {
-                val success = uploadSosToCloud(post.entryHash, post.authorId, post.text, post.timestamp)
+                val success = uploadSosToCloud(
+                    entryHash = post.entryHash,
+                    authorId = post.authorId,
+                    text = post.text,
+                    timestamp = post.timestamp,
+                    locationName = post.locationName,
+                    latitude = post.latitude,
+                    longitude = post.longitude
+                )
                 if (success) {
                     // 1. Mark as relayed locally in posts_view
                     db.postViewDao().markGatewayRelayed(post.entryHash, now)
@@ -141,7 +149,10 @@ class InternetGatewayUplinkManager(
         entryHash: String,
         authorId: String,
         text: String,
-        timestamp: Long
+        timestamp: Long,
+        locationName: String? = null,
+        latitude: Double? = null,
+        longitude: Double? = null
     ): Boolean {
         // Try real HTTP POST to gateway endpoint; if network is restricted or simulated, succeed gracefully
         var connection: HttpURLConnection? = null
@@ -155,7 +166,16 @@ class InternetGatewayUplinkManager(
                 setRequestProperty("Content-Type", "application/json")
             }
             connection = conn
-            val jsonBody = """{"entryHash":"$entryHash","authorId":"$authorId","text":${org.json.JSONObject.quote(text)},"timestamp":$timestamp}"""
+            val json = org.json.JSONObject().apply {
+                put("entryHash", entryHash)
+                put("authorId", authorId)
+                put("text", text)
+                put("timestamp", timestamp)
+                if (!locationName.isNullOrBlank()) put("locationName", locationName)
+                if (latitude != null) put("latitude", latitude)
+                if (longitude != null) put("longitude", longitude)
+            }
+            val jsonBody = json.toString()
             conn.outputStream.use { it.write(jsonBody.toByteArray(Charsets.UTF_8)) }
             val code = conn.responseCode
             code in 200..299

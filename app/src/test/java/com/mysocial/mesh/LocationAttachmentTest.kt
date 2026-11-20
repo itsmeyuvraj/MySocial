@@ -212,4 +212,64 @@ class LocationAttachmentTest {
         assertNull(vm.locationAttachment.value)
         assertFalse(vm.isAcquiringLocation.value)
     }
+
+    @Test
+    fun testLocationHelperPermissionChecks() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val hasPermission = LocationHelper.hasLocationPermission(context)
+        val hasFine = LocationHelper.hasFineLocationPermission(context)
+        assertEquals(hasPermission, hasFine)
+    }
+
+    @Test
+    fun testIncomingSosPostTriggersNotification() = runBlocking {
+        val senderCrypto = CryptoManager.createInMemory(seed = ByteArray(32) { 99 })
+        val loc = LocationAttachment("Camp 4", 37.742, -119.603)
+        val payload = PostPayload(
+            text = "Need medical assistance near the rocks",
+            isSos = true,
+            location = loc
+        ).toJson()
+
+        val now = System.currentTimeMillis()
+        val canonical = CryptoManager.buildCanonicalPayload(
+            authorId = senderCrypto.authorId,
+            sequence = 1L,
+            previousHash = null,
+            timestamp = now,
+            contentType = ContentType.POST.name,
+            contentJson = payload
+        )
+        val sig = senderCrypto.sign(canonical)
+        val hash = CryptoManager.computeEntryHash(
+            authorId = senderCrypto.authorId,
+            sequence = 1L,
+            previousHash = null,
+            timestamp = now,
+            contentType = ContentType.POST.name,
+            contentJson = payload,
+            signature = sig
+        )
+
+        val entry = LogEntry(
+            authorId = senderCrypto.authorId,
+            sequence = 1L,
+            previousHash = null,
+            timestamp = now,
+            contentType = ContentType.POST,
+            contentJson = payload,
+            signature = sig,
+            entryHash = hash
+        )
+
+        val result = db.insertAndProjectBatch(listOf(entry))
+        assertEquals(1, result.acceptedCount)
+
+        val projected = db.postViewDao().getPost(hash)
+        assertNotNull(projected)
+        assertTrue(projected?.isSos == true)
+        assertEquals("Camp 4", projected?.locationName)
+        assertEquals(37.742, projected?.latitude ?: 0.0, 0.001)
+        assertEquals(-119.603, projected?.longitude ?: 0.0, 0.001)
+    }
 }

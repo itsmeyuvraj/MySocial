@@ -679,6 +679,20 @@ object LogProjector {
                     )
                 )
 
+                // High-priority audio/vibration notification for incoming emergency SOS alerts across BLE & Wi-Fi mesh
+                if (payload.isSos && entry.authorId != db.cryptoManager?.authorId) {
+                    db.appContext?.let { ctx ->
+                        val profile = db.profileDao().getProfile(entry.authorId)
+                        val authorName = profile?.displayName?.takeIf { it.isNotBlank() } ?: "Nearby Peer"
+                        val locationSuffix = payload.location?.name?.let { " at $it" } ?: ""
+                        com.mysocial.mesh.utils.PeerNotificationHelper.notifySosEmergency(
+                            context = ctx,
+                            authorName = "$authorName$locationSuffix",
+                            text = payload.text
+                        )
+                    }
+                }
+
                 if (media != null) {
                     val existingManifest = db.blobDao().getManifest(media.blobHash)
                     if (existingManifest == null) {

@@ -254,7 +254,11 @@ fun PostCard(
 
                 AnimatedVisibility(visible = showSosRadar) {
                     Column(modifier = Modifier.padding(top = 4.dp)) {
-                        CompassRadarView(senderAuthorId = authorId)
+                        CompassRadarView(
+                            senderAuthorId = authorId,
+                            targetLatitude = post.latitude,
+                            targetLongitude = post.longitude
+                        )
                         Spacer(modifier = Modifier.height(4.dp))
                     }
                 }
@@ -324,16 +328,17 @@ fun PostCard(
                                     )
                                 }
                         ) {
+                            val locationTint = if (post.isSos) FbRed else FacebookBlue
                             Icon(
                                 imageVector = Icons.Filled.LocationOn,
                                 contentDescription = "Location",
-                                tint = FacebookBlue,
+                                tint = locationTint,
                                 modifier = Modifier.size(13.dp)
                             )
                             Spacer(modifier = Modifier.width(3.dp))
                             Text(
                                 text = post.locationName,
-                                color = FacebookBlue,
+                                color = locationTint,
                                 fontSize = 11.5.sp,
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1,

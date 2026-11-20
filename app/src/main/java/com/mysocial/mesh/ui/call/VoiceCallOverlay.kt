@@ -28,14 +28,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
-import androidx.compose.material.icons.filled.VolumeOff
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -425,7 +425,7 @@ fun ActiveCallSheet(
                         .border(1.dp, if (isSpeakerphone) FacebookBlue else FbBorder, CircleShape)
                 ) {
                     Icon(
-                        imageVector = if (isSpeakerphone) Icons.Filled.VolumeUp else Icons.Filled.VolumeOff,
+                        imageVector = if (isSpeakerphone) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff,
                         contentDescription = "Speaker",
                         tint = if (isSpeakerphone) FacebookBlue else FbTextPrimary,
                         modifier = Modifier.size(24.dp)

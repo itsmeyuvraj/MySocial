@@ -162,7 +162,7 @@ class BleVoiceCallManager(
 
     private val bluetoothAdapter: BluetoothAdapter? by lazy {
         val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager
-        manager?.adapter ?: BluetoothAdapter.getDefaultAdapter()
+        manager?.adapter ?: @Suppress("DEPRECATION") BluetoothAdapter.getDefaultAdapter()
     }
 
     private var sessionAesKey: SecretKeySpec? = null
